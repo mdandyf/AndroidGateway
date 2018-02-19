@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.content.Context;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -13,14 +14,30 @@ import java.util.Set;
  * Created by mdand on 2/19/2018.
  */
 
-public class BluetoothDataImpl implements BluetoothData {
+public class BluetoothImpl implements Bluetooth {
+    private Context context;
     private BluetoothAdapter mBluetoothAdapter;
     private BluetoothLeAdvertiser mBleAdvertiser;
     private Set<BluetoothDevice> scanDevices;
     private BluetoothLeScanner mBluetoothLe;
+
+
+
     private BluetoothGatt mBluetoothGatt;
     private HashSet<String> triedDevices;
     private float deviceCounter;
+
+    public BluetoothImpl(){}
+
+    @Override
+    public void setContext(Context input) {
+        this.context = input;
+    }
+
+    @Override
+    public Context getContext() {
+        return context;
+    }
 
     @Override
     public void setBluetoothAdapter(BluetoothAdapter input) {

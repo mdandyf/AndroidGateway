@@ -2,7 +2,6 @@ package com.uni.stuttgart.ipvs.androidgateway;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -16,15 +15,16 @@ import android.widget.Toast;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothActivityCharacteristic;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothActivityReadWrite;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothConfigurationManager;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.Bluetooth;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothImpl;
 
 import static android.widget.Toast.LENGTH_SHORT;
 
 public class BluetoothActivity extends AppCompatActivity {
 
-    protected BluetoothAdapter mBluetoothAdapter;
-    protected BluetoothConfigurationManager bluetooth;
-    protected Context mContext;
-    protected android.content.res.Resources res;
+    private BluetoothConfigurationManager bluetoothConfig;
+    private Bluetooth bluetooth;
+
     private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
 
     @Override
@@ -35,10 +35,16 @@ public class BluetoothActivity extends AppCompatActivity {
         BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
 
-        mContext = getApplicationContext();
-        res = getResources();
-        bluetooth = new BluetoothConfigurationManager();
-        bluetooth.getBluetoothAdapter();
+        bluetooth = new BluetoothImpl();
+        bluetooth.setContext(getApplicationContext());
+
+        bluetoothConfig = new BluetoothConfigurationManager();
+        bluetooth.setBluetoothAdapter(bluetoothConfig.getBluetoothAdapter());
+        turnBluetooth();
+
+        /*bluetooth.setBleScanner(bluetoothConfig.getBleDevice());
+        bluetoothConfig.setBluetooth(bluetooth);
+        bluetoothConfig.scanBluetooth();*/
 
     }
 
@@ -53,13 +59,7 @@ public class BluetoothActivity extends AppCompatActivity {
             }
         }
 
-        if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
-            Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(turnOn, 0);
-        } else {
-            bluetooth.getBleDevice();
-            Toast.makeText(mContext, "Start Scanning", Toast.LENGTH_SHORT).show();
-        }
+        turnBluetooth();
 
     }
 
@@ -70,7 +70,7 @@ public class BluetoothActivity extends AppCompatActivity {
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     //scanBluetooth();
                 } else {
-                    Toast.makeText(mContext, "Location access is required to scan for Bluetooth devices.", LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), "Location access is required to scan for Bluetooth devices.", LENGTH_SHORT).show();
                     finish();
                 }
             }
@@ -82,6 +82,13 @@ public class BluetoothActivity extends AppCompatActivity {
         super.onStop();
         //disconnect();
         finish();
+    }
+
+    private void turnBluetooth() {
+        if (bluetooth.getBluetoothAdapter() == null || !bluetooth.getBluetoothAdapter().isEnabled()) {
+            Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(turnOn, 0);
+        }
     }
 
     private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
@@ -106,9 +113,5 @@ public class BluetoothActivity extends AppCompatActivity {
             return false;
         }
     };
-
-    public Context getContext() {
-        return mContext;
-    }
 
 }

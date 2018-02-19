@@ -1,14 +1,11 @@
 package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
-import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
 import android.widget.Toast;
@@ -18,49 +15,46 @@ import com.uni.stuttgart.ipvs.androidgateway.BluetoothActivity;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Created by mdand on 2/17/2018.
  */
 
 public class BluetoothConfigurationManager extends BluetoothActivity {
+    private Bluetooth bluetooth;
 
-    protected Set<BluetoothDevice> scanDevices;
-    protected BluetoothLeScanner mBluetoothLe;
-    protected BluetoothGatt mBluetoothGatt;
-    protected HashSet<String> triedDevices;
-    protected float deviceCounter;
 
-    public BluetoothConfigurationManager(){}
+    public BluetoothConfigurationManager(){
+        bluetooth = new BluetoothImpl();
+    }
+
+    public void setBluetooth(Bluetooth input) {
+        this.bluetooth = input;
+    }
 
     public BluetoothAdapter getBluetoothAdapter() {
         if(!checkBluetoothState()) {
-            mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
             Log.d("Ble", "Bluetooth is already on");
-        } else {
-            startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE));
-            Log.d("Ble", "Turning Bluetooth on");
+            return BluetoothAdapter.getDefaultAdapter();
         }
-        return mBluetoothAdapter;
+        return null;
     }
 
-    public void getBleDevice() {
-        mBluetoothLe = mBluetoothAdapter.getBluetoothLeScanner();
-        scanBluetooth();
+    public BluetoothLeScanner getBleDevice() {
+        return getBluetoothAdapter().getBluetoothLeScanner();
     }
 
     private boolean checkBluetoothState() {
         boolean status = true;
-        if ((mBluetoothAdapter == null) || (!mBluetoothAdapter.isEnabled())) {
+        if ((bluetooth.getBluetoothAdapter() == null) || (!bluetooth.getBluetoothAdapter().isEnabled())) {
             status = false;
         }
         return status;
     }
 
-    private void scanBluetooth() {
-        deviceCounter = 0;
-        triedDevices = new HashSet<>();
+    public void scanBluetooth() {
+        bluetooth.setDeviceCounter(0);
+        bluetooth.setTriedDevices(new HashSet<String>());
 
         List<ScanFilter> scanFilters = new ArrayList<>();
 
@@ -74,8 +68,23 @@ public class BluetoothConfigurationManager extends BluetoothActivity {
         ScanSettings scanSettings = settingsBuilder.build();
 
         Log.d("Ble", "start scanning");
+        Toast.makeText(bluetooth.getContext(), "Start Scanning", Toast.LENGTH_SHORT).show();
+        bluetooth.getBleScanner().startScan(scanFilters, scanSettings, scanCallback);
+    }
 
-        mBluetoothLe.startScan(scanFilters, scanSettings, scanCallback);
+    private void disconnect() {
+        Log.d("Ble", "disconnect bluetooth");
+
+        if (bluetooth.getBleScanner() != null) {
+            bluetooth.getBleScanner().stopScan(scanCallback);
+        }
+
+        if (bluetooth.getBluetoothGatt() != null) {
+            bluetooth.getBluetoothGatt().disconnect();
+        }
+
+        bluetooth.setBleScanner(null);
+        bluetooth.setBluetoothGatt(null);
 
     }
 
@@ -99,7 +108,7 @@ public class BluetoothConfigurationManager extends BluetoothActivity {
         @Override
         public void onScanFailed(int errorCode) {
             super.onScanFailed(errorCode);
-            Toast.makeText(mContext, String.format("Scanning failed (%d)", errorCode), Toast.LENGTH_SHORT).show();
+            Toast.makeText(bluetooth.getContext(), String.format("Scanning failed (%d)", errorCode), Toast.LENGTH_SHORT).show();
             finish();
         }
 
@@ -107,12 +116,11 @@ public class BluetoothConfigurationManager extends BluetoothActivity {
             Log.d("Ble", result.getDevice().getAddress());
             Log.d("Ble", String.valueOf(result.getRssi()));
             //BLE.stopScan(scanCallback);
-            if (mBluetoothGatt == null) {
-                synchronized (triedDevices) {
-                    if (!triedDevices.contains(result.getDevice().getAddress())) {
-                        triedDevices.add(result.getDevice().getAddress());
-                        MyBluetoothGattCallback mBleCallback = new MyBluetoothGattCallback();
-                        result.getDevice().connectGatt(mContext, false, mBleCallback.getGattCallback());
+            if (bluetooth.getBluetoothGatt() == null) {
+                synchronized (bluetooth.getTriedDevices()) {
+                    if (!bluetooth.getTriedDevices().contains(result.getDevice().getAddress())) {
+                        bluetooth.getTriedDevices().add(result.getDevice().getAddress());
+                        result.getDevice().connectGatt(bluetooth.getContext(), false, new MyBluetoothGattCallback(bluetooth));
 
                     }
                 }
