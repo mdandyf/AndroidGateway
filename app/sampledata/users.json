@@ -1,0 +1,14 @@
+{
+  "users": [
+    {
+      "name":"mochamad.dandy@gmail.com",
+      "password":"test",
+      "role":"admin"
+    },
+    {
+      "name":"user",
+      "password":"user",
+      "role":"admin"
+    }
+  ]
+}
