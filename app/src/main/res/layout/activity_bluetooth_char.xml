@@ -5,7 +5,7 @@
     android:id="@+id/container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.uni.stuttgart.ipvs.androidgateway.BluetoothActivity">
+    tools:context="com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothActivity">
 
     <android.support.design.widget.BottomNavigationView
         android:id="@+id/navigation"
@@ -36,10 +36,9 @@
                 android:id="@+id/textView2"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignParentStart="true"
-                android:layout_alignParentTop="true"
+                android:textAlignment="center"
                 android:text="@string/title_select_bluetooth"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
+                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
 
             <Spinner
                 android:id="@+id/spinner"

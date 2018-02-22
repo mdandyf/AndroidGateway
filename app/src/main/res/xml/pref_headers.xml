@@ -8,6 +8,11 @@
         android:title="@string/pref_header_general" />
 
     <header
+        android:fragment="com.uni.stuttgart.ipvs.androidgateway.settings.SettingsActivity$GeneralPreferenceFragment"
+        android:icon="@drawable/ic_bluetooth_icon_black"
+        android:title="@string/pref_header_bluetooth" />
+
+    <!--<header
         android:fragment="com.uni.stuttgart.ipvs.androidgateway.settings.SettingsActivity$NotificationPreferenceFragment"
         android:icon="@drawable/ic_notifications_black_24dp"
         android:title="@string/pref_header_notifications" />
@@ -15,6 +20,6 @@
     <header
         android:fragment="com.uni.stuttgart.ipvs.androidgateway.settings.SettingsActivity$DataSyncPreferenceFragment"
         android:icon="@drawable/ic_sync_black_24dp"
-        android:title="@string/pref_header_data_sync" />
+        android:title="@string/pref_header_data_sync" />-->
 
 </preference-headers>

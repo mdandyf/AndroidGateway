@@ -3,11 +3,21 @@ package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanResult;
 import android.content.Context;
+import android.os.Parcel;
+import android.os.Parcelable;
 
+import org.json.JSONArray;
+
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -20,12 +30,13 @@ public class BluetoothImpl implements Bluetooth {
     private BluetoothLeAdvertiser mBleAdvertiser;
     private Set<BluetoothDevice> scanDevices;
     private BluetoothLeScanner mBluetoothLe;
-
-
-
     private BluetoothGatt mBluetoothGatt;
+    private ScanResult mBleDevice;
+    private Map<BluetoothGatt, List<BluetoothGattService>> mBleService;
+    private Map<BluetoothGatt, BluetoothGattCharacteristic> mBleCharacteristic;
     private HashSet<String> triedDevices;
     private float deviceCounter;
+    private JSONArray json;
 
     public BluetoothImpl(){}
 
@@ -109,4 +120,49 @@ public class BluetoothImpl implements Bluetooth {
         return deviceCounter;
     }
 
+    @Override
+    public void setBluetoothService(BluetoothGatt gatt, List<BluetoothGattService> input) {
+        if(mBleService == null) {
+            mBleService = new HashMap<>();
+            mBleService.put(gatt, input);
+        } else {
+            mBleService.put(gatt, input);
+        }
+    }
+
+    @Override
+    public Map<BluetoothGatt, List<BluetoothGattService>> getBluetoothService() {
+        return mBleService;
+    }
+
+
+    @Override
+    public void setBluetoothCharacteristic(BluetoothGatt gatt, BluetoothGattCharacteristic input) {
+        if(mBleCharacteristic == null) {
+            mBleCharacteristic = new HashMap<>();
+            mBleCharacteristic.put(gatt, input);
+        }
+    }
+
+    @Override
+    public Map<BluetoothGatt, BluetoothGattCharacteristic> getBluetoothCharacteristic() {
+        return mBleCharacteristic;
+    }
+
+    @Override
+    public void setBluetoothDevice(ScanResult input) {
+        mBleDevice = input;
+    }
+
+    @Override
+    public ScanResult getBluetoothDevice() {
+        return mBleDevice;
+    }
+
+
+    @Override
+    public void setJsonData(JSONArray json) {this.json = json;}
+
+    @Override
+    public JSONArray getJsonData() {return json;}
 }

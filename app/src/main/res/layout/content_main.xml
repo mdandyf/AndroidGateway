@@ -28,8 +28,9 @@
                 android:id="@+id/imageViewGateway"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
                 android:layout_alignParentTop="true"
-                android:layout_alignStart="@+id/textViewBluetooth"
+                android:layout_marginStart="42dp"
                 android:scaleType="fitXY"
                 app:srcCompat="@drawable/gateway" />
 
@@ -37,11 +38,12 @@
                 android:id="@+id/textViewGateway"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_alignEnd="@+id/imageViewGateway"
                 android:layout_alignStart="@+id/imageViewGateway"
                 android:layout_below="@+id/imageViewGateway"
                 android:text="@string/text_gateway"
                 android:textAlignment="center"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large"
+                android:textColor="@color/colorBlack"
                 tools:layout_editor_absoluteX="65dp"
                 tools:layout_editor_absoluteY="156dp" />
 
@@ -63,10 +65,12 @@
                 android:layout_height="wrap_content"
                 android:layout_alignBaseline="@+id/textViewGateway"
                 android:layout_alignBottom="@+id/textViewGateway"
+                android:layout_alignEnd="@+id/imageViewDatabase"
                 android:layout_alignStart="@+id/imageViewDatabase"
                 android:text="@string/text_database"
                 android:textAlignment="center"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
+                android:textColor="@color/colorBlack"
+                android:textSize="15dp"/>
 
             <ImageView
                 android:id="@+id/imageViewCloud"
@@ -85,17 +89,6 @@
                 app:srcCompat="@drawable/bluetooth" />
 
             <TextView
-                android:id="@+id/textViewBluetooth"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentStart="true"
-                android:layout_below="@+id/imageViewBluetooth"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="23dp"
-                android:text="@string/text_ble"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
-
-            <TextView
                 android:id="@+id/textViewCloud"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -104,14 +97,15 @@
                 android:layout_below="@+id/imageViewCloud"
                 android:text="@string/text_cloud"
                 android:textAlignment="center"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
+                android:textColor="@color/colorBlack"
+                android:textSize="15dp"/>
 
             <ImageView
                 android:id="@+id/imageViewBattery"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignStart="@+id/imageViewBluetooth"
-                android:layout_below="@+id/textViewSpc3"
+                android:layout_below="@+id/textViewSpc4"
+                android:layout_toEndOf="@+id/textViewSpc1"
                 app:srcCompat="@drawable/battery" />
 
             <ImageView
@@ -131,7 +125,8 @@
                 android:layout_below="@+id/imageViewBattery"
                 android:text="@string/text_battery"
                 android:textAlignment="center"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
+                android:textColor="@color/colorBlack"
+                android:textSize="15dp"/>
 
             <TextView
                 android:id="@+id/textViewSettings"
@@ -143,7 +138,8 @@
                 android:contentDescription="@android:style/TextAppearance.DeviceDefault.Large"
                 android:text="@string/text_settings"
                 android:textAlignment="center"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
+                android:textColor="@color/colorBlack"
+                android:textSize="15dp"/>
 
             <TextView
                 android:id="@+id/textViewSpc1"
@@ -163,7 +159,6 @@
                 android:id="@+id/textViewSpc3"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_below="@+id/textViewBluetooth"
                 android:layout_toEndOf="@+id/textViewSpc1" />
 
             <TextView
@@ -172,6 +167,18 @@
                 android:layout_height="wrap_content"
                 android:layout_alignStart="@+id/imageViewCloud"
                 android:layout_below="@+id/textViewCloud" />
+
+            <TextView
+                android:id="@+id/textView3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignEnd="@+id/imageViewBluetooth"
+                android:layout_below="@+id/imageViewBluetooth"
+                android:layout_toEndOf="@+id/textViewSpc1"
+                android:text="@string/title_activity_bluetooth_list"
+                android:textAlignment="center"
+                android:textColor="@color/colorBlack"
+                android:textSize="15dp"/>
 
 
         </RelativeLayout>

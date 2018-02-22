@@ -11,7 +11,6 @@ import android.support.design.widget.BottomNavigationView;
 import android.support.v7.app.AppCompatActivity;
 import android.view.MenuItem;
 
-import com.uni.stuttgart.ipvs.androidgateway.BluetoothActivity;
 import com.uni.stuttgart.ipvs.androidgateway.R;
 
 public class BluetoothActivityReadWrite extends AppCompatActivity {

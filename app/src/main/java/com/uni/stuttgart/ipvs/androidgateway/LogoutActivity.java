@@ -3,18 +3,19 @@ package com.uni.stuttgart.ipvs.androidgateway;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
+import android.support.v7.app.AlertDialog;
 import android.view.View;
 
 /**
  * Created by mdand on 2/19/2018.
  */
 
-public class LogoutActivity extends AppCompatActivity {
+public class LogoutActivity extends Activity {
 
     private View mProgressView;
 
@@ -26,23 +27,30 @@ public class LogoutActivity extends AppCompatActivity {
 
         mProgressView = findViewById(R.id.logout_progress);
 
-        DialogInterface.OnClickListener dialogClickListener = new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                switch (which){
-                    case DialogInterface.BUTTON_POSITIVE:
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
+        alertDialogBuilder.setMessage("Are you sure, You wanted to Log out");
+        alertDialogBuilder.setPositiveButton("yes",
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int arg1) {
                         showProgress(true);
                         startActivity(new Intent(getApplicationContext(), LoginActivity.class));
+                        dialog.dismiss();
                         finish();
-                        break;
-
-                    case DialogInterface.BUTTON_NEGATIVE:
-                        showProgress(false);
-                        finish();
-                        break;
-                }
+                    }
+                });
+        alertDialogBuilder.setNegativeButton("No", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                showProgress(false);
+                startActivity(new Intent(getApplicationContext(), MainActivity.class));
+                dialog.dismiss();
+                finish();
             }
-        };
+        });
+
+        AlertDialog alertDialog = alertDialogBuilder.create();
+        alertDialog.show();
     }
 
     /**
