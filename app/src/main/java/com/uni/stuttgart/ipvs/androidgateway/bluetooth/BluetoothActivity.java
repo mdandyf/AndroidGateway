@@ -376,7 +376,17 @@ public class BluetoothActivity extends AppCompatActivity {
                     child.add("Status: connected");
                     child.add("Services discovered: ");
                     for (BluetoothGattService ser : service) {
-                        child.add(ser.getUuid().toString() + " - " + BluetoothGattLookUp.serviceNameLookup(ser.getUuid()));
+                        child.add("Service : " + ser.getUuid().toString() + " - " + BluetoothGattLookUp.serviceNameLookup(ser.getUuid()));
+                        List<BluetoothGattCharacteristic> characteristics = ser.getCharacteristics();
+                        for(BluetoothGattCharacteristic cha : characteristics) {
+                            child.add("Characteristic: " + BluetoothGattLookUp.characteristicNameLookup(cha.getUuid()));
+                            if(cha.getValue() != null) {child.add("Read Value: " + cha.getStringValue(0));}
+                            else if(cha.getStringValue(0) != null) {child.add("Read Value: " + cha.getStringValue(0));}
+                            else if(cha.getUuid() != null) {child.add("Read Value: " + BluetoothGattLookUp.characteristicNameLookup(cha.getUuid()));}
+                            else if(cha.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) != null) {child.add("Read Value: " + cha.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));}
+                            else if(cha.getFloatValue(BluetoothGattCharacteristic.FORMAT_FLOAT, 0) != null) {child.add("Read Value: " + cha.getFloatValue(BluetoothGattCharacteristic.FORMAT_FLOAT, 0));}
+                            else {child.add("== end of values ==");}
+                        }
                     }
                 }
             case 3:
@@ -384,6 +394,8 @@ public class BluetoothActivity extends AppCompatActivity {
                     child.add("Status: connected");
                     child.add("Characteristic: " + BluetoothGattLookUp.characteristicNameLookup(characteristic.getUuid()));
                     child.add("Value: " + characteristic.getStringValue(0));
+                } else {
+
                 }
 
 

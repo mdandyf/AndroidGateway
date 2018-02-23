@@ -177,7 +177,7 @@ public class BluetoothGattLookUp {
 
     public static String serviceNameLookup(UUID uuid) {
         String service = services.get(uuid);
-        return (service==null) ? uuid.toString() : service;
+        return (service==null) ? "unknown" : service;
     }
 
     public static String characteristicNameLookup(UUID uuid) {
