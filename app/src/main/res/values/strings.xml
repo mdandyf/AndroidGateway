@@ -37,7 +37,7 @@
     <string name="title_activity_bluetooth">Bluetooth Low Energy</string>
     <string name="title_activity_bluetooth_list">BLE Device</string>
     <string name="title_activity_bluetooth_characteristic">Characteristic</string>
-    <string name="title_activity_bluetooth_rw">Read/Write</string>
+    <string name="title_activity_bluetooth_rw">R/W Characteristic</string>
     <string name="title_select_bluetooth">Select BLE Device: </string>
     <string name="title_activity_settings">Settings</string>
     <string name="text_ble_devices">List of BLE devices: </string>

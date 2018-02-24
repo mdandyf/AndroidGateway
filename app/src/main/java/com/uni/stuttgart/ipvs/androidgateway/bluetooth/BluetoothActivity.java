@@ -169,9 +169,9 @@ public class BluetoothActivity extends AppCompatActivity {
                 case R.id.navigation_home:
                     startActivity(new Intent(getApplicationContext(), BluetoothActivity.class));
                     return true;
-                case R.id.navigation_dashboard:
+                /*case R.id.navigation_dashboard:
                     startActivity(new Intent(getApplicationContext(), BluetoothActivityCharacteristic.class));
-                    return true;
+                    return true;*/
                 case R.id.navigation_notifications:
                     startActivity(new Intent(getApplicationContext(), BluetoothActivityReadWrite.class));
                     return true;

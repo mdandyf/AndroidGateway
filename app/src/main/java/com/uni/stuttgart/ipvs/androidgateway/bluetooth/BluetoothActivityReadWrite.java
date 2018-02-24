@@ -25,10 +25,10 @@ public class BluetoothActivityReadWrite extends AppCompatActivity {
                     startActivity(new Intent(getApplicationContext(), BluetoothActivity.class));
                     finish();
                     return true;
-                case R.id.navigation_dashboard:
+                /*case R.id.navigation_dashboard:
                     startActivity(new Intent(getApplicationContext(), BluetoothActivityCharacteristic.class));
                     finish();
-                    return true;
+                    return true;*/
                 case R.id.navigation_notifications:
                     startActivity(new Intent(getApplicationContext(), BluetoothActivityReadWrite.class));
                     finish();
