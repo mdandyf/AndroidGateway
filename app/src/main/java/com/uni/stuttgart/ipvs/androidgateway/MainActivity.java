@@ -11,7 +11,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ImageView;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothActivity;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeActivity;
 import com.uni.stuttgart.ipvs.androidgateway.settings.SettingsActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -55,7 +55,7 @@ public class MainActivity extends AppCompatActivity {
         imageBle.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                startActivity(new Intent(getApplicationContext(), BluetoothActivity.class));
+                startActivity(new Intent(getApplicationContext(), BluetoothLeActivity.class));
             }
 
         });

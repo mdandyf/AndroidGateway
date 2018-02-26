@@ -55,18 +55,15 @@
             android:name=".LogoutActivity"
             android:label="@string/title_activity_logout" />
         <activity
-            android:name=".bluetooth.BluetoothActivity"
+            android:name=".bluetooth.BluetoothLeActivity"
             android:label="@string/title_activity_bluetooth" />
         <activity
-            android:name=".bluetooth.BluetoothActivityCharacteristic"
-            android:label="@string/title_activity_bluetooth" />
-        <activity
-            android:name=".bluetooth.BluetoothActivityReadWrite"
+            android:name=".bluetooth.BluetoothLeActivityReadWrite"
             android:label="@string/title_activity_bluetooth" />
         <activity
             android:name=".settings.SettingsActivity"
             android:label="@string/title_activity_settings"></activity>
-        <service android:name=".bluetooth.BluetoothService"></service>
+        <service android:name=".bluetooth.BluetoothLeService"></service>
     </application>
 
 </manifest>
