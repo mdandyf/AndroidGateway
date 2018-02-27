@@ -23,6 +23,7 @@ import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.design.widget.Snackbar;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -33,6 +34,10 @@ import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
 import com.uni.stuttgart.ipvs.androidgateway.helper.ExpandableListAdapter;
+import com.uni.stuttgart.ipvs.androidgateway.helper.JsonParser;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,11 +49,11 @@ import java.util.Set;
  * Created by mdand on 2/24/2018.
  */
 
-public class BluetoothLeActivity extends Activity {
+public class BluetoothLeActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
-    private static final int SCAN_PERIOD = 10000;
-    private static final String TAG = "BLE Activity";
+    private static final int SCAN_PERIOD = 10;
+    private static final String TAG = "Bluetooth Activity";
 
     private PowerManager.WakeLock wakeLock;
     private Intent mBleService;
@@ -63,7 +68,7 @@ public class BluetoothLeActivity extends Activity {
     private HashMap<String, List<String>> listDataChild;
 
     private List<BluetoothDevice> scanResults;
-    private Map<BluetoothDevice, List<String>> mapScanResults;
+    private Map<BluetoothDevice, BluetoothJsonData> mapScanResults;
 
     private boolean mBound = false;
 
@@ -88,15 +93,7 @@ public class BluetoothLeActivity extends Activity {
                     listDataHeader = new ArrayList<String>();
                     listDataChild = new HashMap<>();
                     listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
-                    mBluetoothLeScanProcess.scanLeDevice(true);
-                } else if (mBluetoothAdapter == null) {
-                    Toast.makeText(this, "Please turn on bluetooth!", Toast.LENGTH_SHORT).show();
-                }
-                break;
-            case R.id.action_scan:
-                if (mBluetoothAdapter != null && mBluetoothLeScanProcess != null) {
-                    mBluetoothLeScanProcess.scanLeDevice(true);
-                    makeInfoMessage("scanning", SCAN_PERIOD/1000);
+                    makeInfoMessage("scanning bluetooth...", SCAN_PERIOD *1000);
                     Handler mHandler = new Handler();
                     mHandler.postDelayed(new Runnable() {
                         @Override
@@ -107,7 +104,27 @@ public class BluetoothLeActivity extends Activity {
                             mapScanResults = mBluetoothLeScanProcess.getScanProperties();
                             updateUI(scanResults, mapScanResults);
                         }
-                    }, SCAN_PERIOD);
+                    }, SCAN_PERIOD * 1000);
+                    mBluetoothLeScanProcess.scanLeDevice(true);
+                } else if (mBluetoothAdapter == null) {
+                    Toast.makeText(this, "Please turn on bluetooth!", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case R.id.action_scan:
+                if (mBluetoothAdapter != null && mBluetoothLeScanProcess != null) {
+                    makeInfoMessage("scanning bluetooth...", SCAN_PERIOD * 1000);
+                    Handler mHandler = new Handler();
+                    mHandler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            scanResults = new ArrayList<>();
+                            mapScanResults = new HashMap<>();
+                            scanResults = mBluetoothLeScanProcess.getScanResult();
+                            mapScanResults = mBluetoothLeScanProcess.getScanProperties();
+                            updateUI(scanResults, mapScanResults);
+                        }
+                    }, SCAN_PERIOD * 1000);
+                    mBluetoothLeScanProcess.scanLeDevice(true);
                 } else if (mBluetoothAdapter == null) {
                     Toast.makeText(this, "Please turn on bluetooth!", Toast.LENGTH_SHORT).show();
                 }
@@ -160,9 +177,10 @@ public class BluetoothLeActivity extends Activity {
         if (checkBluetoothState()) {
             mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
             mBluetoothLeScanProcess = new BluetoothLeScanProcess();
-            mService = new BluetoothLeService();
             mBluetoothLeScanProcess.setContext(this);
             mBluetoothLeScanProcess.setBluetoothAdapter(mBluetoothAdapter);
+            mBleService = new Intent(this, BluetoothLeService.class);
+            bindService(mBleService, mConnection, Context.BIND_AUTO_CREATE);
         } else {
             Toast.makeText(this, "Please turn on bluetooth!", Toast.LENGTH_SHORT).show();
             return;
@@ -181,8 +199,10 @@ public class BluetoothLeActivity extends Activity {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mService.disconnect();
-        unbindService(mConnection);
+        if(mService != null) {
+            mService.disconnect();
+            unbindService(mConnection);
+        }
         unregisterReceiver(mReceiver);
         wakeLock.release();
         finish();
@@ -311,12 +331,13 @@ public class BluetoothLeActivity extends Activity {
 
     /** Connect to the Gatt Server */
     private void connectGatt() {
-        mBleService = new Intent(this, BluetoothLeService.class);
-        bindService(mBleService, mConnection, Context.BIND_AUTO_CREATE);
-        makeInfoMessage("connecting", SCAN_PERIOD/1000);
-        for(BluetoothDevice device : scanResults) {
-            mBleService.putExtra("bluetoothDevice", device);
-            mService.connect();
+        if(mService != null && mBound) {
+            makeInfoMessage("connecting", SCAN_PERIOD * 1000);
+            for(BluetoothDevice device : scanResults) {
+                mService.connect(device);
+            }
+        } else {
+            Toast.makeText(getApplicationContext(), "Bluetooth Service is not connected", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -327,41 +348,62 @@ public class BluetoothLeActivity extends Activity {
     }
 
     private void setBroadcastResult(Intent intent, String action) {
-        String deviceAddress = intent.getStringExtra("blutoothMac");
-        if(BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
-            //updateUI();
-        } else if(BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
-
-        } else if(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
-
-        } else if(BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
-
-        } else if(BluetoothLeService.EXTRA_DATA.equals(action)) {
-
-        } else if(BluetoothLeService.ACTION_DESCRIPTOR_READ.equals(action)) {
-
-        } else if(BluetoothLeService.ACTION_DESCRIPTOR_WRITE.equals(action)) {
-
+        String jsonData = intent.getStringExtra("bluetoothData");
+        if(jsonData != null) {
+            if(BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
+                JSONObject json = JsonParser.readJsonObjectFromString(jsonData);
+                try {
+                    Toast.makeText(getApplicationContext(), "connected to " + json.get("id"), Toast.LENGTH_SHORT).show();
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            } else if(BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
+                Toast.makeText(getApplicationContext(), "disconnected from " + jsonData, Toast.LENGTH_SHORT).show();
+            } else if(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
+                updateUI(jsonData);
+            } else if(BluetoothLeService.ACTION_READ_RSSI.equals(action)) {
+                updateUI(jsonData);
+            } else if(BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
+                updateUI(jsonData);
+            } else if(BluetoothLeService.EXTRA_DATA.equals(action)) {
+                updateUI(jsonData);
+            } else if(BluetoothLeService.ACTION_DESCRIPTOR_READ.equals(action)) {
+                updateUI(jsonData);
+            } else if(BluetoothLeService.ACTION_DESCRIPTOR_WRITE.equals(action)) {
+                updateUI(jsonData);
+            }
         }
     }
 
-    private void updateUI(List<BluetoothDevice> input, Map<BluetoothDevice, List<String>> properties) {
+    private void updateUI(List<BluetoothDevice> input, Map<BluetoothDevice, BluetoothJsonData> properties) {
         for(BluetoothDevice device : input) {
             List<String> setProperties = new ArrayList<>();
-            setProperties.add("Name : " + device.getName());
-            setProperties.add("Status :" + "disconnected");
-            setProperties.add("Type: " + device.getType());
-            List<String> listProperties = properties.get(device);
-            for(String detail : listProperties) {
-                setProperties.add(detail);
-            }
+            BluetoothJsonData jsonData = properties.get(device);
+            JSONObject object = jsonData.getJsonAdvertising();
+            setProperties.add(object.toString());
             listDataHeader.add(device.getAddress());
             listDataChild.put(device.getAddress(), setProperties);
         }
         listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
+        listView.setAdapter(listAdapter);
     }
 
-    private void updateUI(BluetoothGatt gatt, Map<BluetoothGattService, List<String>> characteristic) {
+    private void updateUI(String jsonData) {
+        JSONObject json = JsonParser.readJsonObjectFromString(jsonData);
+        Log.d(TAG, jsonData);
+        try {
+            String id = json.getString("id");
+            if(listDataHeader.contains(id)) {
+                List<String> setProperties = new ArrayList<>();
+                listDataChild.remove(listDataHeader.indexOf(id));
+                setProperties.add(json.toString());
+                listDataChild.put(id, setProperties);
+                listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
+                listView.setAdapter(listAdapter);
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
 
     }
 

@@ -1,5 +1,6 @@
 package com.uni.stuttgart.ipvs.androidgateway.helper;
 
+import android.os.Parcelable;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -42,6 +43,16 @@ public class JsonParser {
         return json;
     }
 
+    public static JSONObject readJsonObjectFromString(String jsonString) {
+        JSONObject json = null;
+        try {
+            json = new JSONObject(jsonString);
+        } catch (Exception e) {
+            Log.d(LOG, "Error Parsing Json Object");
+        }
+        return json;
+    }
+
     public static JSONArray readJsonArrayFromUrl(String url) {
         JSONArray json = null;
         try {
@@ -62,6 +73,10 @@ public class JsonParser {
             Log.d(LOG, "Error Parsing Json Object");
         }
         return json;
+    }
+
+    public static String readJsonString(JSONObject json) {
+        return json.toString();
     }
 
     private static String readUrl(String url) throws IOException {

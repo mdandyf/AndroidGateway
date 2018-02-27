@@ -12,6 +12,9 @@ import android.os.Handler;
 import android.util.Log;
 import android.widget.Toast;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,7 +26,7 @@ import java.util.Map;
 
 public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
 
-    private static final String TAG = "BLE Scanner";
+    private static final String TAG = "Bluetooth Scanner";
 
     private BluetoothAdapter mBluetoothAdapter;
     private android.bluetooth.le.BluetoothLeScanner mBleScanner;
@@ -34,11 +37,12 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
     private boolean mScanning = false;
 
     private List<BluetoothDevice> listDevices = new ArrayList<>();
-    private Map<BluetoothDevice, List<String>> mapProperties = new HashMap<>();
+    private Map<BluetoothDevice, BluetoothJsonData> mapProperties = new HashMap<>();
 
-    private static final long SCAN_PERIOD = 10000;
+    private static final long SCAN_PERIOD = 10;
 
     public void scanLeDevice(boolean enable) {
+        mBleScanner = mBluetoothAdapter.getBluetoothLeScanner();
         if (enable) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 newScan();
@@ -59,13 +63,19 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
         return this.context;
     }
 
-    public void setBluetoothAdapter(BluetoothAdapter bluetoothAdapter) {this.mBluetoothAdapter = bluetoothAdapter;}
+    public void setBluetoothAdapter(BluetoothAdapter bluetoothAdapter) {
+        this.mBluetoothAdapter = bluetoothAdapter;
+    }
 
-    public boolean getScanState(){return this.mScanning;}
+    public boolean getScanState() {
+        return this.mScanning;
+    }
 
-    public  List<BluetoothDevice> getScanResult() {return this.listDevices;}
+    public List<BluetoothDevice> getScanResult() {
+        return this.listDevices;
+    }
 
-    public Map<BluetoothDevice, List<String>> getScanProperties() {return this.mapProperties;}
+    public Map<BluetoothDevice, BluetoothJsonData> getScanProperties() {return this.mapProperties;}
 
     /**
      * scan using new Scan method
@@ -88,8 +98,9 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
         mHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                mBleScanner.stopScan(scanCallback);
                 Log.d(TAG, "stop scanning after " + SCAN_PERIOD + " seconds");
+                mScanning = false;
+                mBleScanner.stopScan(scanCallback);
             }
         }, (SCAN_PERIOD * 1000));
 
@@ -119,14 +130,11 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
 
     @Override
     public void onLeScan(BluetoothDevice bluetoothDevice, int rssi, byte[] bytes) {
-        List<String> properties = new ArrayList<>();
-       if (!listDevices.contains(bluetoothDevice)) {
+        if (!listDevices.contains(bluetoothDevice)) {
             listDevices.add(bluetoothDevice);
+            BluetoothJsonData json = new BluetoothJsonData(bluetoothDevice, rssi, bytes);
+            mapProperties.put(bluetoothDevice, json);
         }
-
-        properties.add("rssi : " + String.valueOf(rssi));
-
-        mapProperties.put(bluetoothDevice, properties);
     }
 
     private ScanCallback scanCallback = new ScanCallback() {
@@ -152,17 +160,15 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
         }
 
         private void addBluetoothDevice(ScanResult result) {
-            List<String> properties = new ArrayList<>();
-            if (!listDevices.contains(result)) {
+            if (!listDevices.contains(result.getDevice())) {
                 listDevices.add(result.getDevice());
-            }
+                BluetoothJsonData json = new BluetoothJsonData(result.getDevice(), result.getRssi(), 0);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    json = new BluetoothJsonData(result.getDevice(), result.getRssi(), result.getTxPower());
+                }
+                mapProperties.put(result.getDevice(), json);
 
-            properties.add("rssi : " + String.valueOf(result.getRssi()));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                properties.add("Tx power : " + String.valueOf(result.getTxPower()));
             }
-
-            mapProperties.put(result.getDevice(), properties);
         }
     };
 

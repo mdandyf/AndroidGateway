@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.net.wifi.ScanResult;
 import android.net.wifi.aware.Characteristics;
+import android.os.Build;
 import android.support.v7.widget.ThemedSpinnerAdapter;
 import android.util.Base64;
 
@@ -17,6 +18,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -34,9 +37,39 @@ public class BluetoothJsonData extends JsonParser {
     private BluetoothGatt gatt;
     private int rssi;
     private byte[] advertisingData;
+    private int txPowerData;
 
     public BluetoothJsonData(BluetoothDevice device, BluetoothGatt gatt) {
         this.device = device;
+        this.gatt = gatt;
+    }
+
+    public BluetoothJsonData(BluetoothDevice device, BluetoothGatt gatt, int rssi) {
+        this.device = device;
+        this.gatt = gatt;
+        this.rssi = rssi;
+    }
+
+    public BluetoothJsonData(BluetoothDevice device, int rssi, byte[] advertisingData) {
+        this.device = device;
+        this.rssi = rssi;
+        this.advertisingData = advertisingData;
+    }
+
+    public BluetoothJsonData(BluetoothDevice device, int rssi, int txPowerData) {
+        this.device = device;
+        this.rssi = rssi;
+        this.txPowerData = txPowerData;
+    }
+
+    public BluetoothJsonData(String jsonData) {
+        this.jsonData = jsonData;
+    }
+
+    public BluetoothJsonData(BluetoothDevice device, int rssi, byte[] advertisingData, BluetoothGatt gatt) {
+        this.device = device;
+        this.rssi = rssi;
+        this.advertisingData = advertisingData;
         this.gatt = gatt;
     }
 
@@ -45,18 +78,25 @@ public class BluetoothJsonData extends JsonParser {
         JSONObject json = new JSONObject();
 
         try {
-            json.put("name", device.getName());
+            String name = (device.getName() != null) ? device.getName() : "Unknown";
+            json.put("name", name);
             json.put("id", device.getAddress()); // mac address
-            json.put("advertising", byteArrayToJSON(advertisingData));
             json.put("rssi", rssi);
-        } catch (JSONException e) { // this shouldn't happen
+            if(advertisingData != null) {
+                json.put("advertising", byteArrayToJSON(advertisingData));
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                json.put("tx Power", txPowerData);
+            }
+            json.put("status", "disconnected");
+        } catch (JSONException e) {
             e.printStackTrace();
         }
 
         return json;
     }
 
-    public void setJsonData() {
+    public JSONObject getJsonData() {
         jsonObject = getJsonAdvertising();
 
         try {
@@ -66,6 +106,8 @@ public class BluetoothJsonData extends JsonParser {
             jsonObject.put("characteristics", characteristicsArray);
 
             if (gatt != null) {
+                jsonObject.remove("status");
+                jsonObject.put("status", "connected");
                 for (BluetoothGattService service : gatt.getServices()) {
                     servicesArray.put(uuidToString(service.getUuid()));
 
@@ -73,12 +115,15 @@ public class BluetoothJsonData extends JsonParser {
                         JSONObject characteristicsJSON = new JSONObject();
                         characteristicsArray.put(characteristicsJSON);
 
-                        characteristicsJSON.put("service", uuidToString(service.getUuid()));
-                        characteristicsJSON.put("characteristic", uuidToString(characteristic.getUuid()));
+                        characteristicsJSON.put("serviceName", BluetoothGattLookUp.serviceNameLookup(service.getUuid()));
+                        characteristicsJSON.put("serviceUUID", uuidToString(service.getUuid()));
+                        characteristicsJSON.put("characteristicName", BluetoothGattLookUp.characteristicNameLookup(characteristic.getUuid()));
+                        characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
+
                         //characteristicsJSON.put("instanceId", characteristic.getInstanceId());
 
                         characteristicsJSON.put("properties", BluetoothGattHelper.decodeProperties(characteristic));
-                        // characteristicsJSON.put("propertiesValue", characteristic.getProperties());
+                         characteristicsJSON.put("propertiesValue", characteristic.getProperties());
 
                         if (characteristic.getPermissions() > 0) {
                             characteristicsJSON.put("permissions", BluetoothGattHelper.decodePermissions(characteristic));
@@ -108,14 +153,16 @@ public class BluetoothJsonData extends JsonParser {
             e.printStackTrace();
         }
 
+        return jsonObject;
     }
 
-    public JSONObject getJsonData() {
-        return this.jsonObject;
-    }
+    public List<String> getPreparedChildData() {
+        List<String> result = new ArrayList<>();
+        if(jsonData != null) {
+            JSONObject json = readJsonObjectFromString(jsonData);
 
-    public String getJsonDataString() {
-        return this.jsonData;
+        }
+        return result;
     }
 
     private static JSONObject byteArrayToJSON(byte[] bytes) throws JSONException {
