@@ -62,7 +62,7 @@
             android:name=".bluetooth.BluetoothLeActivity"
             android:label="@string/title_activity_bluetooth" />
         <activity
-            android:name=".bluetooth.BluetoothLeActivityReadWrite"
+            android:name=".bluetooth.BluetoothLeActivityRW"
             android:label="@string/title_activity_bluetooth" />
         <activity
             android:name=".settings.SettingsActivity"

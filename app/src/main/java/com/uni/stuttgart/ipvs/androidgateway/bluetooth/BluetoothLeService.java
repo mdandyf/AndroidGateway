@@ -18,6 +18,7 @@ import android.util.Log;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Created by mdand on 2/24/2018.
@@ -37,6 +38,8 @@ public class BluetoothLeService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.bluetoothle.ACTION_READ_RSSI";
     public final static String ACTION_DATA_AVAILABLE =
             "com.uni-stuttgart.ipvs.androidgateway.bluetoothle.ACTION_DATA_AVAILABLE";
+    public final static String ACTION_DATA_WRITE =
+            "com.uni-stuttgart.ipvs.androidgateway.bluetoothle.ACTION_DATA_WRITE";
     public final static String EXTRA_DATA =
             "com.uni-stuttgart.ipvs.androidgateway.bluetoothle.EXTRA_DATA";
     public final static String ACTION_DESCRIPTOR_WRITE =
@@ -46,7 +49,6 @@ public class BluetoothLeService extends Service {
 
 
     private Intent mService;
-    private BluetoothDevice mBluetoothDevice;
     private BluetoothGatt mBluetoothGatt;
     private int mBluetoothRssi;
     private List<BluetoothGatt> listGatt;
@@ -81,15 +83,14 @@ public class BluetoothLeService extends Service {
     public void connect() {
         mConnectionState = STATE_CONNECTING;
         Bundle bundle = mService.getBundleExtra("bluetoothDevice");
-        mBluetoothDevice = (BluetoothDevice) bundle.getParcelable("bluetoothDevice");
-        runThread();
+        BluetoothDevice device = (BluetoothDevice) bundle.getParcelable("bluetoothDevice");
+        runThread(device);
     }
 
     public void connect(BluetoothDevice device) {
         mConnectionState = STATE_CONNECTING;
         Bundle bundle = mService.getBundleExtra("bluetoothDevice");
-        mBluetoothDevice = device;
-        runThread();
+        runThread(device);
     }
 
     public void disconnect() {
@@ -101,11 +102,11 @@ public class BluetoothLeService extends Service {
         }
     }
 
-    private void runThread() {
+    private void runThread(final BluetoothDevice device) {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                mBluetoothGatt = mBluetoothDevice.connectGatt(context,false, mGattCallback);
+                mBluetoothGatt = device.connectGatt(context,false, mGattCallback);
                 listGatt.add(mBluetoothGatt);
                 refreshDeviceCache(mBluetoothGatt);
             }
@@ -135,7 +136,7 @@ public class BluetoothLeService extends Service {
                 Log.i(TAG, "Connected to GATT server.");
                 Log.i(TAG, "Attempting to start service discovery:" +
                         gatt.discoverServices());
-                BluetoothJsonData bleJson = new BluetoothJsonData(device, gatt, mBluetoothRssi);
+                BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_GATT_CONNECTED);
                 String json = bleJson.getJsonData().toString();
                 broadcastUpdate(ACTION_GATT_CONNECTED, json);
                 mConnectionState = STATE_CONNECTED;
@@ -152,7 +153,7 @@ public class BluetoothLeService extends Service {
         public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
             BluetoothDevice device = gatt.getDevice();
             mBluetoothRssi = rssi;
-            BluetoothJsonData bleJson = new BluetoothJsonData(device, gatt, mBluetoothRssi);
+            BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_READ_RSSI);
             String json = bleJson.getJsonData().toString();
             broadcastUpdate(ACTION_READ_RSSI, json);
         }
@@ -163,7 +164,7 @@ public class BluetoothLeService extends Service {
             if(status == BluetoothGatt.GATT_SUCCESS) {
                 BluetoothDevice device = gatt.getDevice();
                 gatt.readRemoteRssi();
-                BluetoothJsonData bleJson = new BluetoothJsonData(device, gatt, mBluetoothRssi);
+                BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_GATT_SERVICES_DISCOVERED);
                 String json = bleJson.getJsonData().toString();
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED, json);
             } else {
@@ -176,7 +177,7 @@ public class BluetoothLeService extends Service {
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicRead(gatt, characteristic, status);
             BluetoothDevice device = gatt.getDevice();
-            BluetoothJsonData bleJson = new BluetoothJsonData(device, gatt, mBluetoothRssi);
+            BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_DATA_AVAILABLE);
             String json = bleJson.getJsonData().toString();
             broadcastUpdate(ACTION_DATA_AVAILABLE, json);
         }
@@ -185,16 +186,16 @@ public class BluetoothLeService extends Service {
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
             BluetoothDevice device = gatt.getDevice();
-            BluetoothJsonData bleJson = new BluetoothJsonData(device, gatt, mBluetoothRssi);
+            BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_DATA_WRITE);
             String json = bleJson.getJsonData().toString();
-            broadcastUpdate(ACTION_DATA_AVAILABLE, json);
+            broadcastUpdate(ACTION_DATA_WRITE, json);
         }
 
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicChanged(gatt, characteristic);
             BluetoothDevice device = gatt.getDevice();
-            BluetoothJsonData bleJson = new BluetoothJsonData(device, gatt, mBluetoothRssi);
+            BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, EXTRA_DATA);
             String json = bleJson.getJsonData().toString();
             broadcastUpdate(EXTRA_DATA, json);
         }

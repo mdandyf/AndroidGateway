@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  * Created by mdand on 2/24/2018.
  */
 
-public class BluetoothJsonData extends JsonParser {
+public class BluetoothJsonDataProcess extends JsonParser {
 
     private String jsonData;
     private JSONObject jsonObject;
@@ -38,42 +38,44 @@ public class BluetoothJsonData extends JsonParser {
     private int rssi;
     private byte[] advertisingData;
     private int txPowerData;
+    private String action;
 
-    public BluetoothJsonData(BluetoothDevice device, BluetoothGatt gatt) {
+    public BluetoothJsonDataProcess(BluetoothDevice device, BluetoothGatt gatt) {
         this.device = device;
         this.gatt = gatt;
     }
 
-    public BluetoothJsonData(BluetoothDevice device, BluetoothGatt gatt, int rssi) {
+    public BluetoothJsonDataProcess(BluetoothDevice device, BluetoothGatt gatt, int rssi, String action) {
         this.device = device;
         this.gatt = gatt;
         this.rssi = rssi;
+        this.action = action;
     }
 
-    public BluetoothJsonData(BluetoothDevice device, int rssi, byte[] advertisingData) {
+    public BluetoothJsonDataProcess(BluetoothDevice device, int rssi, byte[] advertisingData) {
         this.device = device;
         this.rssi = rssi;
         this.advertisingData = advertisingData;
     }
 
-    public BluetoothJsonData(BluetoothDevice device, int rssi, int txPowerData) {
+    public BluetoothJsonDataProcess(BluetoothDevice device, int rssi, int txPowerData) {
         this.device = device;
         this.rssi = rssi;
         this.txPowerData = txPowerData;
     }
 
-    public BluetoothJsonData(String jsonData) {
+    public BluetoothJsonDataProcess(String jsonData) {
         this.jsonData = jsonData;
     }
 
-    public BluetoothJsonData(BluetoothDevice device, int rssi, byte[] advertisingData, BluetoothGatt gatt) {
+    public BluetoothJsonDataProcess(BluetoothDevice device, int rssi, byte[] advertisingData, BluetoothGatt gatt) {
         this.device = device;
         this.rssi = rssi;
         this.advertisingData = advertisingData;
         this.gatt = gatt;
     }
 
-    public JSONObject getJsonAdvertising()  {
+    public JSONObject getJsonAdvertising() {
 
         JSONObject json = new JSONObject();
 
@@ -82,7 +84,7 @@ public class BluetoothJsonData extends JsonParser {
             json.put("name", name);
             json.put("id", device.getAddress()); // mac address
             json.put("rssi", rssi);
-            if(advertisingData != null) {
+            if (advertisingData != null) {
                 json.put("advertising", byteArrayToJSON(advertisingData));
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -119,11 +121,11 @@ public class BluetoothJsonData extends JsonParser {
                         characteristicsJSON.put("serviceUUID", uuidToString(service.getUuid()));
                         characteristicsJSON.put("characteristicName", BluetoothGattLookUp.characteristicNameLookup(characteristic.getUuid()));
                         characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
-
-                        //characteristicsJSON.put("instanceId", characteristic.getInstanceId());
-
+                        if(action.equals(BluetoothLeService.ACTION_DATA_AVAILABLE) || action.equals(BluetoothLeService.EXTRA_DATA)) {
+                            characteristicsJSON.put("characteristicValue", BluetoothGattHelper.decodeCharacteristicValue(characteristic, gatt));
+                        }
                         characteristicsJSON.put("properties", BluetoothGattHelper.decodeProperties(characteristic));
-                         characteristicsJSON.put("propertiesValue", characteristic.getProperties());
+                        characteristicsJSON.put("propertiesValue", characteristic.getProperties());
 
                         if (characteristic.getPermissions() > 0) {
                             characteristicsJSON.put("permissions", BluetoothGattHelper.decodePermissions(characteristic));
@@ -132,14 +134,15 @@ public class BluetoothJsonData extends JsonParser {
 
                         JSONArray descriptorsArray = new JSONArray();
 
-                        for (BluetoothGattDescriptor descriptor: characteristic.getDescriptors()) {
+                        for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
+                            BluetoothGattHelper.propertiesDescriptorWrite(characteristic, gatt);
                             JSONObject descriptorJSON = new JSONObject();
-                            descriptorJSON.put("uuid", uuidToString(descriptor.getUuid()));
-                            descriptorJSON.put("value", descriptor.getValue()); // always blank
+                            descriptorJSON.put("descriptorName", BluetoothGattLookUp.descriptorNameLookup(descriptor.getUuid()));
+                            descriptorJSON.put("descriptorUuid", uuidToString(descriptor.getUuid()));
+                            descriptorJSON.put("descriptorValue", descriptor.getValue());
 
                             if (descriptor.getPermissions() > 0) {
                                 descriptorJSON.put("permissions", BluetoothGattHelper.decodePermissions(descriptor));
-                                // descriptorJSON.put("permissionsValue", descriptor.getPermissions());
                             }
                             descriptorsArray.put(descriptorJSON);
                         }
@@ -158,8 +161,50 @@ public class BluetoothJsonData extends JsonParser {
 
     public List<String> getPreparedChildData() {
         List<String> result = new ArrayList<>();
-        if(jsonData != null) {
+        if (jsonData != null) {
             JSONObject json = readJsonObjectFromString(jsonData);
+            try {
+                result.add("Name: " + json.getString("name"));
+                result.add("Status: " + json.getString("status"));
+                result.add("Rssi: " + String.valueOf(json.getInt("rssi")) + " dBm");
+                if (advertisingData != null) {
+                    result.add("Advertising: " + json.getString("data"));
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    result.add("tx Power :" + String.valueOf(json.getInt("tx power")) + " dBm");
+                }
+
+                if (!json.isNull("services")) {
+                    JSONArray services = json.getJSONArray("services");
+                    result.add("Services: " + services.toString());
+                    if (!json.isNull("characteristics")) {
+                        JSONArray characteristics = json.getJSONArray("characteristics");
+                        for (int i = 0; i < characteristics.length(); i++) {
+                            JSONObject obj = characteristics.getJSONObject(i);
+                            result.add(" Service Name: " + obj.get("serviceName"));
+                            result.add(" Service UUID: " + obj.get("serviceUUID"));
+                            result.add("    Characteristic Name: " + obj.get("characteristicName"));
+                            result.add("    Characteristic UUID: " + obj.get("characteristicUUID"));
+                            if(obj.has("characteristicValue")) {
+                                result.add("    Characteristic Value: " + obj.get("characteristicValue"));
+                            }
+                            result.add("    Property: " + obj.get("properties"));
+                            result.add("    Property Value: " + obj.get("propertiesValue"));
+                            if (!json.isNull("descriptors")) {
+                                JSONArray descriptors = json.getJSONArray("descriptors");
+                                for (int j = 0; j < descriptors.length(); j++) {
+                                    JSONObject objDesc = characteristics.getJSONObject(i);
+                                    result.add("       Descriptor Name: " + objDesc.get("descriptorName"));
+                                    result.add("       Descriptor UUID: " + objDesc.get("descriptorUUID"));
+                                    result.add("       Descriptor Value: " + objDesc.get("descriptorValue"));
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
         }
         return result;

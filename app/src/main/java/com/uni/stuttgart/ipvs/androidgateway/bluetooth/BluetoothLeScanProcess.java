@@ -12,9 +12,6 @@ import android.os.Handler;
 import android.util.Log;
 import android.widget.Toast;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,13 +33,14 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
     private Context context;
     private boolean mScanning = false;
 
-    private List<BluetoothDevice> listDevices = new ArrayList<>();
-    private Map<BluetoothDevice, BluetoothJsonData> mapProperties = new HashMap<>();
+    private List<BluetoothDevice> listDevices;
+    private Map<BluetoothDevice, BluetoothJsonDataProcess> mapProperties = new HashMap<>();
 
     private static final long SCAN_PERIOD = 10;
 
     public void scanLeDevice(boolean enable) {
         mBleScanner = mBluetoothAdapter.getBluetoothLeScanner();
+        listDevices = new ArrayList<>();
         if (enable) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 newScan();
@@ -75,7 +73,7 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
         return this.listDevices;
     }
 
-    public Map<BluetoothDevice, BluetoothJsonData> getScanProperties() {return this.mapProperties;}
+    public Map<BluetoothDevice, BluetoothJsonDataProcess> getScanProperties() {return this.mapProperties;}
 
     /**
      * scan using new Scan method
@@ -132,7 +130,7 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
     public void onLeScan(BluetoothDevice bluetoothDevice, int rssi, byte[] bytes) {
         if (!listDevices.contains(bluetoothDevice)) {
             listDevices.add(bluetoothDevice);
-            BluetoothJsonData json = new BluetoothJsonData(bluetoothDevice, rssi, bytes);
+            BluetoothJsonDataProcess json = new BluetoothJsonDataProcess(bluetoothDevice, rssi, bytes);
             mapProperties.put(bluetoothDevice, json);
         }
     }
@@ -162,9 +160,9 @@ public class BluetoothLeScanProcess implements BluetoothAdapter.LeScanCallback {
         private void addBluetoothDevice(ScanResult result) {
             if (!listDevices.contains(result.getDevice())) {
                 listDevices.add(result.getDevice());
-                BluetoothJsonData json = new BluetoothJsonData(result.getDevice(), result.getRssi(), 0);
+                BluetoothJsonDataProcess json = new BluetoothJsonDataProcess(result.getDevice(), result.getRssi(), 0);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    json = new BluetoothJsonData(result.getDevice(), result.getRssi(), result.getTxPower());
+                    json = new BluetoothJsonDataProcess(result.getDevice(), result.getRssi(), result.getTxPower());
                 }
                 mapProperties.put(result.getDevice(), json);
 

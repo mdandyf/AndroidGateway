@@ -4,7 +4,6 @@ package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
  * Created by mdand on 2/18/2018.
  */
 
-import android.bluetooth.le.BluetoothLeScanner;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -14,7 +13,7 @@ import android.view.MenuItem;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
 
-public class BluetoothLeActivityReadWrite extends AppCompatActivity {
+public class BluetoothLeActivityRW extends AppCompatActivity {
 
     private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
             = new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -31,7 +30,7 @@ public class BluetoothLeActivityReadWrite extends AppCompatActivity {
                     finish();
                     return true;*/
                 case R.id.navigation_notifications:
-                    startActivity(new Intent(getApplicationContext(), BluetoothLeActivityReadWrite.class));
+                    startActivity(new Intent(getApplicationContext(), BluetoothLeActivityRW.class));
                     finish();
                     return true;
             }
