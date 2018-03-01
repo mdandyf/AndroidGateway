@@ -227,7 +227,7 @@ public class BluetoothGattLookUp {
     }
 
     public static String bodySensorLocationLookup(int i) {
-        return bodySensorLocations.get(i);
+        return (bodySensorLocations.get(i) == null) ? "unknown" : bodySensorLocations.get(i);
     }
 
     public static Integer formatLookup(String format) {

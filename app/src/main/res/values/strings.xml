@@ -9,7 +9,7 @@
     <string name="action_logout">Log Out</string>
     <string name="action_scan">Scan</string>
     <string name="action_connect">Connect</string>
-    <string name="action_refresh">Refresh</string>
+    <string name="action_subscribe">Subscribe</string>
 
     <!-- Strings related to login activity -->
     <string name="prompt_email">Email</string>

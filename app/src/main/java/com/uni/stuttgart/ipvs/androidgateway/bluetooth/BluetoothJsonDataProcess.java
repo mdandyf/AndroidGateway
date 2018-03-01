@@ -121,21 +121,20 @@ public class BluetoothJsonDataProcess extends JsonParser {
                         characteristicsJSON.put("serviceUUID", uuidToString(service.getUuid()));
                         characteristicsJSON.put("characteristicName", BluetoothGattLookUp.characteristicNameLookup(characteristic.getUuid()));
                         characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
-                        if(action.equals(BluetoothLeService.ACTION_DATA_AVAILABLE) || action.equals(BluetoothLeService.EXTRA_DATA)) {
+                        if(action.equals(BluetoothLeService.EXTRA_DATA) || action.equals(BluetoothLeService.ACTION_DATA_AVAILABLE)) {
                             characteristicsJSON.put("characteristicValue", BluetoothGattHelper.decodeCharacteristicValue(characteristic, gatt));
                         }
+
                         characteristicsJSON.put("properties", BluetoothGattHelper.decodeProperties(characteristic));
                         characteristicsJSON.put("propertiesValue", characteristic.getProperties());
 
                         if (characteristic.getPermissions() > 0) {
                             characteristicsJSON.put("permissions", BluetoothGattHelper.decodePermissions(characteristic));
-                            // characteristicsJSON.put("permissionsValue", characteristic.getPermissions());
                         }
 
                         JSONArray descriptorsArray = new JSONArray();
 
                         for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
-                            BluetoothGattHelper.propertiesDescriptorWrite(characteristic, gatt);
                             JSONObject descriptorJSON = new JSONObject();
                             descriptorJSON.put("descriptorName", BluetoothGattLookUp.descriptorNameLookup(descriptor.getUuid()));
                             descriptorJSON.put("descriptorUuid", uuidToString(descriptor.getUuid()));

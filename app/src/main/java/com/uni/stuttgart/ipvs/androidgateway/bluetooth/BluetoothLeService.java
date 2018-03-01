@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.Intent;
@@ -15,9 +16,13 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -52,6 +57,7 @@ public class BluetoothLeService extends Service {
     private BluetoothGatt mBluetoothGatt;
     private int mBluetoothRssi;
     private List<BluetoothGatt> listGatt;
+    private int gattCount;
     private int mConnectionState = STATE_DISCONNECTED;
     private Context context;
 
@@ -59,10 +65,13 @@ public class BluetoothLeService extends Service {
     private static final int STATE_CONNECTING = 1;
     private static final int STATE_CONNECTED = 2;
 
-    /** Binder given to clients */
+    /**
+     * Binder given to clients
+     */
     private final IBinder mBinder = new LocalBinder();
 
-    /** Class used for the client Binder.  Because we know this service always
+    /**
+     * Class used for the client Binder.  Because we know this service always
      * runs in the same process as its clients, we don't need to deal with IPC.
      */
 
@@ -77,6 +86,7 @@ public class BluetoothLeService extends Service {
         mService = intent;
         context = this;
         listGatt = new ArrayList<>();
+        gattCount = 0;
         return mBinder;
     }
 
@@ -89,25 +99,35 @@ public class BluetoothLeService extends Service {
 
     public void connect(BluetoothDevice device) {
         mConnectionState = STATE_CONNECTING;
-        Bundle bundle = mService.getBundleExtra("bluetoothDevice");
         runThread(device);
     }
 
     public void disconnect() {
         mConnectionState = STATE_DISCONNECTED;
-        if(listGatt != null) {
-            for(BluetoothGatt gatt : listGatt) {
+        if (listGatt != null) {
+            for (BluetoothGatt gatt : listGatt) {
                 gatt.disconnect();
             }
         }
+    }
+
+    public int getConnectedGattNum() {
+        return gattCount;
+    }
+
+    public List<BluetoothGatt> getConnectedGatt() {
+        return listGatt;
+    }
+
+    public void setBluetoothGatt(BluetoothGatt gatt) {
+        this.mBluetoothGatt = gatt;
     }
 
     private void runThread(final BluetoothDevice device) {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                mBluetoothGatt = device.connectGatt(context,false, mGattCallback);
-                listGatt.add(mBluetoothGatt);
+                mBluetoothGatt = device.connectGatt(context, false, mGattCallback);
                 refreshDeviceCache(mBluetoothGatt);
             }
         };
@@ -117,10 +137,10 @@ public class BluetoothLeService extends Service {
     private void refreshDeviceCache(BluetoothGatt gatt) {
         try {
             Method localMethod = gatt.getClass().getMethod("refresh", new Class[0]);
-            if(localMethod != null) {
+            if (localMethod != null) {
                 boolean bool = ((boolean) localMethod.invoke(gatt, new Object[0]));
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             Log.w("Unhandled Exception", e);
         }
     }
@@ -140,7 +160,8 @@ public class BluetoothLeService extends Service {
                 String json = bleJson.getJsonData().toString();
                 broadcastUpdate(ACTION_GATT_CONNECTED, json);
                 mConnectionState = STATE_CONNECTED;
-
+                listGatt.add(gatt);
+                gattCount++;
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 BluetoothDevice device = gatt.getDevice();
                 Log.i(TAG, "Disconnected from GATT server.");
@@ -161,7 +182,7 @@ public class BluetoothLeService extends Service {
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             super.onServicesDiscovered(gatt, status);
-            if(status == BluetoothGatt.GATT_SUCCESS) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
                 BluetoothDevice device = gatt.getDevice();
                 gatt.readRemoteRssi();
                 BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_GATT_SERVICES_DISCOVERED);
@@ -203,11 +224,7 @@ public class BluetoothLeService extends Service {
         @Override
         public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             super.onDescriptorRead(gatt, descriptor, status);
-/*
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(ACTION_DESCRIPTOR_READ);
-            }
-*/
+
         }
 
         @Override
@@ -222,5 +239,46 @@ public class BluetoothLeService extends Service {
         final Intent intent = new Intent(action);
         intent.putExtra("bluetoothData", data);
         sendBroadcast(intent);
+    }
+
+    protected void writeDescriptorNotify(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
+        BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
+        if (characteristic == null) {
+            Log.d(TAG, "Characteristic " + characteristicUuid.toString() + " not found");
+        } else {
+            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(descriptorUUID);
+            if (descriptor != null) {
+                mBluetoothGatt.readDescriptor(descriptor);
+                mBluetoothGatt.setCharacteristicNotification(characteristic, true);
+                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                mBluetoothGatt.writeDescriptor(descriptor);
+            }
+        }
+    }
+
+    protected void writeDescriptorIndication(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
+
+        BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
+        if (characteristic == null) {
+            Log.d(TAG, "Characteristic " + characteristicUuid.toString() + " not found");
+        } else {
+            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(descriptorUUID);
+            if (descriptor != null) {
+                descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+                mBluetoothGatt.writeDescriptor(descriptor);
+            }
+        }
+    }
+
+    protected void readCharacteristic(UUID serviceUUID, UUID characteristicUuid) {
+        BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
+        if (characteristic == null) {
+            Log.d(TAG, "Characteristic " + characteristicUuid.toString() + " not found");
+        } else {
+            mBluetoothGatt.readCharacteristic(characteristic);
+        }
     }
 }

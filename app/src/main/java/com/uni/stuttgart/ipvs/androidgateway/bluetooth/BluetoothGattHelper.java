@@ -12,6 +12,9 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT16;
+import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT8;
+
 /**
  * Created by mdand on 2/26/2018.
  */
@@ -21,8 +24,7 @@ public class BluetoothGattHelper {
     private static final String CHARACTERISTIC_TEMPERATURE = "2a1c";
     private static final String CHARACTERISTIC_HUMIDITY = "2a6f";
     public final static String CHARACTERISTIC_HEART_RATE = "2a37";
-    public final static String CHARACTERISTIC_BODY_SENSOR_LOCATION = "2a38";
-    public final static String CLIENT_CHARACTERISTIC_CONFIGURATION = "2902";
+    private final static String CHARACTERISTIC_BODY_SENSOR_LOCATION = "2a38";
 
     public static JSONArray decodeProperties(BluetoothGattCharacteristic characteristic) {
 
@@ -55,7 +57,6 @@ public class BluetoothGattHelper {
         }
 
         if ((properties & BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE) != 0x0) {
-            // Android calls this "write with signature", using iOS name for now
             props.put("AuthenticateSignedWrites");
         }
 
@@ -68,7 +69,6 @@ public class BluetoothGattHelper {
 
     public static JSONArray decodePermissions(BluetoothGattCharacteristic characteristic) {
 
-        // NOTE: props strings need to be consistent across iOS and Android
         JSONArray props = new JSONArray();
         int permissions = characteristic.getPermissions();
 
@@ -148,33 +148,17 @@ public class BluetoothGattHelper {
         return props;
     }
 
-    public static void propertiesDescriptorWrite(BluetoothGattCharacteristic characteristic, BluetoothGatt gatt) {
-        JSONArray properties = decodeProperties(characteristic);
-        for (int i = 0; i < properties.length(); i++) {
-            try {
-                String property = properties.getString(i);
-                if (property.equals("Notify")) {
-                    writeDescriptorNotify(characteristic, gatt, BluetoothGattLookUp.shortUUID(CLIENT_CHARACTERISTIC_CONFIGURATION));
-                } else if (property.equals("Indication")) {
-                    writeDescriptorIndication(characteristic, gatt, BluetoothGattLookUp.shortUUID(CLIENT_CHARACTERISTIC_CONFIGURATION));
-                }
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
     public static String decodeCharacteristicValue(BluetoothGattCharacteristic characteristic, BluetoothGatt gatt) {
         String value = "unknown decoding value";
 
         if (characteristic.getUuid().toString().contains(CHARACTERISTIC_HUMIDITY)) {
-            if (!characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0).equals(0)) {
-                final float humidity = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0) / 100f;
+            if (!characteristic.getIntValue(FORMAT_UINT16, 0).equals(0)) {
+                final float humidity = characteristic.getIntValue(FORMAT_UINT16, 0) / 100f;
                 final String humidityString = String.format(Locale.US, "%.1f %%", humidity);
                 return humidityString;
             }
         } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_TEMPERATURE)) {
-            int flags = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+            int flags = characteristic.getIntValue(FORMAT_UINT8, 0);
 
             int offset = ((flags & 0x1) == 0) ? 1 : 5;
             String unit = ((flags & 0x1) == 0) ? "°C" : "°F";
@@ -185,7 +169,7 @@ public class BluetoothGattHelper {
                 return temperatureString;
             }
         } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_HEART_RATE)) {
-            int flag = characteristic.getProperties();
+            /*int flag = characteristic.getProperties();
             int format = -1;
             if ((flag & 0x01) != 0) {
                 format = BluetoothGattCharacteristic.FORMAT_UINT16;
@@ -194,25 +178,42 @@ public class BluetoothGattHelper {
             }
             final int heartRate = characteristic.getIntValue(format, 1);
             final String heartRateString = String.format(Locale.US, "%d %s", heartRate, "bpm");
-            return heartRateString;
-        } /*else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_BODY_SENSOR_LOCATION)) {
-            final int bodyLocation = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 1);
-            return BluetoothGattLookUp.bodySensorLocationLookup(bodyLocation);
-        }*/
+            return heartRateString;*/
+
+            int heartRate = 0;
+            int offset = 1;
+
+            byte[] buf = characteristic.getValue();
+            if (buf != null && buf.length > 1) {
+                // Heart Rate Value Format bit
+                if ((buf[0] & 0x01) != 0) {
+                    Integer v = characteristic.getIntValue(FORMAT_UINT16, offset);
+                    if (v != null) {
+                        heartRate = v;
+                    }
+                    offset += 2;
+                } else {
+                    Integer v = characteristic.getIntValue(FORMAT_UINT8, offset);
+                    if (v != null) {
+                        heartRate = v;
+                    }
+                    offset += 1;
+                }
+
+                final String heartRateString = String.format(Locale.US, "%d %s", heartRate, "bpm");
+                return heartRateString;
+
+            }
+
+        } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_BODY_SENSOR_LOCATION)) {
+            byte[] buf = characteristic.getValue();
+            int offset = 1;
+            if(buf != null && buf.length > 1) {
+                final int bodyLocation = characteristic.getIntValue(FORMAT_UINT8, offset);
+                return BluetoothGattLookUp.bodySensorLocationLookup(bodyLocation);
+            }
+        }
         return value;
-    }
-
-    private static void writeDescriptorNotify(BluetoothGattCharacteristic characteristic, BluetoothGatt gatt, UUID uuid) {
-        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(uuid);
-        gatt.setCharacteristicNotification(characteristic, true);
-        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        gatt.writeDescriptor(descriptor);
-    }
-
-    private static void writeDescriptorIndication(BluetoothGattCharacteristic characteristic, BluetoothGatt gatt, UUID uuid) {
-        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(uuid);
-        descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
-        gatt.writeDescriptor(descriptor);
     }
 
 }
