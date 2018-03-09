@@ -7,10 +7,10 @@
         android:icon="@drawable/list"
         android:title="@string/title_activity_bluetooth_list" />
 
-    <item
+   <!-- <item
         android:id="@+id/navigation_dashboard"
         android:icon="@drawable/ic_dashboard_black_24dp"
-        android:title="@string/title_activity_bluetooth_characteristic" />
+        android:title="@string/title_activity_bluetooth_characteristic" />-->
 
     <item
         android:id="@+id/navigation_notifications"

@@ -111,7 +111,7 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     }
 
     /** change the color of a group to make a difference */
-    public View changeGroupFontColor(int groupPosition,
+    public View changeGroupColor(int groupPosition,
                                      View convertView, int color) {
         String headerTitle = (String) getGroup(groupPosition);
         if (convertView == null) {

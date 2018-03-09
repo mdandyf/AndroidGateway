@@ -13,10 +13,7 @@ import android.view.MenuItem;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
 
-
-public class BluetoothActivityCharacteristic extends AppCompatActivity {
-
-
+public class BluetoothLeActivityRW extends AppCompatActivity {
 
     private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
             = new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -25,15 +22,15 @@ public class BluetoothActivityCharacteristic extends AppCompatActivity {
         public boolean onNavigationItemSelected(@NonNull MenuItem item) {
             switch (item.getItemId()) {
                 case R.id.navigation_home:
-                    startActivity(new Intent(getApplicationContext(), BluetoothActivity.class));
+                    startActivity(new Intent(getApplicationContext(), BluetoothLeActivity.class));
                     finish();
                     return true;
-                case R.id.navigation_dashboard:
+                /*case R.id.navigation_dashboard:
                     startActivity(new Intent(getApplicationContext(), BluetoothActivityCharacteristic.class));
                     finish();
-                    return true;
+                    return true;*/
                 case R.id.navigation_notifications:
-                    startActivity(new Intent(getApplicationContext(), BluetoothActivityReadWrite.class));
+                    startActivity(new Intent(getApplicationContext(), BluetoothLeActivityRW.class));
                     finish();
                     return true;
             }
@@ -44,11 +41,10 @@ public class BluetoothActivityCharacteristic extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_bluetooth_char);
+        setContentView(R.layout.activity_bluetooth_rw);
 
         BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
     }
 
 }
-

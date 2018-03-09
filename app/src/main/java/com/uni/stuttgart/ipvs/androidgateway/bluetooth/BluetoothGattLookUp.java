@@ -3,6 +3,7 @@ package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 import android.bluetooth.BluetoothGattCharacteristic;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.UUID;
 
 /**
@@ -47,6 +48,26 @@ public class BluetoothGattLookUp {
         services.put(shortUUID("181D"), "Weight Scale");
     }
 
+    /** Known GATT Descriptor */
+    private static HashMap<UUID, String> descriptors = new HashMap<UUID, String>();
+    static {
+        descriptors.put(shortUUID("2905"), "Characteristic Aggregate Format");
+        descriptors.put(shortUUID("2900"), "Characteristic Extended Properties");
+        descriptors.put(shortUUID("2904"), "Characteristic Presentation Format");
+        descriptors.put(shortUUID("2901"), "Characteristic User Description");
+        descriptors.put(shortUUID("2902"), "Client Characteristic Configuration");
+        descriptors.put(shortUUID("290B"), "Environmental Sensing Configuration");
+        descriptors.put(shortUUID("290C"), "Environmental Sensing Measurement");
+        descriptors.put(shortUUID("290D"), "Environmental Sensing Trigger Setting");
+        descriptors.put(shortUUID("2907"), "External Report Reference");
+        descriptors.put(shortUUID("2909"), "Number of Digitals");
+        descriptors.put(shortUUID("2908"), "Report Reference");
+        descriptors.put(shortUUID("2903"), "Server Characteristic Configuration");
+        descriptors.put(shortUUID("290E"), "Time Trigger Setting");
+        descriptors.put(shortUUID("2906"), "Valid Range");
+        descriptors.put(shortUUID("290A"), "Value Trigger Setting");
+    }
+
     /** Known GATT Characteristic */
 
     private static HashMap<UUID, String> characteristics = new HashMap<UUID, String>();
@@ -71,6 +92,7 @@ public class BluetoothGattLookUp {
         characteristics.put(shortUUID("2A65"), "Cycling Power Feature");
         characteristics.put(shortUUID("2A63"), "Cycling Power Measurement");
         characteristics.put(shortUUID("2A64"), "Cycling Power Vector");
+        characteristics.put(shortUUID("2A6F"), "Humidity Measurement");
         characteristics.put(shortUUID("2A08"), "Date Time");
         characteristics.put(shortUUID("2A0A"), "Day Date Time");
         characteristics.put(shortUUID("2A09"), "Day of Week");
@@ -155,6 +177,9 @@ public class BluetoothGattLookUp {
         characteristics.put(shortUUID("2A52"), "Record Access Control point (Test Version)");
         characteristics.put(shortUUID("2A3A"), "Removable");
         characteristics.put(shortUUID("2A3B"), "Service Required");
+        characteristics.put(shortUUID("2AA6"), "Central Address Resolution");
+        characteristics.put(shortUUID("2AA8"), "CGM Feature");
+        characteristics.put(shortUUID("2AA7"), "CGM Measurement");
     }
 
     // WRITE TYPES
@@ -173,7 +198,23 @@ public class BluetoothGattLookUp {
         characteristicFormats.put("byte[]", -2);
     }
 
+    private static HashMap<Integer, String> bodySensorLocations = new HashMap<>();
+    static {
+        bodySensorLocations.put(0, "Other");
+        bodySensorLocations.put(1, "Chest");
+        bodySensorLocations.put(2, "Wrist");
+        bodySensorLocations.put(3, "Finger");
+        bodySensorLocations.put(4, "Hand");
+        bodySensorLocations.put(5, "Ear Lobe");
+        bodySensorLocations.put(6, "Foot");
+    }
+
     // PUBLIC LOOKUP FUNCTIONS
+
+    public static String descriptorNameLookup(UUID uuid) {
+        String descriptor = descriptors.get(uuid);
+        return (descriptor==null) ? "unknown" : descriptor;
+    }
 
     public static String serviceNameLookup(UUID uuid) {
         String service = services.get(uuid);
@@ -183,6 +224,10 @@ public class BluetoothGattLookUp {
     public static String characteristicNameLookup(UUID uuid) {
         String characteristic = characteristics.get(uuid);
         return (characteristic==null) ? "unknown" : characteristic;
+    }
+
+    public static String bodySensorLocationLookup(int i) {
+        return (bodySensorLocations.get(i) == null) ? "unknown" : bodySensorLocations.get(i);
     }
 
     public static Integer formatLookup(String format) {
