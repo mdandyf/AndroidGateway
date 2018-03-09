@@ -158,28 +158,19 @@ public class BluetoothGattHelper {
                 return humidityString;
             }
         } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_TEMPERATURE)) {
-            int flags = characteristic.getIntValue(FORMAT_UINT8, 0);
+            byte[] buf = characteristic.getValue();
+            if (buf != null && buf.length > 1) {
+                int flags = characteristic.getIntValue(FORMAT_UINT8, 0);
 
-            int offset = ((flags & 0x1) == 0) ? 1 : 5;
-            String unit = ((flags & 0x1) == 0) ? "°C" : "°F";
+                int offset = ((flags & 0x1) == 0) ? 1 : 5;
+                String unit = ((flags & 0x1) == 0) ? "°C" : "°F";
 
-            if (!characteristic.getFloatValue(BluetoothGattCharacteristic.FORMAT_FLOAT, offset).equals(0)) {
                 float temperature = characteristic.getFloatValue(BluetoothGattCharacteristic.FORMAT_FLOAT, offset);
                 final String temperatureString = String.format(Locale.US, "%.1f %s", temperature, unit);
                 return temperatureString;
+
             }
         } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_HEART_RATE)) {
-            /*int flag = characteristic.getProperties();
-            int format = -1;
-            if ((flag & 0x01) != 0) {
-                format = BluetoothGattCharacteristic.FORMAT_UINT16;
-            } else {
-                format = BluetoothGattCharacteristic.FORMAT_UINT8;
-            }
-            final int heartRate = characteristic.getIntValue(format, 1);
-            final String heartRateString = String.format(Locale.US, "%d %s", heartRate, "bpm");
-            return heartRateString;*/
-
             int heartRate = 0;
             int offset = 1;
 
@@ -208,7 +199,7 @@ public class BluetoothGattHelper {
         } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_BODY_SENSOR_LOCATION)) {
             byte[] buf = characteristic.getValue();
             int offset = 1;
-            if(buf != null && buf.length > 1) {
+            if (buf != null && buf.length > 1) {
                 final int bodyLocation = characteristic.getIntValue(FORMAT_UINT8, offset);
                 return BluetoothGattLookUp.bodySensorLocationLookup(bodyLocation);
             }

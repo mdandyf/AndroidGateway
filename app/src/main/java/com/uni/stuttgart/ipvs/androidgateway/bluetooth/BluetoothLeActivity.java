@@ -35,6 +35,7 @@ import android.widget.ExpandableListView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
+import com.uni.stuttgart.ipvs.androidgateway.database.DatabaseConnectionManager;
 import com.uni.stuttgart.ipvs.androidgateway.helper.ExpandableListAdapter;
 import com.uni.stuttgart.ipvs.androidgateway.helper.JsonParser;
 
@@ -43,6 +44,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +75,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
 
     private List<BluetoothDevice> scanResults;
     private Map<BluetoothDevice, BluetoothJsonDataProcess> mapScanResults;
+    DatabaseConnectionManager database;
 
     private boolean mBound = false;
 
@@ -112,6 +115,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
                     mBluetoothLeScanProcess.scanLeDevice(true);
                 } else if (mBluetoothAdapter == null) {
                     Toast.makeText(this, "Please turn on bluetooth!", Toast.LENGTH_SHORT).show();
+                    finish();
                 }
                 break;
             case R.id.action_connect:
@@ -171,12 +175,12 @@ public class BluetoothLeActivity extends AppCompatActivity {
 
         context = this;
 
+        database = new DatabaseConnectionManager(this);
+
         registerBroadcastListener();
         if (checkBluetoothState()) {
             mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-            mBluetoothLeScanProcess = new BluetoothLeScanProcess();
-            mBluetoothLeScanProcess.setContext(this);
-            mBluetoothLeScanProcess.setBluetoothAdapter(mBluetoothAdapter);
+            mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
             mBleService = new Intent(this, BluetoothLeService.class);
             bindService(mBleService, mConnection, Context.BIND_AUTO_CREATE);
         } else {
@@ -384,20 +388,22 @@ public class BluetoothLeActivity extends AppCompatActivity {
         if (!queue.isEmpty()) {
             for(BluetoothLe bleQueue = queue.poll(); bleQueue != null; bleQueue = queue.poll()) {
                 if (bleQueue != null) {
-                    if (bleQueue.getTypeCommand() == BluetoothLe.READ) {
-                        mService.setBluetoothGatt(bleQueue.getGatt());
-                        mService.readCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID());
-                    } else if (bleQueue.getTypeCommand() == BluetoothLe.REGISTER_NOTIFY) {
-                        mService.setBluetoothGatt(bleQueue.getGatt());
-                        mService.writeDescriptorNotify(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), BluetoothGattLookUp.shortUUID("2902"));
-                    } else if (bleQueue.getTypeCommand() == BluetoothLe.REGISTER_INDICATE) {
-                        mService.setBluetoothGatt(bleQueue.getGatt());
-                        mService.writeDescriptorIndication(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), BluetoothGattLookUp.shortUUID("2902"));
-                    } else if (bleQueue.getTypeCommand() == BluetoothLe.WRITE) {
-                        mService.setBluetoothGatt(bleQueue.getGatt());
-                        //mService.writeCharacteristic();
-                    } else {
-                        Log.d(TAG, "Unknown Command Queue");
+                    synchronized (bleQueue) {
+                        if (bleQueue.getTypeCommand() == BluetoothLe.READ) {
+                            mService.setBluetoothGatt(bleQueue.getGatt());
+                            mService.readCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID());
+                        } else if (bleQueue.getTypeCommand() == BluetoothLe.REGISTER_NOTIFY) {
+                            mService.setBluetoothGatt(bleQueue.getGatt());
+                            mService.writeDescriptorNotify(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), BluetoothGattLookUp.shortUUID("2902"));
+                        } else if (bleQueue.getTypeCommand() == BluetoothLe.REGISTER_INDICATE) {
+                            mService.setBluetoothGatt(bleQueue.getGatt());
+                            mService.writeDescriptorIndication(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), BluetoothGattLookUp.shortUUID("2902"));
+                        } else if (bleQueue.getTypeCommand() == BluetoothLe.WRITE) {
+                            mService.setBluetoothGatt(bleQueue.getGatt());
+                            //mService.writeCharacteristic();
+                        } else {
+                            Log.d(TAG, "Unknown Command Queue");
+                        }
                     }
                 } else {
                     Log.d(TAG, "Command Queue is empty.");
@@ -423,23 +429,31 @@ public class BluetoothLeActivity extends AppCompatActivity {
                 JSONObject json = JsonParser.readJsonObjectFromString(jsonData);
                 try {
                     Toast.makeText(getApplicationContext(), "connected to " + json.get("id"), Toast.LENGTH_SHORT).show();
+                    updateDatabase(jsonData, action, new Date());
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
                 Toast.makeText(getApplicationContext(), "disconnected from " + jsonData, Toast.LENGTH_SHORT).show();
+                updateDatabase(jsonData, action, new Date());
             } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 updateUI(jsonData);
+                updateDatabase(jsonData, action, new Date());
             } else if (BluetoothLeService.ACTION_READ_RSSI.equals(action)) {
                 updateUI(jsonData);
+                updateDatabase(jsonData, action, new Date());
             } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
                 updateUI(jsonData);
+                updateDatabase(jsonData, action, new Date());
             } else if (BluetoothLeService.EXTRA_DATA.equals(action)) {
                 updateUI(jsonData);
+                updateDatabase(jsonData, action, new Date());
             } else if (BluetoothLeService.ACTION_DESCRIPTOR_READ.equals(action)) {
                 updateUI(jsonData);
+                updateDatabase(jsonData, action, new Date());
             } else if (BluetoothLeService.ACTION_DESCRIPTOR_WRITE.equals(action)) {
                 updateUI(jsonData);
+                updateDatabase(jsonData, action, new Date());
             }
         }
     }
@@ -482,6 +496,10 @@ public class BluetoothLeActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
+    }
+
+    private void updateDatabase(String jsonData, String action, Date date) {
+        database.insertData(jsonData, action, date);
     }
 
 }

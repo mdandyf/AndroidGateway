@@ -20,6 +20,11 @@ public class BluetoothLe {
     public static int REGISTER_INDICATE = 102;
     public static int WRITE = 200;
 
+    public static int CHECK_PERMISSION = 300;
+    public static int SCANNING = 301;
+    public static int CONNECTING = 302;
+    public static int SUBSCRIBING = 303;
+
     private BluetoothGatt gatt;
     private UUID serviceUUID;
     private UUID characteristicUUID;

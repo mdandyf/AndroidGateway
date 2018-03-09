@@ -68,6 +68,22 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+       /* ImageView imageDatabase = (ImageView) findViewById(R.id.imageViewDatabase);
+        imageDatabase.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(getApplicationContext(), GatewayActivity.class));
+            }
+        });*/
+
+        ImageView imageGateway = (ImageView) findViewById(R.id.imageViewGateway);
+        imageGateway.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(getApplicationContext(), GatewayActivity.class));
+            }
+        });
+
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
