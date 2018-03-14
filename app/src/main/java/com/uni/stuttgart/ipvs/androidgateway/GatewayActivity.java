@@ -195,10 +195,12 @@ public class GatewayActivity extends AppCompatActivity {
         } else if (type == BluetoothLe.SCANNING) {
             //step scan BLE
             setCommandLine("Scanning bluetooth...");
+            mBluetoothLeScanProcess.scanLeDevice(true);
             mHandler = new Handler();
             mHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
+                    mBluetoothLeScanProcess.scanLeDevice(false);
                     scanResults = new ArrayList<>();
                     mapScanResults = new HashMap<>();
                     scanResults = mBluetoothLeScanProcess.getScanResult();
@@ -207,7 +209,6 @@ public class GatewayActivity extends AppCompatActivity {
                     setCommandLine("Found " + scanResults.size() + " device(s)");
                 }
             }, SCAN_PERIOD * 1000);
-            mBluetoothLeScanProcess.scanLeDevice(true);
         } else if (type == BluetoothLe.CONNECTING) {
             //step connect BLE
             Thread thread = new Thread(new Runnable() {

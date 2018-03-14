@@ -102,9 +102,11 @@ public class BluetoothLeActivity extends AppCompatActivity {
                     listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
                     makeInfoMessage("scanning bluetooth...", SCAN_PERIOD * 1000);
                     Handler mHandler = new Handler();
+                    mBluetoothLeScanProcess.scanLeDevice(true);
                     mHandler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
+                            mBluetoothLeScanProcess.scanLeDevice(false);
                             scanResults = new ArrayList<>();
                             mapScanResults = new HashMap<>();
                             scanResults = mBluetoothLeScanProcess.getScanResult();
@@ -112,7 +114,6 @@ public class BluetoothLeActivity extends AppCompatActivity {
                             updateUI(scanResults, mapScanResults);
                         }
                     }, SCAN_PERIOD * 1000);
-                    mBluetoothLeScanProcess.scanLeDevice(true);
                 } else if (mBluetoothAdapter == null) {
                     Toast.makeText(this, "Please turn on bluetooth!", Toast.LENGTH_SHORT).show();
                     finish();

@@ -70,11 +70,20 @@ public class BluetoothLeScanProcess {
             // directly scan
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            newScan();
+        if(enable) {
+            // start scan
+            mScanning = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                newScan();
+            } else {
+                oldScan();
+            }
         } else {
-            oldScan();
+            // stop scan
+            mScanning = false;
+            stopScan();
         }
+
 
     }
 
@@ -94,21 +103,6 @@ public class BluetoothLeScanProcess {
                 settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
             }
             ScanSettings scanSettings = settingsBuilder.build();
-
-            /** stop scanning after xx seconds */
-            mHandler = new Handler();
-            mHandler.postDelayed(new Runnable() {
-                @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                @Override
-                public void run() {
-                    Log.d(TAG, "stop scanning after " + SCAN_PERIOD + " seconds");
-                    mScanning = false;
-                    mBleScanner.stopScan(callback);
-                    listDevices = callback.getListDevices();
-                    mapProperties = callback.getMapProperties();
-                }
-            }, (SCAN_PERIOD * 1000));
-
             Log.d(TAG, "start scanning for " + SCAN_PERIOD + " seconds");
             mScanning = true;
             mBleScanner.startScan(scanFilters, scanSettings, callback);
@@ -121,20 +115,21 @@ public class BluetoothLeScanProcess {
     private void oldScan() {
         // Stops scanning after a pre-defined scan period.
         mHandler = new Handler();
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                Log.d(TAG, "stop scanning after " + SCAN_PERIOD + " seconds");
-                mScanning = false;
-                mBluetoothAdapter.stopLeScan(callbackOld);
-                listDevices = callbackOld.getListDevices();
-                mapProperties = callbackOld.getMapProperties();
-            }
-        }, SCAN_PERIOD);
-
         Log.d(TAG, "start scanning for " + SCAN_PERIOD + " seconds");
         mScanning = true;
         mBluetoothAdapter.startLeScan(callbackOld);
+    }
+
+    private void stopScan() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mBleScanner.stopScan(callback);
+            listDevices = callback.getListDevices();
+            mapProperties = callback.getMapProperties();
+        } else {
+            mBluetoothAdapter.stopLeScan(callbackOld);
+            listDevices = callbackOld.getListDevices();
+            mapProperties = callbackOld.getMapProperties();
+        }
     }
 
 }
