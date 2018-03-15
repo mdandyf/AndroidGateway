@@ -123,6 +123,8 @@ public class BluetoothLeService extends Service {
         this.mBluetoothGatt = gatt;
     }
 
+    public BluetoothGatt getBluetoothGatt() {return this.mBluetoothGatt;}
+
     private void runThread(final BluetoothDevice device) {
         Runnable runnable = new Runnable() {
             @Override
@@ -150,18 +152,23 @@ public class BluetoothLeService extends Service {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
+
+            mBluetoothGatt = gatt;
+
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                BluetoothDevice device = gatt.getDevice();
-                gatt.readRemoteRssi();
-                Log.i(TAG, "Connected to GATT server.");
-                Log.i(TAG, "Attempting to start service discovery:" +
-                        gatt.discoverServices());
-                BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_GATT_CONNECTED);
-                String json = bleJson.getJsonData().toString();
-                broadcastUpdate(ACTION_GATT_CONNECTED, json);
-                mConnectionState = STATE_CONNECTED;
-                listGatt.add(gatt);
-                gattCount++;
+                if(gatt.discoverServices()) {
+                    Log.i(TAG, "Connected to GATT server.");
+                    Log.i(TAG, "Attempting to start service discovery:");
+                    gatt.readRemoteRssi();
+                    BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(gatt.getDevice(), gatt, mBluetoothRssi, ACTION_GATT_CONNECTED);
+                    String json = bleJson.getJsonData().toString();
+                    broadcastUpdate(ACTION_GATT_CONNECTED, json);
+                    mConnectionState = STATE_CONNECTED;
+                    listGatt.add(gatt);
+                    gattCount++;
+                } else {
+                    gatt.disconnect();
+                }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 BluetoothDevice device = gatt.getDevice();
                 Log.i(TAG, "Disconnected from GATT server.");
@@ -172,9 +179,8 @@ public class BluetoothLeService extends Service {
 
         @Override
         public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
-            BluetoothDevice device = gatt.getDevice();
             mBluetoothRssi = rssi;
-            BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_READ_RSSI);
+            BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(gatt.getDevice(), gatt, mBluetoothRssi, ACTION_READ_RSSI);
             String json = bleJson.getJsonData().toString();
             broadcastUpdate(ACTION_READ_RSSI, json);
         }
@@ -183,6 +189,7 @@ public class BluetoothLeService extends Service {
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             super.onServicesDiscovered(gatt, status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                mBluetoothGatt = gatt;
                 BluetoothDevice device = gatt.getDevice();
                 gatt.readRemoteRssi();
                 BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(device, gatt, mBluetoothRssi, ACTION_GATT_SERVICES_DISCOVERED);
@@ -241,7 +248,7 @@ public class BluetoothLeService extends Service {
         sendBroadcast(intent);
     }
 
-    protected void writeDescriptorNotify(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
+    public void writeDescriptorNotify(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
@@ -257,7 +264,7 @@ public class BluetoothLeService extends Service {
         }
     }
 
-    protected void writeDescriptorIndication(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
+    public void writeDescriptorIndication(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
 
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
@@ -272,7 +279,7 @@ public class BluetoothLeService extends Service {
         }
     }
 
-    protected void readCharacteristic(UUID serviceUUID, UUID characteristicUuid) {
+    public void readCharacteristic(UUID serviceUUID, UUID characteristicUuid) {
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {

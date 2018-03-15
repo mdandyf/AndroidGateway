@@ -3,6 +3,7 @@ package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
@@ -48,10 +49,20 @@ public class BluetoothLeScanProcess {
     public boolean getScanState() {return this.mScanning;}
 
     public List<BluetoothDevice> getScanResult() {
-        return this.listDevices;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            return callback.getListDevices();
+        } else {
+            return callbackOld.getListDevices();
+        }
     }
 
-    public Map<BluetoothDevice, BluetoothJsonDataProcess> getScanProperties() {return this.mapProperties;}
+    public Map<BluetoothDevice, BluetoothJsonDataProcess> getScanProperties() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            return callback.getMapProperties();
+        } else {
+            return callbackOld.getMapProperties();
+        }
+    }
 
     public BluetoothLeScanProcess(Context context, BluetoothAdapter adapter) {
         this.context = context;
@@ -123,13 +134,8 @@ public class BluetoothLeScanProcess {
     private void stopScan() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             mBleScanner.stopScan(callback);
-            listDevices = callback.getListDevices();
-            mapProperties = callback.getMapProperties();
         } else {
             mBluetoothAdapter.stopLeScan(callbackOld);
-            listDevices = callbackOld.getListDevices();
-            mapProperties = callbackOld.getMapProperties();
         }
     }
-
 }
