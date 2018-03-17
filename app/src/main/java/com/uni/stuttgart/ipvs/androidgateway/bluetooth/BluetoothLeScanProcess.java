@@ -1,17 +1,16 @@
 package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 
-import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
-import android.support.annotation.RequiresApi;
 import android.util.Log;
+
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,13 +33,13 @@ public class BluetoothLeScanProcess {
     private boolean mScanning = false;
 
     private List<BluetoothDevice> listDevices;
-    private Map<BluetoothDevice, BluetoothJsonDataProcess> mapProperties;
+    private Map<BluetoothDevice, GattDataJson> mapProperties;
 
     private static final long SCAN_PERIOD = 10;
 
-    public BLeScanNewCallback callback;
+    public ScanCallbackNew callback;
 
-    public BLeScanOldCallback callbackOld;
+    public ScanCallbackOld callbackOld;
 
     public Context getContext() {
         return this.context;
@@ -56,7 +55,7 @@ public class BluetoothLeScanProcess {
         }
     }
 
-    public Map<BluetoothDevice, BluetoothJsonDataProcess> getScanProperties() {
+    public Map<BluetoothDevice, GattDataJson> getScanProperties() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             return callback.getMapProperties();
         } else {
@@ -68,9 +67,9 @@ public class BluetoothLeScanProcess {
         this.context = context;
         this.mBluetoothAdapter = adapter;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            callback = new BLeScanNewCallback(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, BluetoothJsonDataProcess>());
+            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>());
         } else {
-            callbackOld = new BLeScanOldCallback(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, BluetoothJsonDataProcess>());
+            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>());
         }
     }
 

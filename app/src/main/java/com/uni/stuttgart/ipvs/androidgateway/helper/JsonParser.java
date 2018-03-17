@@ -80,7 +80,7 @@ public class JsonParser {
     }
 
     private static String readUrl(String url) throws IOException {
-        URL content = new URL("http://www.oracle.com/");
+        URL content = new URL(url);
         URLConnection yc = content.openConnection();
         BufferedReader in = new BufferedReader(new InputStreamReader(
                 yc.getInputStream()));

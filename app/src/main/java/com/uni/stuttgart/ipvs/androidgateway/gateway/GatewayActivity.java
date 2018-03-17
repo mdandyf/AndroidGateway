@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway;
+package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
@@ -22,24 +22,21 @@ import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothGattHelper;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothGattLookUp;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothJsonDataProcess;
+import com.uni.stuttgart.ipvs.androidgateway.R;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLe;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeService;
-import com.uni.stuttgart.ipvs.androidgateway.helper.JsonParser;
 
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class GatewayActivity extends AppCompatActivity {
@@ -63,7 +60,7 @@ public class GatewayActivity extends AppCompatActivity {
     private TextView txtLine12;
 
     private List<BluetoothDevice> scanResults;
-    private Map<BluetoothDevice, BluetoothJsonDataProcess> mapScanResults;
+    private Map<BluetoothDevice, GattDataJson> mapScanResults;
     private boolean mBound = false;
     private Handler mHandler;
 
@@ -232,11 +229,11 @@ public class GatewayActivity extends AppCompatActivity {
         } else if (type == BluetoothLe.REGISTER_NOTIFY) {
             setCommandLine("Registering Notify Characteristic " + bluetoothLe.getCharacteristicUUID().toString());
             mService.setBluetoothGatt(bluetoothLe.getGatt());
-            mService.writeDescriptorNotify(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), BluetoothGattLookUp.shortUUID("2902"));
+            mService.writeDescriptorNotify(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
         } else if (type == BluetoothLe.REGISTER_INDICATE) {
             setCommandLine("Registering Indicate Characteristic " + bluetoothLe.getCharacteristicUUID().toString());
             mService.setBluetoothGatt(bluetoothLe.getGatt());
-            mService.writeDescriptorIndication(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), BluetoothGattLookUp.shortUUID("2902"));
+            mService.writeDescriptorIndication(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
         } else if (type == BluetoothLe.WRITE) {
             mService.setBluetoothGatt(bluetoothLe.getGatt());
             //mService.writeCharacteristic();
@@ -283,7 +280,7 @@ public class GatewayActivity extends AppCompatActivity {
                     BluetoothGatt gatt = mService.getBluetoothGatt();
                     for (BluetoothGattService service : gatt.getServices()) {
                         for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
-                            JSONArray properties = BluetoothGattHelper.decodeProperties(characteristic);
+                            JSONArray properties = GattDataHelper.decodeProperties(characteristic);
                             for (int i = 0; i < properties.length(); i++) {
                                 try {
                                     String property = properties.getString(i);

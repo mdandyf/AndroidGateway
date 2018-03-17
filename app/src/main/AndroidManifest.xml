@@ -71,7 +71,7 @@
 
         <service android:name=".bluetooth.BluetoothLeService" />
 
-        <activity android:name=".GatewayActivity"></activity>
+        <activity android:name=".gateway.GatewayActivity"></activity>
     </application>
 
 </manifest>

@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.helper;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 
@@ -10,7 +10,7 @@ import java.util.UUID;
  * Created by mdand on 2/20/2018.
  */
 
-public class BluetoothGattLookUp {
+public class GattLookUp {
     public static final UUID CCC_DESCRIPTOR = shortUUID("2902");
 
     /** Known GATT Services */

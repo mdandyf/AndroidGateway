@@ -1,7 +1,5 @@
 package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 
-import android.annotation.TargetApi;
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
@@ -11,7 +9,8 @@ import android.support.annotation.RequiresApi;
 import android.util.Log;
 import android.widget.Toast;
 
-import java.util.HashMap;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
+
 import java.util.List;
 import java.util.Map;
 
@@ -21,19 +20,19 @@ import java.util.Map;
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-public class BLeScanNewCallback extends ScanCallback {
+public class ScanCallbackNew extends ScanCallback {
 
     private List<BluetoothDevice> listDevices;
-    private Map<BluetoothDevice, BluetoothJsonDataProcess> mapProperties;
+    private Map<BluetoothDevice, GattDataJson> mapProperties;
     private Context context;
 
-    public BLeScanNewCallback(Context context, List<BluetoothDevice> listDevices, Map<BluetoothDevice, BluetoothJsonDataProcess> mapProperties) {
+    public ScanCallbackNew(Context context, List<BluetoothDevice> listDevices, Map<BluetoothDevice, GattDataJson> mapProperties) {
         this.context = context;
         this.listDevices = listDevices;
         this.mapProperties = mapProperties;
     }
     public List<BluetoothDevice> getListDevices() {return listDevices;}
-    public Map<BluetoothDevice, BluetoothJsonDataProcess> getMapProperties(){return mapProperties;}
+    public Map<BluetoothDevice, GattDataJson> getMapProperties(){return mapProperties;}
 
     @Override
     public void onScanResult(int callbackType, ScanResult result) {
@@ -60,9 +59,9 @@ public class BLeScanNewCallback extends ScanCallback {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!listDevices.contains(result.getDevice())) {
                 listDevices.add(result.getDevice());
-                BluetoothJsonDataProcess json = new BluetoothJsonDataProcess(result.getDevice(), result.getRssi(), 0);
+                GattDataJson json = new GattDataJson(result.getDevice(), result.getRssi(), 0);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    json = new BluetoothJsonDataProcess(result.getDevice(), result.getRssi(), result.getTxPower());
+                    json = new GattDataJson(result.getDevice(), result.getRssi(), result.getTxPower());
                 }
                 mapProperties.put(result.getDevice(), json);
             }
