@@ -107,6 +107,7 @@ public class BluetoothLeService extends Service {
         if (listGatt != null) {
             for (BluetoothGatt gatt : listGatt) {
                 gatt.disconnect();
+                gatt.close();
             }
         }
     }
@@ -123,7 +124,9 @@ public class BluetoothLeService extends Service {
         this.mBluetoothGatt = gatt;
     }
 
-    public BluetoothGatt getBluetoothGatt() {return this.mBluetoothGatt;}
+    public BluetoothGatt getBluetoothGatt() {
+        return this.mBluetoothGatt;
+    }
 
     private void runThread(final BluetoothDevice device) {
         Runnable runnable = new Runnable() {
@@ -156,19 +159,15 @@ public class BluetoothLeService extends Service {
             mBluetoothGatt = gatt;
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                if(gatt.discoverServices()) {
-                    Log.i(TAG, "Connected to GATT server.");
-                    Log.i(TAG, "Attempting to start service discovery:");
-                    gatt.readRemoteRssi();
-                    BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(gatt.getDevice(), gatt, mBluetoothRssi, ACTION_GATT_CONNECTED);
-                    String json = bleJson.getJsonData().toString();
-                    broadcastUpdate(ACTION_GATT_CONNECTED, json);
-                    mConnectionState = STATE_CONNECTED;
-                    listGatt.add(gatt);
-                    gattCount++;
-                } else {
-                    gatt.disconnect();
-                }
+                Log.i(TAG, "Connected to GATT server.");
+                Log.i(TAG, "Attempting to start service discovery:" + gatt.discoverServices());
+                gatt.readRemoteRssi();
+                BluetoothJsonDataProcess bleJson = new BluetoothJsonDataProcess(gatt.getDevice(), gatt, mBluetoothRssi, ACTION_GATT_CONNECTED);
+                String json = bleJson.getJsonData().toString();
+                broadcastUpdate(ACTION_GATT_CONNECTED, json);
+                mConnectionState = STATE_CONNECTED;
+                listGatt.add(gatt);
+                gattCount++;
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 BluetoothDevice device = gatt.getDevice();
                 Log.i(TAG, "Disconnected from GATT server.");
@@ -260,12 +259,12 @@ public class BluetoothLeService extends Service {
                 mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                 descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                 mBluetoothGatt.writeDescriptor(descriptor);
+                Log.d(TAG, "descriptor notify " + descriptorUUID.toString() + " has been written");
             }
         }
     }
 
     public void writeDescriptorIndication(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
-
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
@@ -273,8 +272,11 @@ public class BluetoothLeService extends Service {
         } else {
             BluetoothGattDescriptor descriptor = characteristic.getDescriptor(descriptorUUID);
             if (descriptor != null) {
+                mBluetoothGatt.readDescriptor(descriptor);
+                mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                 descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
                 mBluetoothGatt.writeDescriptor(descriptor);
+                Log.d(TAG, "descriptor indicate " + descriptorUUID.toString() + " has been written");
             }
         }
     }
@@ -286,6 +288,7 @@ public class BluetoothLeService extends Service {
             Log.d(TAG, "Characteristic " + characteristicUuid.toString() + " not found");
         } else {
             mBluetoothGatt.readCharacteristic(characteristic);
+            Log.d(TAG, "Characteristic " + characteristicUuid.toString() + " read");
         }
     }
 }

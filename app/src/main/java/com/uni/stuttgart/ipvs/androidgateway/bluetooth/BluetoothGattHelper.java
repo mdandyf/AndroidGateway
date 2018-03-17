@@ -197,11 +197,12 @@ public class BluetoothGattHelper {
             }
 
         } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_BODY_SENSOR_LOCATION)) {
-            byte[] buf = characteristic.getValue();
-            int offset = 1;
-            if (buf != null && buf.length > 1) {
-                final int bodyLocation = characteristic.getIntValue(FORMAT_UINT8, offset);
-                return BluetoothGattLookUp.bodySensorLocationLookup(bodyLocation);
+            final byte[] data = characteristic.getValue();
+            if (data != null && data.length > 0) {
+                final StringBuilder stringBuilder = new StringBuilder(data.length);
+                for(byte byteChar : data)
+                    stringBuilder.append(String.format("%02X ", byteChar));
+                return BluetoothGattLookUp.bodySensorLocationLookup(stringBuilder.toString());
             }
         }
         return value;
