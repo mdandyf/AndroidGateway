@@ -8,10 +8,14 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -27,9 +31,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     private BluetoothDevice mDevice;
     private Context context;
     private BluetoothGattCallback mGattCallback;
-    private List<BluetoothGattService> mGattServices;
-    private BluetoothGattCharacteristic mCharacteristic;
-    private boolean isConnected = false;
+    private Handler mHandlerMessage;
 
     public BluetoothLeGattCallback(Context context, BluetoothDevice device) {
         this.context = context;
@@ -38,8 +40,13 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         this.mBluetoothGatt = null;
     }
 
+    public BluetoothLeGattCallback(BluetoothGatt gatt) {
+        this.mBluetoothGatt = gatt;
+    }
+
     public void connect() {
         mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
         refreshDeviceCache(mBluetoothGatt);
     }
 
@@ -54,17 +61,11 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         return this.mBluetoothGatt;
     }
 
-    public boolean gattConnectionState() {return this.isConnected;}
+    public void setHandlerMessage(Handler handler) {this.mHandlerMessage = handler;}
 
     public int getBluetoothRssi() {
         return this.mBluetoothRssi;
     }
-
-    public List<BluetoothGattService> getGattServices() {
-        return this.mGattServices;
-    }
-
-    public BluetoothGattCharacteristic getCharacteristic(UUID serviceUUID, UUID characteristicUUID) {return mCharacteristic;}
 
     public void readCharacteristic(UUID serviceUUID, UUID characteristicUUID) {
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
@@ -147,24 +148,24 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         super.onConnectionStateChange(gatt, status, newState);
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             Log.i(TAG, "Connected to GATT server.");
-            Log.i(TAG, "Attempting to start service discovery:" + gatt.discoverServices());
-            gatt.readRemoteRssi();
-            isConnected = true;
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 1, 0, mBluetoothGatt));
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             Log.i(TAG, "Disconnected from GATT server.");
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 2, 0, mBluetoothGatt));
         }
     }
 
     @Override
     public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
         this.mBluetoothRssi = rssi;
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 3, 0, mBluetoothRssi));
     }
 
     @Override
     public void onServicesDiscovered(BluetoothGatt gatt, int status) {
         super.onServicesDiscovered(gatt, status);
         if (status == BluetoothGatt.GATT_SUCCESS) {
-            mGattServices = gatt.getServices();
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 4, 0, gatt));
         } else {
             Log.w(TAG, "onServiceDiscovered Receive: " + status);
         }
@@ -173,29 +174,37 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
-        mCharacteristic = characteristic;
+        Map<BluetoothGatt, BluetoothGattCharacteristic> map = new HashMap<>();
+        map.put(gatt, characteristic);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, map));
     }
 
     @Override
     public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicWrite(gatt, characteristic, status);
+        Map<BluetoothGatt, BluetoothGattCharacteristic> map = new HashMap<>();
+        map.put(gatt, characteristic);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 6, 0, map));
     }
 
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
+        Map<BluetoothGatt, BluetoothGattCharacteristic> map = new HashMap<>();
+        map.put(gatt, characteristic);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, map));
     }
 
     @Override
     public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
         super.onDescriptorRead(gatt, descriptor, status);
-
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 8, 0, descriptor));
     }
 
     @Override
     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
         super.onDescriptorWrite(gatt, descriptor, status);
-
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 9, 0, descriptor));
     }
 
 }

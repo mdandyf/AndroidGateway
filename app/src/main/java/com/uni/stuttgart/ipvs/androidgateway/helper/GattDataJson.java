@@ -64,6 +64,16 @@ public class GattDataJson extends JsonParser {
         this.jsonData = jsonData;
     }
 
+    public void setGatt(BluetoothGatt gatt) {this.gatt = gatt;}
+
+    public void setRssi(int rssi) {this.rssi = rssi;}
+
+    public void setAdvertisingData(byte[] advertisingData) {this.advertisingData = advertisingData;}
+
+    public void setTxPowerData(int txPowerData) {this.txPowerData = txPowerData;}
+
+    public void setAction(String action) {this.action = action;}
+
     public GattDataJson(BluetoothDevice device, int rssi, byte[] advertisingData, BluetoothGatt gatt) {
         this.device = device;
         this.rssi = rssi;
