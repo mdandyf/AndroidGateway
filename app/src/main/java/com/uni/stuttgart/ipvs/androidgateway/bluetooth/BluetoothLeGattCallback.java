@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class BluetoothLeGattCallback extends BluetoothGattCallback {
 
-    private static final String TAG = "Bluetooth Gatt Callback";
+    private static final String TAG = "BluetoothGatt Callback";
 
     private BluetoothGatt mBluetoothGatt;
     private int mBluetoothRssi;
@@ -29,11 +29,13 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     private BluetoothGattCallback mGattCallback;
     private List<BluetoothGattService> mGattServices;
     private BluetoothGattCharacteristic mCharacteristic;
+    private boolean isConnected = false;
 
     public BluetoothLeGattCallback(Context context, BluetoothDevice device) {
         this.context = context;
         this.mDevice = device;
         this.mGattCallback = this;
+        this.mBluetoothGatt = null;
     }
 
     public void connect() {
@@ -44,13 +46,15 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     public void disconnect() {
         if(mBluetoothGatt != null) {
             mBluetoothGatt.disconnect();
+            mBluetoothGatt.close();
         }
-        mBluetoothGatt.close();
     }
 
     public BluetoothGatt getBluetoothGatt() {
         return this.mBluetoothGatt;
     }
+
+    public boolean gattConnectionState() {return this.isConnected;}
 
     public int getBluetoothRssi() {
         return this.mBluetoothRssi;
@@ -60,9 +64,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         return this.mGattServices;
     }
 
-    public BluetoothGattCharacteristic getCharacteristic(UUID serviceUUID, UUID characteristicUUID) {
-        return mCharacteristic;
-    }
+    public BluetoothGattCharacteristic getCharacteristic(UUID serviceUUID, UUID characteristicUUID) {return mCharacteristic;}
 
     public void readCharacteristic(UUID serviceUUID, UUID characteristicUUID) {
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
@@ -72,6 +74,17 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         } else {
             mBluetoothGatt.readCharacteristic(characteristic);
             Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " read");
+        }
+    }
+
+    public void writeCharacteristic(UUID serviceUUID, UUID characteristicUUID, byte[] data) {
+        BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
+        final BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUUID);
+        if (characteristic == null) {
+            Log.d(TAG, "Characteristic " + characteristicUUID.toString() + " not found");
+        } else {
+            mBluetoothGatt.writeCharacteristic(characteristic);
+            Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " has been written");
         }
     }
 
@@ -136,6 +149,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             Log.i(TAG, "Connected to GATT server.");
             Log.i(TAG, "Attempting to start service discovery:" + gatt.discoverServices());
             gatt.readRemoteRssi();
+            isConnected = true;
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             Log.i(TAG, "Disconnected from GATT server.");
         }
