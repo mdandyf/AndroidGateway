@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.helper;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -19,7 +19,7 @@ import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT8;
  * Created by mdand on 2/26/2018.
  */
 
-public class BluetoothGattHelper {
+public class GattDataHelper {
 
     private static final String CHARACTERISTIC_TEMPERATURE = "2a1c";
     private static final String CHARACTERISTIC_HUMIDITY = "2a6f";
@@ -196,12 +196,14 @@ public class BluetoothGattHelper {
 
             }
 
-        } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_BODY_SENSOR_LOCATION)) {
-            byte[] buf = characteristic.getValue();
-            int offset = 1;
-            if (buf != null && buf.length > 1) {
-                final int bodyLocation = characteristic.getIntValue(FORMAT_UINT8, offset);
-                return BluetoothGattLookUp.bodySensorLocationLookup(bodyLocation);
+        } else  {
+
+            final byte[] data = characteristic.getValue();
+            if (data != null && data.length > 0) {
+                final StringBuilder stringBuilder = new StringBuilder(data.length);
+                for(byte byteChar : data)
+                    stringBuilder.append(String.format("%02X ", byteChar));
+                return "0x" + stringBuilder.toString();
             }
         }
         return value;

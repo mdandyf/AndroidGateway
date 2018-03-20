@@ -1,18 +1,14 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.helper;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
-import android.net.wifi.ScanResult;
-import android.net.wifi.aware.Characteristics;
 import android.os.Build;
-import android.support.v7.widget.ThemedSpinnerAdapter;
 import android.util.Base64;
 
-import com.uni.stuttgart.ipvs.androidgateway.helper.JsonParser;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeService;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -28,7 +24,7 @@ import java.util.regex.Pattern;
  * Created by mdand on 2/24/2018.
  */
 
-public class BluetoothJsonDataProcess extends JsonParser {
+public class GattDataJson extends JsonParser {
 
     private String jsonData;
     private JSONObject jsonObject;
@@ -40,35 +36,45 @@ public class BluetoothJsonDataProcess extends JsonParser {
     private int txPowerData;
     private String action;
 
-    public BluetoothJsonDataProcess(BluetoothDevice device, BluetoothGatt gatt) {
+    public GattDataJson(BluetoothDevice device, BluetoothGatt gatt) {
         this.device = device;
         this.gatt = gatt;
     }
 
-    public BluetoothJsonDataProcess(BluetoothDevice device, BluetoothGatt gatt, int rssi, String action) {
+    public GattDataJson(BluetoothDevice device, BluetoothGatt gatt, int rssi, String action) {
         this.device = device;
         this.gatt = gatt;
         this.rssi = rssi;
         this.action = action;
     }
 
-    public BluetoothJsonDataProcess(BluetoothDevice device, int rssi, byte[] advertisingData) {
+    public GattDataJson(BluetoothDevice device, int rssi, byte[] advertisingData) {
         this.device = device;
         this.rssi = rssi;
         this.advertisingData = advertisingData;
     }
 
-    public BluetoothJsonDataProcess(BluetoothDevice device, int rssi, int txPowerData) {
+    public GattDataJson(BluetoothDevice device, int rssi, int txPowerData) {
         this.device = device;
         this.rssi = rssi;
         this.txPowerData = txPowerData;
     }
 
-    public BluetoothJsonDataProcess(String jsonData) {
+    public GattDataJson(String jsonData) {
         this.jsonData = jsonData;
     }
 
-    public BluetoothJsonDataProcess(BluetoothDevice device, int rssi, byte[] advertisingData, BluetoothGatt gatt) {
+    public void setGatt(BluetoothGatt gatt) {this.gatt = gatt;}
+
+    public void setRssi(int rssi) {this.rssi = rssi;}
+
+    public void setAdvertisingData(byte[] advertisingData) {this.advertisingData = advertisingData;}
+
+    public void setTxPowerData(int txPowerData) {this.txPowerData = txPowerData;}
+
+    public void setAction(String action) {this.action = action;}
+
+    public GattDataJson(BluetoothDevice device, int rssi, byte[] advertisingData, BluetoothGatt gatt) {
         this.device = device;
         this.rssi = rssi;
         this.advertisingData = advertisingData;
@@ -117,31 +123,31 @@ public class BluetoothJsonDataProcess extends JsonParser {
                         JSONObject characteristicsJSON = new JSONObject();
                         characteristicsArray.put(characteristicsJSON);
 
-                        characteristicsJSON.put("serviceName", BluetoothGattLookUp.serviceNameLookup(service.getUuid()));
+                        characteristicsJSON.put("serviceName", GattLookUp.serviceNameLookup(service.getUuid()));
                         characteristicsJSON.put("serviceUUID", uuidToString(service.getUuid()));
-                        characteristicsJSON.put("characteristicName", BluetoothGattLookUp.characteristicNameLookup(characteristic.getUuid()));
+                        characteristicsJSON.put("characteristicName", GattLookUp.characteristicNameLookup(characteristic.getUuid()));
                         characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
                         if(action.equals(BluetoothLeService.EXTRA_DATA) || action.equals(BluetoothLeService.ACTION_DATA_AVAILABLE)) {
-                            characteristicsJSON.put("characteristicValue", BluetoothGattHelper.decodeCharacteristicValue(characteristic, gatt));
+                            characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic, gatt));
                         }
 
-                        characteristicsJSON.put("properties", BluetoothGattHelper.decodeProperties(characteristic));
+                        characteristicsJSON.put("properties", GattDataHelper.decodeProperties(characteristic));
                         characteristicsJSON.put("propertiesValue", characteristic.getProperties());
 
                         if (characteristic.getPermissions() > 0) {
-                            characteristicsJSON.put("permissions", BluetoothGattHelper.decodePermissions(characteristic));
+                            characteristicsJSON.put("permissions", GattDataHelper.decodePermissions(characteristic));
                         }
 
                         JSONArray descriptorsArray = new JSONArray();
 
                         for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
                             JSONObject descriptorJSON = new JSONObject();
-                            descriptorJSON.put("descriptorName", BluetoothGattLookUp.descriptorNameLookup(descriptor.getUuid()));
+                            descriptorJSON.put("descriptorName", GattLookUp.descriptorNameLookup(descriptor.getUuid()));
                             descriptorJSON.put("descriptorUuid", uuidToString(descriptor.getUuid()));
                             descriptorJSON.put("descriptorValue", descriptor.getValue());
 
                             if (descriptor.getPermissions() > 0) {
-                                descriptorJSON.put("permissions", BluetoothGattHelper.decodePermissions(descriptor));
+                                descriptorJSON.put("permissions", GattDataHelper.decodePermissions(descriptor));
                             }
                             descriptorsArray.put(descriptorJSON);
                         }

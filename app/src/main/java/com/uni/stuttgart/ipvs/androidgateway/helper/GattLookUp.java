@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.helper;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 
@@ -10,7 +10,7 @@ import java.util.UUID;
  * Created by mdand on 2/20/2018.
  */
 
-public class BluetoothGattLookUp {
+public class GattLookUp {
     public static final UUID CCC_DESCRIPTOR = shortUUID("2902");
 
     /** Known GATT Services */
@@ -198,15 +198,15 @@ public class BluetoothGattLookUp {
         characteristicFormats.put("byte[]", -2);
     }
 
-    private static HashMap<Integer, String> bodySensorLocations = new HashMap<>();
+    private static HashMap<String, String> bodySensorLocations = new HashMap<>();
     static {
-        bodySensorLocations.put(0, "Other");
-        bodySensorLocations.put(1, "Chest");
-        bodySensorLocations.put(2, "Wrist");
-        bodySensorLocations.put(3, "Finger");
-        bodySensorLocations.put(4, "Hand");
-        bodySensorLocations.put(5, "Ear Lobe");
-        bodySensorLocations.put(6, "Foot");
+        bodySensorLocations.put("0x00", "Other");
+        bodySensorLocations.put("0x01", "Chest");
+        bodySensorLocations.put("0x02", "Wrist");
+        bodySensorLocations.put("0x03", "Finger");
+        bodySensorLocations.put("0x04", "Hand");
+        bodySensorLocations.put("0x05", "Ear Lobe");
+        bodySensorLocations.put("0x06", "Foot");
     }
 
     // PUBLIC LOOKUP FUNCTIONS
@@ -226,7 +226,7 @@ public class BluetoothGattLookUp {
         return (characteristic==null) ? "unknown" : characteristic;
     }
 
-    public static String bodySensorLocationLookup(int i) {
+    public static String bodySensorLocationLookup(String i) {
         return (bodySensorLocations.get(i) == null) ? "unknown" : bodySensorLocations.get(i);
     }
 

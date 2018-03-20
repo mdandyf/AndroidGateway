@@ -1,6 +1,5 @@
 package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 
-import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.ScanFilter;
@@ -9,8 +8,9 @@ import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
-import android.support.annotation.RequiresApi;
 import android.util.Log;
+
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,15 +31,18 @@ public class BluetoothLeScanProcess {
     private ScanResult scanResult;
     private Context context;
     private boolean mScanning = false;
+    public ScanCallbackNew callback;
+    public ScanCallbackOld callbackOld;
 
-    private List<BluetoothDevice> listDevices;
-    private Map<BluetoothDevice, BluetoothJsonDataProcess> mapProperties;
-
-    private static final long SCAN_PERIOD = 10;
-
-    public BLeScanNewCallback callback;
-
-    public BLeScanOldCallback callbackOld;
+    public BluetoothLeScanProcess(Context context, BluetoothAdapter adapter) {
+        this.context = context;
+        this.mBluetoothAdapter = adapter;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>());
+        } else {
+            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>());
+        }
+    }
 
     public Context getContext() {
         return this.context;
@@ -48,18 +51,18 @@ public class BluetoothLeScanProcess {
     public boolean getScanState() {return this.mScanning;}
 
     public List<BluetoothDevice> getScanResult() {
-        return this.listDevices;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            return callback.getListDevices();
+        } else {
+            return callbackOld.getListDevices();
+        }
     }
 
-    public Map<BluetoothDevice, BluetoothJsonDataProcess> getScanProperties() {return this.mapProperties;}
-
-    public BluetoothLeScanProcess(Context context, BluetoothAdapter adapter) {
-        this.context = context;
-        this.mBluetoothAdapter = adapter;
+    public Map<BluetoothDevice, GattDataJson> getScanProperties() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            callback = new BLeScanNewCallback(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, BluetoothJsonDataProcess>());
+            return callback.getMapProperties();
         } else {
-            callbackOld = new BLeScanOldCallback(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, BluetoothJsonDataProcess>());
+            return callbackOld.getMapProperties();
         }
     }
 
@@ -70,11 +73,20 @@ public class BluetoothLeScanProcess {
             // directly scan
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            newScan();
+        if(enable) {
+            // start scan
+            mScanning = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                newScan();
+            } else {
+                oldScan();
+            }
         } else {
-            oldScan();
+            // stop scan
+            mScanning = false;
+            stopScan();
         }
+
 
     }
 
@@ -82,7 +94,7 @@ public class BluetoothLeScanProcess {
      * scan using new Scan method
      */
     private void newScan() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             List<ScanFilter> scanFilters = new ArrayList<>();
 
             ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();
@@ -94,22 +106,6 @@ public class BluetoothLeScanProcess {
                 settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
             }
             ScanSettings scanSettings = settingsBuilder.build();
-
-            /** stop scanning after xx seconds */
-            mHandler = new Handler();
-            mHandler.postDelayed(new Runnable() {
-                @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                @Override
-                public void run() {
-                    Log.d(TAG, "stop scanning after " + SCAN_PERIOD + " seconds");
-                    mScanning = false;
-                    mBleScanner.stopScan(callback);
-                    listDevices = callback.getListDevices();
-                    mapProperties = callback.getMapProperties();
-                }
-            }, (SCAN_PERIOD * 1000));
-
-            Log.d(TAG, "start scanning for " + SCAN_PERIOD + " seconds");
             mScanning = true;
             mBleScanner.startScan(scanFilters, scanSettings, callback);
         }
@@ -121,20 +117,15 @@ public class BluetoothLeScanProcess {
     private void oldScan() {
         // Stops scanning after a pre-defined scan period.
         mHandler = new Handler();
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                Log.d(TAG, "stop scanning after " + SCAN_PERIOD + " seconds");
-                mScanning = false;
-                mBluetoothAdapter.stopLeScan(callbackOld);
-                listDevices = callbackOld.getListDevices();
-                mapProperties = callbackOld.getMapProperties();
-            }
-        }, SCAN_PERIOD);
-
-        Log.d(TAG, "start scanning for " + SCAN_PERIOD + " seconds");
         mScanning = true;
         mBluetoothAdapter.startLeScan(callbackOld);
     }
 
+    private void stopScan() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mBleScanner.stopScan(callback);
+        } else {
+            mBluetoothAdapter.stopLeScan(callbackOld);
+        }
+    }
 }

@@ -20,16 +20,19 @@ public class BluetoothLe {
     public static int REGISTER_INDICATE = 102;
     public static int WRITE = 200;
 
-    public static int CHECK_PERMISSION = 300;
-    public static int SCANNING = 301;
-    public static int CONNECTING = 302;
-    public static int SUBSCRIBING = 303;
+    public static int CHECK_BLUETOOTH_STATE = 300;
+    public static int CHECK_PERMISSION = 301;
+    public static int SCANNING = 302;
+    public static int CONNECTING = 303;
+    public static int CONNECTED = 304;
+    public static int DISCONNECTED = 305;
 
     private BluetoothGatt gatt;
     private UUID serviceUUID;
     private UUID characteristicUUID;
     private byte[] data;
     private int typeCommand;
+    private String jsonData;
 
     public BluetoothLe(){}
 
@@ -69,12 +72,14 @@ public class BluetoothLe {
         this.data = data;
     }
 
-    public int getTypeCommand() {
-        return typeCommand;
-    }
+    public int getTypeCommand() {return typeCommand;}
 
     public void setTypeCommand(int typeCommand) {
         this.typeCommand = typeCommand;
     }
+
+    public void setJsonData(String jsonData) {this.jsonData = jsonData;}
+
+    public String getJsonData() {return this.jsonData;}
 
 }
