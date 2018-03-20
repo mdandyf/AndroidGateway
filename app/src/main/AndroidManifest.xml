@@ -53,12 +53,7 @@
             android:name=".MainActivity"
             android:label="@string/app_name"
             android:theme="@style/AppTheme.NoActionBar" />
-        <activity
-            android:name=".LoginActivity"
-            android:label="@string/title_activity_login" />
-        <activity
-            android:name=".LogoutActivity"
-            android:label="@string/title_activity_logout" />
+
         <activity
             android:name=".bluetooth.BluetoothLeActivity"
             android:label="@string/title_activity_bluetooth" />
