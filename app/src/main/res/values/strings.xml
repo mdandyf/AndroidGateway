@@ -27,7 +27,7 @@
     <!-- Strings related to content of main activity -->
     <string name="text_gateway">Gateway</string>
     <string name="text_database">Database</string>
-    <string name="text_ble">Ble Device</string>
+    <string name="text_ble">Ble Scanner</string>
     <string name="text_cloud">Cloud</string>
     <string name="text_battery">Battery</string>
     <string name="text_settings">Settings</string>
