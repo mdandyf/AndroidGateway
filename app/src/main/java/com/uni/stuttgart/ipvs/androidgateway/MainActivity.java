@@ -36,10 +36,6 @@ public class MainActivity extends AppCompatActivity {
             case R.id.action_settings:
                 startActivity(new Intent(getApplicationContext(), SettingsActivity.class));
                 break;
-            case R.id.action_logout:
-                startActivity(new Intent(getApplicationContext(), LogoutActivity.class));
-                finish();
-                break;
         }
 
         return true;

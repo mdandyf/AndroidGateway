@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
 
 import java.util.Timer;
@@ -22,6 +23,7 @@ public class SplashActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splash);
         ImageView image = (ImageView) findViewById(R.id.imageViewBluetooth);
+        image.setVisibility(View.VISIBLE);
         startSplashTimer();
     }
 
@@ -32,7 +34,7 @@ public class SplashActivity extends Activity {
 
                 @Override
                 public void run() {
-                    Intent intent = new Intent(getApplicationContext(), LoginActivity.class);
+                    Intent intent = new Intent(getApplicationContext(), MainActivity.class);
                     startActivity(intent);
                     finish();
                 }
