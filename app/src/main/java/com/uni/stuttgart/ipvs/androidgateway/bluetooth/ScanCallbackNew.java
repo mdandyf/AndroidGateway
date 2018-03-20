@@ -56,7 +56,7 @@ public class ScanCallbackNew extends ScanCallback {
     }
 
     private void addBluetoothDevice(ScanResult result) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (!listDevices.contains(result.getDevice())) {
                 listDevices.add(result.getDevice());
                 GattDataJson json = new GattDataJson(result.getDevice(), result.getRssi(), 0);
