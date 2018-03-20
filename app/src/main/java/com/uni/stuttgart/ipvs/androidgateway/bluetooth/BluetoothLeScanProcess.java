@@ -76,7 +76,7 @@ public class BluetoothLeScanProcess {
         if(enable) {
             // start scan
             mScanning = true;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 newScan();
             } else {
                 oldScan();

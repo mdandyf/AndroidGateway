@@ -27,6 +27,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ExpandableListView;
 import android.widget.Toast;
@@ -77,6 +78,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
     private Map<BluetoothDevice, GattDataJson> mapScanResults;
     private DatabaseConnectionManager database;
     private ConcurrentLinkedQueue<BluetoothLe> queue;
+    private Menu menuBar;
+    private int callbackCounter;
 
     private boolean mBound = false;
 
@@ -84,6 +87,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_bluetooth, menu);
+        menu.findItem(R.id.menu_refresh).setActionView(null);
+        menuBar = menu;
         return true;
     }
 
@@ -101,9 +106,12 @@ public class BluetoothLeActivity extends AppCompatActivity {
                     listDataHeader = new ArrayList<String>();
                     listDataChild = new HashMap<>();
                     listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
-                    makeInfoMessage("scanning bluetooth...", SCAN_PERIOD * 1000);
+                    callbackCounter = 0;
+
                     Handler mHandler = new Handler();
                     mBluetoothLeScanProcess.scanLeDevice(true);
+                    menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
+
                     mHandler.postDelayed(new Runnable() {
                         @Override
                         public void run() {
@@ -113,6 +121,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
                             scanResults = mBluetoothLeScanProcess.getScanResult();
                             mapScanResults = mBluetoothLeScanProcess.getScanProperties();
                             updateUI(scanResults, mapScanResults);
+                            menuBar.findItem(R.id.menu_refresh).setActionView(null);
                         }
                     }, SCAN_PERIOD * 1000);
                 } else if (mBluetoothAdapter == null) {
@@ -123,6 +132,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
             case R.id.action_connect:
                 if (mBluetoothAdapter != null && mBluetoothLeScanProcess != null) {
                     if (scanResults != null && !mBluetoothLeScanProcess.getScanState()) {
+                        menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
                         connectGatt();
                     } else if (mBluetoothLeScanProcess.getScanState()) {
                         Toast.makeText(this, "Scanning is running, Please wait!", Toast.LENGTH_SHORT).show();
@@ -160,10 +170,6 @@ public class BluetoothLeActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         view = (View) findViewById(R.id.listViewBle);
-
-        // set of bottom navigation command
-        BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
-        navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
 
         //set of List view command
         listView = (ExpandableListView) findViewById(R.id.listViewBle);
@@ -232,22 +238,6 @@ public class BluetoothLeActivity extends AppCompatActivity {
     /**
      * for bottom navigation
      */
-    private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
-            = new BottomNavigationView.OnNavigationItemSelectedListener() {
-
-        @Override
-        public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-            switch (item.getItemId()) {
-                case R.id.navigation_home:
-                    startActivity(new Intent(getApplicationContext(), com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeActivity.class));
-                    return true;
-                case R.id.navigation_notifications:
-                    startActivity(new Intent(getApplicationContext(), BluetoothLeActivityRW.class));
-                    return true;
-            }
-            return false;
-        }
-    };
 
     private void registerBroadcastListener() {
         //Set a filter to only receive bluetooth state changed events.
@@ -334,6 +324,10 @@ public class BluetoothLeActivity extends AppCompatActivity {
             final int bluetoothState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
                     BluetoothAdapter.ERROR);
             setBroadcastResult(intent, action);
+            if(scanResults.size() == callbackCounter) {
+                menuBar.findItem(R.id.menu_refresh).setActionView(null);
+            }
+
         }
 
     };
@@ -343,7 +337,6 @@ public class BluetoothLeActivity extends AppCompatActivity {
      */
     private void connectGatt() {
         if (mService != null && mBound) {
-            makeInfoMessage("connecting...", 10 * 1000);
             for (BluetoothDevice device : scanResults) {
                 mService.connect(device);
             }
@@ -423,14 +416,6 @@ public class BluetoothLeActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * info message on bottom screen
-     */
-    private void makeInfoMessage(String message, int duration) {
-        Snackbar.make(view, message, duration)
-                .setAction("Action", null).show();
-    }
-
     private void setBroadcastResult(Intent intent, String action) {
         String jsonData = intent.getStringExtra("bluetoothData");
         if (jsonData != null) {
@@ -439,12 +424,14 @@ public class BluetoothLeActivity extends AppCompatActivity {
                 try {
                     Toast.makeText(getApplicationContext(), "connected to " + json.get("id"), Toast.LENGTH_SHORT).show();
                     updateDatabase(jsonData, action, new Date());
+                    callbackCounter++;
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
                 Toast.makeText(getApplicationContext(), "disconnected from " + jsonData, Toast.LENGTH_SHORT).show();
                 updateDatabase(jsonData, action, new Date());
+                callbackCounter++;
             } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 updateUI(jsonData);
                 updateDatabase(jsonData, action, new Date());

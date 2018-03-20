@@ -3,6 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:context="com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeActivity">
 
+    <item android:id="@+id/menu_refresh"
+        android:checkable="false"
+        android:orderInCategory="1"
+        android:title=""
+        app:showAsAction="ifRoom"/>
     <item
         android:id="@+id/action_scan"
         android:orderInCategory="100"

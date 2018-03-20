@@ -48,6 +48,8 @@ public class GatewayService extends Service {
     private static final int SCAN_PERIOD = 10; // in second
     public static final String MESSAGE_COMMAND =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.MESSAGE_COMMAND";
+    public static final String TERMINATE_COMMAND =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.TERMINATE_COMMAND";
 
     private Intent mService;
     private Context context;
@@ -75,6 +77,9 @@ public class GatewayService extends Service {
         mThread.start();
         mHandlerMessage = new Handler(mThread.getLooper(), mHandlerCallback);
         mHandlerScanning = new Handler();
+
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
 
         listBluetoothGatt = new ArrayList<>();
         mapGattCallback = new HashMap<>();
@@ -139,30 +144,15 @@ public class GatewayService extends Service {
     private boolean commandCall(final BluetoothLe bluetoothLe) {
 
         int type = bluetoothLe.getTypeCommand();
-        boolean processCommandQueue = false;
 
-        if (type == BluetoothLe.CHECK_BLUETOOTH_STATE) {
-
+        if(type == BluetoothLe.CHECK_PERMISSION) {
             broadcastUpdate("Starting sequence commands...");
-            broadcastUpdate("Checking bluetooth adapter...");
-            if (!checkBluetoothState() || mBluetoothAdapter == null) {
-                Toast.makeText(this, "Please turn on bluetooth!", Toast.LENGTH_SHORT).show();
-                return false;
-            }
-            broadcastUpdate("Checking bluetooth adapter done...");
-
-
-        } else if (type == BluetoothLe.CHECK_PERMISSION) {
-
-            //step checking bluetoothAdapter & permissions
             broadcastUpdate("Checking permissions...");
-            if (!checkLocationState()) {
-                Toast.makeText(this, "Please turn on location!", Toast.LENGTH_SHORT).show();
+            if(!checkPermissions()) {
+                broadcastTerminate("Please turn on location!");
                 return false;
             }
             broadcastUpdate("Checking permissions done...");
-
-
         } else if (type == BluetoothLe.SCANNING) {
 
             //step scan BLE
@@ -183,7 +173,6 @@ public class GatewayService extends Service {
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 2, 0, isExecCommand));
                 }
             }, SCAN_PERIOD * 1000);
-
 
         } else if (type == BluetoothLe.CONNECTING) {
             broadcastUpdate("\n");
@@ -341,33 +330,7 @@ public class GatewayService extends Service {
         }
     };
 
-    private boolean checkBluetoothState() {
-
-        /** force user to turn on bluetooth */
-        if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
-            Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            turnOn.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            this.startActivity(turnOn);
-        } else {
-            // bluetooth is already turned on
-        }
-
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if (mBluetoothAdapter == null) {
-            return false;
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
-        }
-        mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
-
-        return true;
-    }
-
-    private boolean checkLocationState() {
+    private boolean checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             /** force user to turn on location service */
             if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -415,6 +378,12 @@ public class GatewayService extends Service {
 
     private void broadcastUpdate(String message) {
         final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
+        intent.putExtra("command", message);
+        sendBroadcast(intent);
+    }
+
+    private void broadcastTerminate(String message) {
+        final Intent intent = new Intent(GatewayService.TERMINATE_COMMAND);
         intent.putExtra("command", message);
         sendBroadcast(intent);
     }
