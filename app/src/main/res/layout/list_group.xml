@@ -1,18 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="fill_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp"
+    android:padding="1dp"
     android:background="#FFFFFF">
 
-
-    <TextView
-        android:id="@+id/lblListHeader"
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/colorBlack"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp" /> />
+        android:gravity="center"
+        android:orientation="horizontal" >
+
+        <TextView
+            android:id="@+id/lblNone"
+            android:layout_width="29dp"
+            android:layout_height="wrap_content"
+            android:gravity="left|center_vertical"
+            android:paddingLeft="7dip"
+            android:paddingRight="7dip"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
+        <TextView
+            android:id="@+id/lblListHeader"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="left|center_vertical"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
+
+        <Button
+            android:id="@+id/buttonRefresh"
+            android:layout_width="50dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="right"
+            android:focusable="false"
+            android:focusableInTouchMode="false"
+            android:src="@android:drawable/ic_menu_search"
+            android:visibility="visible" />
+    </LinearLayout>
 
 </LinearLayout>

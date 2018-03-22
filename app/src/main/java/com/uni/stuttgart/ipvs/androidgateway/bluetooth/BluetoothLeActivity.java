@@ -20,20 +20,23 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
-import android.support.design.widget.BottomNavigationView;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.ExpandableListView;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
-import com.uni.stuttgart.ipvs.androidgateway.database.DatabaseConnectionManager;
+import com.uni.stuttgart.ipvs.androidgateway.database.Database;
 import com.uni.stuttgart.ipvs.androidgateway.helper.ExpandableListAdapter;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
@@ -76,7 +79,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
 
     private List<BluetoothDevice> scanResults;
     private Map<BluetoothDevice, GattDataJson> mapScanResults;
-    private DatabaseConnectionManager database;
+    private Database database;
     private ConcurrentLinkedQueue<BluetoothLe> queue;
     private Menu menuBar;
     private int callbackCounter;
@@ -173,6 +176,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
 
         //set of List view command
         listView = (ExpandableListView) findViewById(R.id.listViewBle);
+
         listDataHeader = new ArrayList<String>();
         listDataChild = new HashMap<>();
         listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
@@ -184,7 +188,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
 
         context = this;
 
-        database = new DatabaseConnectionManager(this);
+        database = new Database(this);
+        database.deleteAllData();
 
         registerBroadcastListener();
         if (checkBluetoothState()) {
@@ -467,6 +472,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
             listDataChild.put(device.getAddress(), jsonString.getPreparedChildData());
         }
         listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
+        updateImageButton(scanResults, mService);
         listView.setAdapter(listAdapter);
     }
 
@@ -485,13 +491,30 @@ public class BluetoothLeActivity extends AppCompatActivity {
                 listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
 
                 View groupView = listAdapter.getGroupView(listDataHeader.indexOf(id), false, null, null);
-                listAdapter.changeGroupColor(listDataHeader.indexOf(id), groupView, Color.RED);
+                //listAdapter.changeGroupColor(listDataHeader.indexOf(id), groupView, Color.RED);
                 listView.setAdapter(listAdapter);
             }
         } catch (JSONException e) {
             e.printStackTrace();
         }
 
+    }
+
+    private void updateImageButton(final List<BluetoothDevice> devices, final BluetoothLeService service) {
+        Button button = listAdapter.getImageButton();
+        final String headerTitle = listAdapter.getHeaderTitle();
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                for(BluetoothDevice device : devices) {
+                    if(device.getAddress() == headerTitle) {
+                        Toast.makeText(context, "Connecting to " + headerTitle, Toast.LENGTH_SHORT).show();
+                        service.connect(device);
+                        break;
+                    }
+                }
+            }
+        });
     }
 
     private void updateDatabase(String jsonData, String action, Date date) {

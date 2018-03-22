@@ -18,14 +18,14 @@ import java.util.Map;
  * Created by mdand on 2/17/2018.
  */
 
-public class DatabaseConnectionManager extends SQLiteOpenHelper {
+public class Database extends SQLiteOpenHelper {
     public static final String DATABASE_NAME = "BleData.db";
     public static final String BLE_ID = "id";
     public static final String BLE_DATA = "data";
     public static final String BLE_ACTION = "action";
     public static final String BLE_TIMESTAMP = "timestamp";
 
-    public DatabaseConnectionManager(Context context) {
+    public Database(Context context) {
         super(context, DATABASE_NAME , null, 1);
     }
 
@@ -41,7 +41,7 @@ public class DatabaseConnectionManager extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         // TODO Auto-generated method stub
-        db.execSQL("DROP TABLE IF EXISTS contacts");
+        db.execSQL("DROP TABLE IF EXISTS BleData");
         onCreate(db);
     }
 
@@ -65,7 +65,7 @@ public class DatabaseConnectionManager extends SQLiteOpenHelper {
 
     public boolean deleteAllData() {
         SQLiteDatabase db = this.getWritableDatabase();
-        db.execSQL("delete from "+ DATABASE_NAME);
+        db.execSQL("delete from BleData ");
         db.close();
         return true;
     }
