@@ -1,5 +1,6 @@
 package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
@@ -28,10 +29,13 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
 
     private BluetoothGatt mBluetoothGatt;
     private int mBluetoothRssi;
+    private String macAddress;
     private BluetoothDevice mDevice;
     private Context context;
     private BluetoothGattCallback mGattCallback;
     private Handler mHandlerMessage;
+
+    public BluetoothLeGattCallback(Context context) {this.context = context;}
 
     public BluetoothLeGattCallback(Context context, BluetoothDevice device) {
         this.context = context;
@@ -45,6 +49,13 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     }
 
     public void connect() {
+        mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
+        refreshDeviceCache(mBluetoothGatt);
+    }
+
+    public void connect(BluetoothAdapter mBluetoothAdapter, String macAddress) {
+        mDevice = mBluetoothAdapter.getRemoteDevice(macAddress);
         mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
         refreshDeviceCache(mBluetoothGatt);
@@ -98,7 +109,6 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             BluetoothGattDescriptor descriptor = characteristic.getDescriptor(descriptorUUID);
             if (descriptor != null) {
                 try {
-                    mBluetoothGatt.readDescriptor(descriptor);
                     mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
@@ -174,25 +184,19 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
-        Map<BluetoothGatt, BluetoothGattCharacteristic> map = new HashMap<>();
-        map.put(gatt, characteristic);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, map));
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, gatt));
     }
 
     @Override
     public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicWrite(gatt, characteristic, status);
-        Map<BluetoothGatt, BluetoothGattCharacteristic> map = new HashMap<>();
-        map.put(gatt, characteristic);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 6, 0, map));
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 6, 0, gatt));
     }
 
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
-        Map<BluetoothGatt, BluetoothGattCharacteristic> map = new HashMap<>();
-        map.put(gatt, characteristic);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, map));
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, gatt));
     }
 
     @Override

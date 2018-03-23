@@ -18,14 +18,14 @@ import java.util.Map;
  * Created by mdand on 2/17/2018.
  */
 
-public class Database extends SQLiteOpenHelper {
-    public static final String DATABASE_NAME = "BleData.db";
+public class BleDeviceDatabase extends SQLiteOpenHelper {
+    public static final String DATABASE_NAME = "BleDeviceData.db";
     public static final String BLE_ID = "id";
     public static final String BLE_DATA = "data";
     public static final String BLE_ACTION = "action";
     public static final String BLE_TIMESTAMP = "timestamp";
 
-    public Database(Context context) {
+    public BleDeviceDatabase(Context context) {
         super(context, DATABASE_NAME , null, 1);
     }
 
@@ -33,7 +33,7 @@ public class Database extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         // TODO Auto-generated method stub
         db.execSQL(
-                "create table if not exists BleData " +
+                "create table if not exists BleDeviceData " +
                         "(id integer primary key, data text,action_ble text,timestamp text)"
         );
     }
@@ -41,21 +41,21 @@ public class Database extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         // TODO Auto-generated method stub
-        db.execSQL("DROP TABLE IF EXISTS BleData");
+        db.execSQL("DROP TABLE IF EXISTS BleDeviceData");
         onCreate(db);
     }
 
-    public boolean insertData(String data, String action_ble, Date timestamp) {
+    public boolean insertData(String data, String device_name, Date timestamp) {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues contentValues = new ContentValues();
-            contentValues.put("data", data);
-            contentValues.put("action_ble", action_ble);
+            contentValues.put("mac_address", data);
+            contentValues.put("device_name", device_name);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
             contentValues.put("timestamp", date);
-            db.insert("BleData", null, contentValues);
+            db.insert("BleDeviceData", null, contentValues);
             status = true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -65,7 +65,7 @@ public class Database extends SQLiteOpenHelper {
 
     public boolean deleteAllData() {
         SQLiteDatabase db = this.getWritableDatabase();
-        db.execSQL("delete from BleData ");
+        db.execSQL("delete from BleDeviceData ");
         db.close();
         return true;
     }

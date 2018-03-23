@@ -5,6 +5,8 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.RequiresApi;
 import android.util.Log;
 import android.widget.Toast;
@@ -24,6 +26,7 @@ public class ScanCallbackNew extends ScanCallback {
 
     private List<BluetoothDevice> listDevices;
     private Map<BluetoothDevice, GattDataJson> mapProperties;
+    private Handler mHandlerMessage;
     private Context context;
 
     public ScanCallbackNew(Context context, List<BluetoothDevice> listDevices, Map<BluetoothDevice, GattDataJson> mapProperties) {
@@ -38,6 +41,7 @@ public class ScanCallbackNew extends ScanCallback {
     public void onScanResult(int callbackType, ScanResult result) {
         super.onScanResult(callbackType, result);
         addBluetoothDevice(result);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 3, 0, result));
     }
 
     @Override
@@ -45,6 +49,7 @@ public class ScanCallbackNew extends ScanCallback {
         super.onBatchScanResults(results);
         for (ScanResult result : results) {
             addBluetoothDevice(result);
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 4, 0, results));
         }
     }
 
@@ -53,6 +58,10 @@ public class ScanCallbackNew extends ScanCallback {
         super.onScanFailed(errorCode);
         Log.w("Bluetooth ScanCallback", "Scanning failed with errorCode " + errorCode);
         Toast.makeText(context, String.format("Scanning failed (%d)", errorCode), Toast.LENGTH_SHORT).show();
+    }
+
+    public void setMessageHandler(Handler mHandlerMessage) {
+        this.mHandlerMessage = mHandlerMessage;
     }
 
     private void addBluetoothDevice(ScanResult result) {
@@ -64,6 +73,7 @@ public class ScanCallbackNew extends ScanCallback {
                     json = new GattDataJson(result.getDevice(), result.getRssi(), result.getTxPower());
                 }
                 mapProperties.put(result.getDevice(), json);
+                mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 6, 0, mapProperties));
             }
         }
     }

@@ -1,19 +1,14 @@
 package com.uni.stuttgart.ipvs.androidgateway.helper;
 
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseExpandableListAdapter;
-import android.widget.Button;
-import android.widget.ImageButton;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeService;
 
 import java.util.HashMap;
 import java.util.List;
@@ -28,8 +23,7 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     private List<String> _listDataHeader; // header titles
     // child data in format of header title, child title
     private HashMap<String, List<String>> _listDataChild;
-    private Button button;
-    private String headerTitleString;
+    private HashMap<String, String> _listDataHeaderSmall;
 
     public ExpandableListAdapter(Context context, List<String> listDataHeader,
                                  HashMap<String, List<String>> listChildData) {
@@ -93,6 +87,7 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     public View getGroupView(int groupPosition, boolean isExpanded,
                              View convertView, ViewGroup parent) {
         final String headerTitle = (String) getGroup(groupPosition);
+
         if (convertView == null) {
             LayoutInflater infalInflater = (LayoutInflater) this._context
                     .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -104,6 +99,10 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         lblListHeader.setTypeface(null, Typeface.BOLD);
         lblListHeader.setText(headerTitle);
 
+        TextView lblListHeaderSmall = (TextView) convertView
+                .findViewById(R.id.lblListHeaderSmall);
+        lblListHeaderSmall.setTypeface(null, Typeface.BOLD);
+        lblListHeaderSmall.setText(_listDataHeaderSmall.get(headerTitle));
 
         return convertView;
     }
@@ -118,17 +117,15 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         return true;
     }
 
-    public Button getImageButton() {
-        LayoutInflater infalInflater = (LayoutInflater) this._context
-                .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-
-        View convertView = infalInflater.inflate(R.layout.list_group, null);
-        button = (Button) convertView.findViewById(R.id.buttonRefresh);
-        return button;
+    public void setDataHeader(List<String> listHeader) {
+        this._listDataHeader = listHeader;
     }
 
-    public String getHeaderTitle() {
+    public void setDataChild(HashMap<String, List<String>> stringListMap) {
+        this._listDataChild = stringListMap;
+    }
 
-        return headerTitleString;
+    public void setDataHeaderSmall(HashMap<String, String> stringListMap) {
+        this._listDataHeaderSmall = stringListMap;
     }
 }

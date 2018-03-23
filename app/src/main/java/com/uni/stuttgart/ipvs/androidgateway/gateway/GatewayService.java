@@ -7,24 +7,20 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Message;
-import android.util.ArrayMap;
 import android.util.Log;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLe;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeGattCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattLookUp;
@@ -145,10 +141,10 @@ public class GatewayService extends Service {
 
         int type = bluetoothLe.getTypeCommand();
 
-        if(type == BluetoothLe.CHECK_PERMISSION) {
+        if (type == BluetoothLe.CHECK_PERMISSION) {
             broadcastUpdate("Starting sequence commands...");
             broadcastUpdate("Checking permissions...");
-            if(!checkPermissions()) {
+            if (!checkPermissions()) {
                 broadcastTerminate("Please turn on location!");
                 return false;
             }
@@ -201,13 +197,9 @@ public class GatewayService extends Service {
             broadcastUpdate("Disconnected from " + bluetoothLe.getGatt().getDevice().getAddress());
         } else if (type == BluetoothLe.READ) {
             mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
-            try {
-                Thread.sleep(100);
-                broadcastUpdate("Reading Characteristic " + GattLookUp.characteristicNameLookup(bluetoothLe.getCharacteristicUUID()));
-                mBluetoothGattCallback.readCharacteristic(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID());
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            sleepThread(100);
+            broadcastUpdate("Reading Characteristic " + GattLookUp.characteristicNameLookup(bluetoothLe.getCharacteristicUUID()));
+            mBluetoothGattCallback.readCharacteristic(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID());
         } else if (type == BluetoothLe.REGISTER_NOTIFY) {
             mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
             broadcastUpdate("Registering Notify Characteristic " + bluetoothLe.getCharacteristicUUID().toString());
@@ -232,6 +224,7 @@ public class GatewayService extends Service {
     Handler.Callback mHandlerCallback = new Handler.Callback() {
 
         GattDataJson dataJson;
+        BluetoothGatt mBluetoothGatt;
 
         @Override
         public boolean handleMessage(Message msg) {
@@ -279,9 +272,9 @@ public class GatewayService extends Service {
                         //discovered services and read all characteristics
                         broadcastUpdate("\n");
                         isExecCommand = true;
-                        BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
-                        getServiceCharacteristic(gatt);
-                        dataJson.setGatt(gatt);
+                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
+                        getServiceCharacteristic(mBluetoothGatt);
+                        dataJson.setGatt(mBluetoothGatt);
                     } else if (msg.arg1 == 5) {
                         // onReadCharacteristic
                         isExecCommand = false;
@@ -311,17 +304,16 @@ public class GatewayService extends Service {
 
         private String readData(Message msg) {
             String result = null;
-            Map<BluetoothGatt, BluetoothGattCharacteristic> map = new HashMap<>();
-            map = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
-            for (Map.Entry<BluetoothGatt, BluetoothGattCharacteristic> entry : map.entrySet()) {
-                dataJson.setGatt(entry.getKey());
-                dataJson.setAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
-                result = dataJson.getJsonData().toString();
-                String characteristicValue = GattDataHelper.decodeCharacteristicValue(entry.getValue(), entry.getKey());
-                broadcastUpdate("Characteristic : " + GattLookUp.characteristicNameLookup(entry.getValue().getUuid()));
-                broadcastUpdate("Characteristic read value: " + characteristicValue);
+            BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
+            GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
+            for(BluetoothGattService service : gatt.getServices()) {
+                for(BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
+                    String characteristicValue = GattDataHelper.decodeCharacteristicValue(characteristic, gatt);
+                    broadcastUpdate("Characteristic : " + GattLookUp.characteristicNameLookup(characteristic.getUuid()));
+                    broadcastUpdate("Characteristic read value: " + characteristicValue);
+                }
             }
-            return result;
+            return json.getJsonData().toString();
         }
 
         private String shortUUID(String uuid) {

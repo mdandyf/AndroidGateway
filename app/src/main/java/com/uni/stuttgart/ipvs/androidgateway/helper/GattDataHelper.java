@@ -168,34 +168,7 @@ public class GattDataHelper {
                 float temperature = characteristic.getFloatValue(BluetoothGattCharacteristic.FORMAT_FLOAT, offset);
                 final String temperatureString = String.format(Locale.US, "%.1f %s", temperature, unit);
                 return temperatureString;
-
             }
-        } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_HEART_RATE)) {
-            int heartRate = 0;
-            int offset = 1;
-
-            byte[] buf = characteristic.getValue();
-            if (buf != null && buf.length > 1) {
-                // Heart Rate Value Format bit
-                if ((buf[0] & 0x01) != 0) {
-                    Integer v = characteristic.getIntValue(FORMAT_UINT16, offset);
-                    if (v != null) {
-                        heartRate = v;
-                    }
-                    offset += 2;
-                } else {
-                    Integer v = characteristic.getIntValue(FORMAT_UINT8, offset);
-                    if (v != null) {
-                        heartRate = v;
-                    }
-                    offset += 1;
-                }
-
-                final String heartRateString = String.format(Locale.US, "%d %s", heartRate, "bpm");
-                return heartRateString;
-
-            }
-
         } else  {
 
             final byte[] data = characteristic.getValue();
@@ -203,7 +176,7 @@ public class GattDataHelper {
                 final StringBuilder stringBuilder = new StringBuilder(data.length);
                 for(byte byteChar : data)
                     stringBuilder.append(String.format("%02X ", byteChar));
-                return "0x" + stringBuilder.toString();
+                return "0x " + stringBuilder.toString();
             }
         }
         return value;

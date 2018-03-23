@@ -2,7 +2,16 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical" >
+    android:orientation="horizontal" >
+
+    <TextView
+        android:id="@+id/lblNoneList"
+        android:layout_width="25dp"
+        android:layout_height="wrap_content"
+        android:gravity="left|center_vertical"
+        android:paddingLeft="7dip"
+        android:paddingRight="7dip"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <TextView
         android:id="@+id/lblListItem"
@@ -11,7 +20,7 @@
         android:paddingTop="3dp"
         android:paddingBottom="3dp"
         android:textSize="14dp"
-        android:textColor="@color/colorBlue"
+        android:textColor="@color/colorViolet"
         android:paddingLeft="10dp" />
 
 </LinearLayout>

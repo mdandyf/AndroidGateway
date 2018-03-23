@@ -237,7 +237,7 @@ public class GattLookUp {
     // SHORT UUID GENERATOR (WHERE s IS 4-DIGIT HEX STRING)
 
     public static UUID shortUUID(String s) {
-        return UUID.fromString("0000" + s + "-0000-1000-8000-00805F9B34FB");
+        return UUID.fromString("0000" + s + "-0000-1000-8000-00805f9b34fb");
     }
 
 }

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="fill_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -13,31 +14,60 @@
         android:gravity="center"
         android:orientation="horizontal" >
 
-        <TextView
-            android:id="@+id/lblNone"
-            android:layout_width="29dp"
-            android:layout_height="wrap_content"
-            android:gravity="left|center_vertical"
-            android:paddingLeft="7dip"
-            android:paddingRight="7dip"
-            android:textAppearance="?android:attr/textAppearanceLarge" />
-        <TextView
-            android:id="@+id/lblListHeader"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="left|center_vertical"
-            android:textAppearance="?android:attr/textAppearanceLarge" />
+        <TableLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
-        <Button
-            android:id="@+id/buttonRefresh"
-            android:layout_width="50dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="right"
-            android:focusable="false"
-            android:focusableInTouchMode="false"
-            android:src="@android:drawable/ic_menu_search"
-            android:visibility="visible" />
+            <TableRow>
+                <TextView
+                    android:id="@+id/lblNone"
+                    android:layout_width="29dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="left|center_vertical"
+                    android:paddingLeft="7dip"
+                    android:paddingRight="7dip"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+                <TextView
+                    android:id="@+id/lblListHeader"
+                    android:layout_width="340dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="left|center_vertical"
+                    android:textAppearance="?android:attr/textAppearanceLarge" />
+
+                <ImageView
+                    android:id="@+id/buttonRefresh"
+                    android:layout_width="43dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="right"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:src="@drawable/pencil"
+                    android:visibility="visible" />
+            </TableRow>
+            <TableRow>
+                <TextView
+                    android:id="@+id/lblNone1"
+                    android:layout_width="29dp"
+                    android:layout_height="match_parent"
+                    android:gravity="left|center_vertical"
+                    android:paddingLeft="7dip"
+                    android:paddingRight="7dip"
+                    android:textAppearance="?android:attr/textAppearanceSmall" />
+
+                <TextView
+                    android:id="@+id/lblListHeaderSmall"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/colorBlue"
+                    android:gravity="left|center_vertical"
+                    android:textAppearance="?android:attr/textAppearanceSmall" />
+            </TableRow>
+
+        </TableLayout>
+
+
     </LinearLayout>
 
 </LinearLayout>
