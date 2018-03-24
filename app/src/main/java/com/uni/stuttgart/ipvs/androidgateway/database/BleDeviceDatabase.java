@@ -21,8 +21,8 @@ import java.util.Map;
 public class BleDeviceDatabase extends SQLiteOpenHelper {
     public static final String DATABASE_NAME = "BleDeviceData.db";
     public static final String BLE_ID = "id";
-    public static final String BLE_DATA = "data";
-    public static final String BLE_ACTION = "action";
+    public static final String BLE_DATA = "mac_address";
+    public static final String BLE_NAME = "device_name";
     public static final String BLE_TIMESTAMP = "timestamp";
 
     public BleDeviceDatabase(Context context) {
@@ -31,10 +31,9 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        // TODO Auto-generated method stub
         db.execSQL(
                 "create table if not exists BleDeviceData " +
-                        "(id integer primary key, data text,action_ble text,timestamp text)"
+                        "(id integer primary key, mac_address text,device_name text,timestamp text)"
         );
     }
 
@@ -45,7 +44,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-    public boolean insertData(String data, String device_name, Date timestamp) {
+    public boolean insertData(String data, String device_name) {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
@@ -74,7 +73,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         Map<Integer, Map<String, Date>> mapResult = new HashMap<>();
         Map<String, Date> mapData = new HashMap<>();
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor res =  db.rawQuery( "select * from BleData", null );
+        Cursor res =  db.rawQuery( "select * from BleDeviceData", null );
         res.moveToFirst();
 
         while(res.isAfterLast() == false){
@@ -83,7 +82,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
             try {
                 date = sdf.parse(res.getString(res.getColumnIndex(BLE_TIMESTAMP)));
                 String data = res.getString(res.getColumnIndex(BLE_DATA));
-                String action = res.getString(res.getColumnIndex(BLE_ACTION));
+                String action = res.getString(res.getColumnIndex(BLE_NAME));
                 int key = res.getInt(res.getColumnIndex(BLE_ID));
                 mapData.put(data, date);
                 mapResult.put(key, mapData);

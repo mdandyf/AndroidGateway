@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.wifi.aware.Characteristics;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -21,6 +22,9 @@ import android.widget.Toast;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLe;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeGattCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
+import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattLookUp;
@@ -66,6 +70,10 @@ public class GatewayService extends Service {
     private Handler mHandlerScanning;
     private boolean isExecCommand = false;
 
+    private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
+    private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
+    private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -79,6 +87,11 @@ public class GatewayService extends Service {
 
         listBluetoothGatt = new ArrayList<>();
         mapGattCallback = new HashMap<>();
+
+        bleDeviceDatabase.deleteAllData();
+        bleServicesDatabase.deleteAllData();
+        bleCharacteristicDatabase.deleteAllData();
+
     }
 
     @Override
@@ -155,7 +168,7 @@ public class GatewayService extends Service {
             broadcastUpdate("Scanning bluetooth...");
             Log.d(TAG, "Start scanning for " + SCAN_PERIOD + " seconds");
             mBluetoothLeScanProcess.scanLeDevice(true);
-
+            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
             mHandlerScanning.postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -167,6 +180,7 @@ public class GatewayService extends Service {
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 0, 0, mBluetoothLeScanProcess.getScanResult()));
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 1, 0, mBluetoothLeScanProcess.getScanProperties()));
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 2, 0, isExecCommand));
+                    updateDatabaseDevice(mBluetoothLeScanProcess.getScanResult());
                 }
             }, SCAN_PERIOD * 1000);
 
@@ -313,6 +327,9 @@ public class GatewayService extends Service {
                     broadcastUpdate("Characteristic read value: " + characteristicValue);
                 }
             }
+
+            updateDatabaseService(gatt);
+            updateDatabaseCharacteristics(gatt);
             return json.getJsonData().toString();
         }
 
@@ -378,5 +395,32 @@ public class GatewayService extends Service {
         final Intent intent = new Intent(GatewayService.TERMINATE_COMMAND);
         intent.putExtra("command", message);
         sendBroadcast(intent);
+    }
+
+    private void updateDatabaseDevice(List<BluetoothDevice> listDevices) {
+        broadcastUpdate("Write device to database");
+        for(BluetoothDevice device : listDevices) {
+            String deviceName = "unknown";
+            if(device.getName() != null) {deviceName = device.getName();}
+            bleDeviceDatabase.insertData(device.getAddress(), deviceName);
+        }
+    }
+
+    private void updateDatabaseService(BluetoothGatt gatt) {
+        broadcastUpdate("Write services to database");
+        for(BluetoothGattService service : gatt.getServices()) {
+            String deviceName = "unknown";
+            if(gatt.getDevice().getName() != null) {deviceName = gatt.getDevice().getName();}
+            bleServicesDatabase.insertData(gatt.getDevice().getAddress(), deviceName, service.getUuid().toString());
+        }
+    }
+
+    private void updateDatabaseCharacteristics(BluetoothGatt gatt) {
+        broadcastUpdate("Write characteristics to database");
+        for(BluetoothGattService service : gatt.getServices()) {
+            for(BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
+                bleCharacteristicDatabase.insertData(service.getUuid().toString(), characteristic.getUuid().toString());
+            }
+        }
     }
 }
