@@ -50,6 +50,8 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.MESSAGE_COMMAND";
     public static final String TERMINATE_COMMAND =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.TERMINATE_COMMAND";
+    public static final String START_COMMAND =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.START_COMMAND";
 
     private Intent mService;
     private Context context;

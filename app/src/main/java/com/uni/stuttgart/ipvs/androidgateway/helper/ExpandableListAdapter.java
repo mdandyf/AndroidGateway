@@ -1,12 +1,17 @@
 package com.uni.stuttgart.ipvs.androidgateway.helper;
 
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseExpandableListAdapter;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
 
@@ -24,6 +29,8 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     // child data in format of header title, child title
     private HashMap<String, List<String>> _listDataChild;
     private HashMap<String, String> _listDataHeaderSmall;
+    private ImageViewClickListener clickListener;
+    private String textAppearanceHeader;
 
     public ExpandableListAdapter(Context context, List<String> listDataHeader,
                                  HashMap<String, List<String>> listChildData) {
@@ -104,6 +111,24 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         lblListHeaderSmall.setTypeface(null, Typeface.BOLD);
         lblListHeaderSmall.setText(_listDataHeaderSmall.get(headerTitle));
 
+        ImageView image = (ImageView) convertView.findViewById(R.id.buttonRefresh);
+        image.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                v.setTag(headerTitle);
+                clickListener.imageViewListClicked(v);
+            }
+        });
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (textAppearanceHeader == "medium") {
+                lblListHeader.setTextAppearance(android.R.style.TextAppearance_Medium);
+            } else {
+                lblListHeader.setTextAppearance(android.R.style.TextAppearance_Large);
+            }
+        }
+
+
         return convertView;
     }
 
@@ -117,15 +142,16 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         return true;
     }
 
-    public void setDataHeader(List<String> listHeader) {
-        this._listDataHeader = listHeader;
+    public void setImageClickListener(ImageViewClickListener clickListener) {
+        this.clickListener = clickListener;
     }
 
-    public void setDataChild(HashMap<String, List<String>> stringListMap) {
-        this._listDataChild = stringListMap;
+    public void setTextAppearanceHeader(String textAppearance) {
+        this.textAppearanceHeader = textAppearance;
     }
 
     public void setDataHeaderSmall(HashMap<String, String> stringListMap) {
         this._listDataHeaderSmall = stringListMap;
     }
+
 }

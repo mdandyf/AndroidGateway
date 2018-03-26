@@ -49,14 +49,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".MainActivity"
-            android:label="@string/app_name"
-            android:theme="@style/AppTheme.NoActionBar" />
 
         <activity
             android:name=".bluetooth.BluetoothLeActivity"
             android:label="@string/title_activity_bluetooth" />
+
+        <activity
+            android:name=".MainTabActivity"
+            android:label="@string/app_name" />
         <activity
             android:name=".settings.SettingsActivity"
             android:label="@string/title_activity_settings" />

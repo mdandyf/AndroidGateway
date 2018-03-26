@@ -19,8 +19,10 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.view.WindowManager;
 import android.widget.ExpandableListView;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
@@ -29,6 +31,7 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.ExpandableListAdapter;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.helper.ImageViewClickListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -43,7 +46,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Created by mdand on 2/24/2018.
  */
 
-public class BluetoothLeActivity extends AppCompatActivity {
+public class BluetoothLeActivity extends AppCompatActivity implements ImageViewClickListener {
 
     private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
     private static final int SCAN_PERIOD = 10;
@@ -58,6 +61,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
     private List<BluetoothGatt> listConnectedGatt;
     private int counter;
     private boolean mProcessing;
+    private boolean mScanning;
+    private boolean isCOnnectAllDevices;
 
     private Context context;
     private ExpandableListView listView;
@@ -66,10 +71,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
     private HashMap<String, String> listDataHeaderSmall;
     private HashMap<String, List<String>> listDataChild;
 
-    private BleDeviceDatabase bleDeviceDatabase;
     private ConcurrentLinkedQueue<BluetoothLe> queue;
     private Menu menuBar;
-    private int callbackCounter;
 
     private HandlerThread mThread = new HandlerThread("mThreadCallback");
     private Handler mHandlerMessage;
@@ -80,6 +83,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
         getMenuInflater().inflate(R.menu.menu_bluetooth, menu);
         menuBar = menu;
         menuBar.findItem(R.id.menu_refresh).setActionView(null);
+
+        setMenuVisibility();
         return true;
     }
 
@@ -95,12 +100,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
             case R.id.action_scan:
                 scanLeDevice();
                 break;
-            case R.id.action_connect:
-                if (!mBluetoothLeScanProcess.getScanState()) {
-                    connectLeDevice();
-                } else {
-                    Toast.makeText(this, "Scanning is running, please wait!", Toast.LENGTH_SHORT).show();
-                }
+            case R.id.action_stop:
+                stopLeDevice();
                 break;
         }
         return true;
@@ -121,6 +122,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
         listDataHeaderSmall = new HashMap<>();
         listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
         listAdapter.setDataHeaderSmall(listDataHeaderSmall);
+        listAdapter.setImageClickListener(this);
         listView.setAdapter(listAdapter);
 
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
@@ -134,13 +136,15 @@ public class BluetoothLeActivity extends AppCompatActivity {
         context = this;
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
+        mBluetoothLeScanProcess = new
+                BluetoothLeScanProcess(this, mBluetoothAdapter);
         mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
         listDevice = new ArrayList<>();
         listConnectedGatt = new ArrayList<>();
 
-        bleDeviceDatabase = new BleDeviceDatabase(this);
-        bleDeviceDatabase.deleteAllData();
+        mScanning = false;
+        mProcessing = false;
+        isCOnnectAllDevices = false;
 
     }
 
@@ -169,7 +173,8 @@ public class BluetoothLeActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
         switch (requestCode) {
             case PERMISSION_REQUEST_ACCESS_COARSE_LOCATION: {
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -182,24 +187,44 @@ public class BluetoothLeActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public void imageViewListClicked(View v) {
+        String macAddress = (String) v.getTag();
+        Toast.makeText(context, "Connecting to " + macAddress, Toast.LENGTH_SHORT).show();
+        connectLeDevice(macAddress);
+    }
+
     private void scanLeDevice() {
-        mProcessing = true;
-        counter = 0;
-        mBluetoothLeScanProcess.scanLeDevice(true);
-        menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
-        Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                mBluetoothLeScanProcess.scanLeDevice(false);
-                menuBar.findItem(R.id.menu_refresh).setActionView(null);
-                mProcessing = false;
-            }
-        }, SCAN_PERIOD * 1000);
+        if (mBluetoothLeScanProcess != null) {
+            mProcessing = true;
+            counter = 0;
+            mBluetoothLeScanProcess.scanLeDevice(true);
+            mScanning = true;
+            menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
+            setMenuVisibility();
+            Handler handler = new Handler();
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    stopLeDevice();
+                }
+            }, SCAN_PERIOD * 1000);
+        }
+    }
+
+    private void stopLeDevice() {
+        if (mBluetoothLeScanProcess != null) {
+            mBluetoothLeScanProcess.scanLeDevice(false);
+            menuBar.findItem(R.id.menu_refresh).setActionView(null);
+            mProcessing = false;
+            mScanning = false;
+            setMenuVisibility();
+        }
     }
 
     private void connectLeDevice() {
         mProcessing = true;
+        isCOnnectAllDevices = true;
         menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
         for (final BluetoothDevice device : listDevice) {
             new Thread(new Runnable() {
@@ -215,15 +240,21 @@ public class BluetoothLeActivity extends AppCompatActivity {
 
     private void connectLeDevice(final String macAddress) {
         mProcessing = true;
+        isCOnnectAllDevices = false;
         menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context);
-                gattCallback.setHandlerMessage(mHandlerMessage);
-                gattCallback.connect(mBluetoothAdapter, macAddress);
-            }
-        }).start();
+        for(final BluetoothDevice device : listDevice) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    if(macAddress.equals(device.getAddress())) {
+                        BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
+                        gattCallback.setHandlerMessage(mHandlerMessage);
+                        gattCallback.connect();
+                    }
+
+                }
+            }).start();
+        }
     }
 
     /**
@@ -271,6 +302,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
                     } else if (msg.arg1 == 1) {
                         // read all bluetoothGatt connected servers
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
+                        Toast.makeText(context, "Connected to " + mBluetoothGatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
                         synchronized (mBluetoothGatt) {
                             mBluetoothGatt.readRemoteRssi();
                             mBluetoothGatt.discoverServices();
@@ -281,6 +313,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
                     } else if (msg.arg1 == 2) {
                         // read all bluetoothGatt disconnected servers
                         synchronized (mBluetoothGatt) {
+                            Toast.makeText(context, "Disconnected from " + mBluetoothGatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
                             mBluetoothGatt = ((BluetoothGatt) msg.obj);
                             mBluetoothGatt.readRemoteRssi();
                             updateUIDisonnected(mBluetoothGatt);
@@ -338,7 +371,14 @@ public class BluetoothLeActivity extends AppCompatActivity {
                         }
                     }
 
-                    if (listDevice != null && counter == listDevice.size()) {
+                    if (isCOnnectAllDevices &&listDevice != null && counter == listDevice.size()) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                menuBar.findItem(R.id.menu_refresh).setActionView(null);
+                            }
+                        });
+                    } else if(!isCOnnectAllDevices && counter == 1) {
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
@@ -418,6 +458,16 @@ public class BluetoothLeActivity extends AppCompatActivity {
         }
 
 
+    }
+
+    private void setMenuVisibility() {
+        if (!mScanning) {
+            menuBar.findItem(R.id.action_scan).setVisible(true);
+            menuBar.findItem(R.id.action_stop).setVisible(false);
+        } else {
+            menuBar.findItem(R.id.action_scan).setVisible(false);
+            menuBar.findItem(R.id.action_stop).setVisible(true);
+        }
     }
 
     private void processQueue() {
@@ -509,6 +559,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
                     json.setJsonData(json.getJsonData().toString());
                     listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
                     listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Connected");
+                    listAdapter.setTextAppearanceHeader("Large");
                     listAdapter.notifyDataSetChanged();
                 }
             }
@@ -539,6 +590,7 @@ public class BluetoothLeActivity extends AppCompatActivity {
                     json.setJsonData(json.getJsonAdvertising().toString());
                     listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
                     listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Disonnected");
+                    listAdapter.setTextAppearanceHeader("Medium");
                     listAdapter.notifyDataSetChanged();
                 }
             }
