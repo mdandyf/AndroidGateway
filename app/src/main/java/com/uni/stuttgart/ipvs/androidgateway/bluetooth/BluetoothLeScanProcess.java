@@ -27,12 +27,12 @@ public class BluetoothLeScanProcess {
 
     private BluetoothAdapter mBluetoothAdapter;
     private android.bluetooth.le.BluetoothLeScanner mBleScanner;
-    private Handler mHandler;
     private ScanResult scanResult;
     private Context context;
     private boolean mScanning = false;
     public ScanCallbackNew callback;
     public ScanCallbackOld callbackOld;
+    private Handler mHandlerMessage;
 
     public BluetoothLeScanProcess(Context context, BluetoothAdapter adapter) {
         this.context = context;
@@ -50,6 +50,15 @@ public class BluetoothLeScanProcess {
 
     public boolean getScanState() {return this.mScanning;}
 
+    public void setHandlerMessage(Handler mHandlerMessage) {
+        this.mHandlerMessage = mHandlerMessage;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            callback.setMessageHandler(mHandlerMessage);
+        } else {
+            callbackOld.setHandlerMessage(mHandlerMessage);
+        }
+    }
+
     public List<BluetoothDevice> getScanResult() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             return callback.getListDevices();
@@ -65,6 +74,8 @@ public class BluetoothLeScanProcess {
             return callbackOld.getMapProperties();
         }
     }
+
+    public BluetoothDevice getRemoteDevice(String address) {return mBluetoothAdapter.getRemoteDevice(address);}
 
     public void scanLeDevice(boolean enable) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -105,6 +116,7 @@ public class BluetoothLeScanProcess {
                 settingsBuilder.setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE);
                 settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
             }
+
             ScanSettings scanSettings = settingsBuilder.build();
             mScanning = true;
             mBleScanner.startScan(scanFilters, scanSettings, callback);
@@ -116,12 +128,12 @@ public class BluetoothLeScanProcess {
      */
     private void oldScan() {
         // Stops scanning after a pre-defined scan period.
-        mHandler = new Handler();
         mScanning = true;
         mBluetoothAdapter.startLeScan(callbackOld);
     }
 
     private void stopScan() {
+        mScanning = false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             mBleScanner.stopScan(callback);
         } else {

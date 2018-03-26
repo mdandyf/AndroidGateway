@@ -8,8 +8,6 @@ import android.bluetooth.BluetoothGattService;
 import android.os.Build;
 import android.util.Base64;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeService;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -34,18 +32,16 @@ public class GattDataJson extends JsonParser {
     private int rssi;
     private byte[] advertisingData;
     private int txPowerData;
-    private String action;
 
     public GattDataJson(BluetoothDevice device, BluetoothGatt gatt) {
         this.device = device;
         this.gatt = gatt;
     }
 
-    public GattDataJson(BluetoothDevice device, BluetoothGatt gatt, int rssi, String action) {
+    public GattDataJson(BluetoothDevice device, BluetoothGatt gatt, int rssi) {
         this.device = device;
         this.gatt = gatt;
         this.rssi = rssi;
-        this.action = action;
     }
 
     public GattDataJson(BluetoothDevice device, int rssi, byte[] advertisingData) {
@@ -60,10 +56,6 @@ public class GattDataJson extends JsonParser {
         this.txPowerData = txPowerData;
     }
 
-    public GattDataJson(String jsonData) {
-        this.jsonData = jsonData;
-    }
-
     public void setGatt(BluetoothGatt gatt) {this.gatt = gatt;}
 
     public void setRssi(int rssi) {this.rssi = rssi;}
@@ -72,7 +64,7 @@ public class GattDataJson extends JsonParser {
 
     public void setTxPowerData(int txPowerData) {this.txPowerData = txPowerData;}
 
-    public void setAction(String action) {this.action = action;}
+    public void setJsonData(String jsonData) {this.jsonData = jsonData;}
 
     public GattDataJson(BluetoothDevice device, int rssi, byte[] advertisingData, BluetoothGatt gatt) {
         this.device = device;
@@ -127,9 +119,7 @@ public class GattDataJson extends JsonParser {
                         characteristicsJSON.put("serviceUUID", uuidToString(service.getUuid()));
                         characteristicsJSON.put("characteristicName", GattLookUp.characteristicNameLookup(characteristic.getUuid()));
                         characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
-                        if(action.equals(BluetoothLeService.EXTRA_DATA) || action.equals(BluetoothLeService.ACTION_DATA_AVAILABLE)) {
-                            characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic, gatt));
-                        }
+                        characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic, gatt));
 
                         characteristicsJSON.put("properties", GattDataHelper.decodeProperties(characteristic));
                         characteristicsJSON.put("propertiesValue", characteristic.getProperties());
@@ -170,7 +160,6 @@ public class GattDataJson extends JsonParser {
             JSONObject json = readJsonObjectFromString(jsonData);
             try {
                 result.add("Name: " + json.getString("name"));
-                result.add("Status: " + json.getString("status"));
                 result.add("Rssi: " + String.valueOf(json.getInt("rssi")) + " dBm");
                 if (advertisingData != null) {
                     result.add("Advertising: " + json.getString("data"));
@@ -190,11 +179,10 @@ public class GattDataJson extends JsonParser {
                             result.add(" Service UUID: " + obj.get("serviceUUID"));
                             result.add("    Characteristic Name: " + obj.get("characteristicName"));
                             result.add("    Characteristic UUID: " + obj.get("characteristicUUID"));
+                            result.add("    Characteristic Property: " + obj.get("properties"));
                             if(obj.has("characteristicValue")) {
                                 result.add("    Characteristic Value: " + obj.get("characteristicValue"));
                             }
-                            result.add("    Property: " + obj.get("properties"));
-                            result.add("    Property Value: " + obj.get("propertiesValue"));
                             if (!json.isNull("descriptors")) {
                                 JSONArray descriptors = json.getJSONArray("descriptors");
                                 for (int j = 0; j < descriptors.length(); j++) {

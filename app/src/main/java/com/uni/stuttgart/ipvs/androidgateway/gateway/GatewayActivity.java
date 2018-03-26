@@ -44,7 +44,7 @@ public class GatewayActivity extends AppCompatActivity {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 v.getParent().requestDisallowInterceptTouchEvent(true);
-                switch (event.getAction() & MotionEvent.ACTION_MASK){
+                switch (event.getAction() & MotionEvent.ACTION_MASK) {
                     case MotionEvent.ACTION_UP:
                         v.getParent().requestDisallowInterceptTouchEvent(false);
                         break;
@@ -56,18 +56,12 @@ public class GatewayActivity extends AppCompatActivity {
         registerBroadcastListener();
         checkBluetoothState();
 
-        if(mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
-            startService();
-        }
-
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if(mGatewayService != null) {
-            stopService(mGatewayService);
-        }
+        stopServiceGateway();
         unregisterReceiver(mReceiver);
         finish();
     }
@@ -78,11 +72,14 @@ public class GatewayActivity extends AppCompatActivity {
         // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
         // fire an intent to display a dialog asking the user to grant permission to enable it.
         if (!mBluetoothAdapter.isEnabled()) {
-            if (!mBluetoothAdapter.isEnabled()) {
-                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBtIntent, 1);
-            }
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, 1);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
     }
 
     @Override
@@ -93,15 +90,21 @@ public class GatewayActivity extends AppCompatActivity {
             return;
         }
 
-        startService();
+        startServiceGateway();
 
         super.onActivityResult(requestCode, resultCode, data);
     }
 
-    private void startService() {
+    private void startServiceGateway() {
         mGatewayService = new Intent(this, GatewayService.class);
         startService(mGatewayService);
         setCommandLine("Starting Gateway Service...");
+    }
+
+    private void stopServiceGateway() {
+        if (mGatewayService != null) {
+            stopService(mGatewayService);
+        }
     }
 
     private void checkBluetoothState() {
@@ -127,12 +130,14 @@ public class GatewayActivity extends AppCompatActivity {
     }
 
     private void registerBroadcastListener() {
-        //Set a filter to only receive bluetooth state changed events.
         IntentFilter filter1 = new IntentFilter(GatewayService.MESSAGE_COMMAND);
         registerReceiver(mReceiver, filter1);
 
         IntentFilter filter2 = new IntentFilter(GatewayService.TERMINATE_COMMAND);
-        registerReceiver(mReceiver, filter1);
+        registerReceiver(mReceiver, filter2);
+
+        IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
+        registerReceiver(mReceiver, filter3);
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -141,13 +146,19 @@ public class GatewayActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
 
-            if(action.equals(GatewayService.MESSAGE_COMMAND)) {
+            if (action.equals(GatewayService.MESSAGE_COMMAND)) {
                 String message = intent.getStringExtra("command");
                 setCommandLine(message);
-            } else if(action.equals(GatewayService.TERMINATE_COMMAND)) {
+            } else if (action.equals(GatewayService.TERMINATE_COMMAND)) {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-                finish();
+                stopServiceGateway();
+            } else if(action.equals(GatewayService.START_COMMAND)) {
+                String message = intent.getStringExtra("command");
+                Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+                if(mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
+                    startServiceGateway();
+                }
             }
 
         }

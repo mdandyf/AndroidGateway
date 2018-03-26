@@ -2,6 +2,8 @@ package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.os.Handler;
+import android.os.Message;
 
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 
@@ -16,6 +18,7 @@ public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
 
     private List<BluetoothDevice> listDevices;
     private Map<BluetoothDevice, GattDataJson> mapProperties;
+    private Handler mHandlerMessage;
 
     public ScanCallbackOld(List<BluetoothDevice> listDevices, Map<BluetoothDevice, GattDataJson> mapProperties) {
         this.listDevices = listDevices;
@@ -23,6 +26,7 @@ public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
     }
     public List<BluetoothDevice> getListDevices() {return listDevices;}
     public Map<BluetoothDevice, GattDataJson> getMapProperties(){return mapProperties;}
+    public void setHandlerMessage(Handler mHandlerMessage) {this.mHandlerMessage = mHandlerMessage;}
 
 
     @Override
@@ -31,6 +35,7 @@ public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
             listDevices.add(device);
             GattDataJson json = new GattDataJson(device, rssi, scanRecord);
             mapProperties.put(device, json);
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 5, 0, mapProperties));
         }
     }
 }

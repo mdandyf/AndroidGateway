@@ -34,7 +34,7 @@ public class SplashActivity extends Activity {
 
                 @Override
                 public void run() {
-                    Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+                    Intent intent = new Intent(getApplicationContext(), MainTabActivity.class);
                     startActivity(intent);
                     finish();
                 }

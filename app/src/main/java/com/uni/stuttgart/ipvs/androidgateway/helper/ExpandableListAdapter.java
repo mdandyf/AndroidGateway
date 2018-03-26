@@ -1,12 +1,17 @@
 package com.uni.stuttgart.ipvs.androidgateway.helper;
 
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseExpandableListAdapter;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
 
@@ -23,6 +28,11 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     private List<String> _listDataHeader; // header titles
     // child data in format of header title, child title
     private HashMap<String, List<String>> _listDataChild;
+    private HashMap<String, String> _listDataHeaderSmall;
+    private ImageViewClickListener clickListener;
+    private String textAppearanceHeader;
+    private boolean isWriteable;
+    private int positionWriteable;
 
     public ExpandableListAdapter(Context context, List<String> listDataHeader,
                                  HashMap<String, List<String>> listChildData) {
@@ -58,6 +68,15 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
                 .findViewById(R.id.lblListItem);
 
         txtListChild.setText(childText);
+
+
+       /* ImageView image = (ImageView) convertView.findViewById(R.id.imageWrite);
+        if(isWriteable && positionWriteable == childPosition) {
+            image.setVisibility(View.VISIBLE);
+        } else {
+            image.setVisibility(View.INVISIBLE);
+        }*/
+
         return convertView;
     }
 
@@ -85,7 +104,8 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     @Override
     public View getGroupView(int groupPosition, boolean isExpanded,
                              View convertView, ViewGroup parent) {
-        String headerTitle = (String) getGroup(groupPosition);
+        final String headerTitle = (String) getGroup(groupPosition);
+
         if (convertView == null) {
             LayoutInflater infalInflater = (LayoutInflater) this._context
                     .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -96,6 +116,29 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
                 .findViewById(R.id.lblListHeader);
         lblListHeader.setTypeface(null, Typeface.BOLD);
         lblListHeader.setText(headerTitle);
+
+        TextView lblListHeaderSmall = (TextView) convertView
+                .findViewById(R.id.lblListHeaderSmall);
+        lblListHeaderSmall.setTypeface(null, Typeface.BOLD);
+        lblListHeaderSmall.setText(_listDataHeaderSmall.get(headerTitle));
+
+        ImageView image = (ImageView) convertView.findViewById(R.id.buttonRefresh);
+        image.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                v.setTag(headerTitle);
+                clickListener.imageViewListClicked(v);
+            }
+        });
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (textAppearanceHeader == "medium") {
+                lblListHeader.setTextAppearance(android.R.style.TextAppearance_Medium);
+            } else {
+                lblListHeader.setTextAppearance(android.R.style.TextAppearance_Large);
+            }
+        }
+
 
         return convertView;
     }
@@ -110,22 +153,21 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         return true;
     }
 
-    /** change the color of a group to make a difference */
-    public View changeGroupColor(int groupPosition,
-                                     View convertView, int color) {
-        String headerTitle = (String) getGroup(groupPosition);
-        if (convertView == null) {
-            LayoutInflater infalInflater = (LayoutInflater) this._context
-                    .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-            convertView = infalInflater.inflate(R.layout.list_group, null);
-        }
-
-        TextView lblListHeader = (TextView) convertView
-                .findViewById(R.id.lblListHeader);
-        lblListHeader.setTypeface(null, Typeface.BOLD);
-        lblListHeader.setText(headerTitle);
-        lblListHeader.setTextColor(color);
-
-        return convertView;
+    public void setImageClickListener(ImageViewClickListener clickListener) {
+        this.clickListener = clickListener;
     }
+
+    public void setTextAppearanceHeader(String textAppearance) {
+        this.textAppearanceHeader = textAppearance;
+    }
+
+    public void setDataHeaderSmall(HashMap<String, String> stringListMap) {
+        this._listDataHeaderSmall = stringListMap;
+    }
+
+    public void setChildDataWriteable(boolean writeable, int position) {
+        this.isWriteable = writeable;
+        this.positionWriteable = position;
+    }
+
 }
