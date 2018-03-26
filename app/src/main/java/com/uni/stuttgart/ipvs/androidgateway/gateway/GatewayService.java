@@ -117,6 +117,8 @@ public class GatewayService extends Service {
                 gattCallback.disconnect();
             }
         }
+
+        stopSelf();
     }
 
     @Override
@@ -303,8 +305,6 @@ public class GatewayService extends Service {
                         //onCharacteristicChanged
                         isExecCommand = false;
                         readData(msg);
-                    } else if (msg.arg1 == 9) {
-                        mapGattCallback.putAll(((Map<BluetoothGatt, BluetoothLeGattCallback>) msg.obj));
                     }
                 }
 
@@ -377,15 +377,6 @@ public class GatewayService extends Service {
         }
     }
 
-    private void sleepThread(long time) {
-        try {
-            Log.d(TAG, "Sleep for " + String.valueOf(time) + " ms");
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
 
     private void broadcastUpdate(String message) {
         final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
@@ -423,6 +414,15 @@ public class GatewayService extends Service {
             for(BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
                 bleCharacteristicDatabase.insertData(service.getUuid().toString(), characteristic.getUuid().toString());
             }
+        }
+    }
+
+    private void sleepThread(long time) {
+        try {
+            Log.d(TAG, "Sleep for " + String.valueOf(time) + " ms");
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 }

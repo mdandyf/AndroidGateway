@@ -31,6 +31,8 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     private HashMap<String, String> _listDataHeaderSmall;
     private ImageViewClickListener clickListener;
     private String textAppearanceHeader;
+    private boolean isWriteable;
+    private int positionWriteable;
 
     public ExpandableListAdapter(Context context, List<String> listDataHeader,
                                  HashMap<String, List<String>> listChildData) {
@@ -66,6 +68,15 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
                 .findViewById(R.id.lblListItem);
 
         txtListChild.setText(childText);
+
+
+       /* ImageView image = (ImageView) convertView.findViewById(R.id.imageWrite);
+        if(isWriteable && positionWriteable == childPosition) {
+            image.setVisibility(View.VISIBLE);
+        } else {
+            image.setVisibility(View.INVISIBLE);
+        }*/
+
         return convertView;
     }
 
@@ -152,6 +163,11 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
 
     public void setDataHeaderSmall(HashMap<String, String> stringListMap) {
         this._listDataHeaderSmall = stringListMap;
+    }
+
+    public void setChildDataWriteable(boolean writeable, int position) {
+        this.isWriteable = writeable;
+        this.positionWriteable = position;
     }
 
 }

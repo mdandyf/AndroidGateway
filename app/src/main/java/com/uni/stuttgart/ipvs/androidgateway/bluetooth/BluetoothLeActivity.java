@@ -302,8 +302,8 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                     } else if (msg.arg1 == 1) {
                         // read all bluetoothGatt connected servers
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        Toast.makeText(context, "Connected to " + mBluetoothGatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
                         synchronized (mBluetoothGatt) {
+                            Toast.makeText(context, "Connected to " + mBluetoothGatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
                             mBluetoothGatt.readRemoteRssi();
                             mBluetoothGatt.discoverServices();
                             listConnectedGatt.add(mBluetoothGatt);
@@ -371,6 +371,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                         }
                     }
 
+                    // signalling a device or all devices have been connected
                     if (isCOnnectAllDevices &&listDevice != null && counter == listDevice.size()) {
                         runOnUiThread(new Runnable() {
                             @Override
@@ -387,6 +388,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                         });
                     }
 
+                    // processing next queue
                     if (processBle & mProcessing) {
                         processQueue();
                     }
@@ -559,6 +561,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                     json.setJsonData(json.getJsonData().toString());
                     listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
                     listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Connected");
+                    listAdapter.setChildDataWriteable(true, findPositionWriteable(json.getPreparedChildData()));
                     listAdapter.setTextAppearanceHeader("Large");
                     listAdapter.notifyDataSetChanged();
                 }
@@ -595,6 +598,18 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                 }
             }
         });
+    }
+
+    private int findPositionWriteable(List<String> inputs) {
+        int counter = 0;
+        for(String input : inputs) {
+            if(input.contains("Write")) {
+                return counter;
+            }
+            counter++;
+        }
+
+        return 0;
     }
 
     private void sleepThread(long time) {

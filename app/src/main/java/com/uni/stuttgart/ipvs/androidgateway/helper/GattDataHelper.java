@@ -149,25 +149,13 @@ public class GattDataHelper {
     }
 
     public static String decodeCharacteristicValue(BluetoothGattCharacteristic characteristic, BluetoothGatt gatt) {
-        String value = "unknown decoding value";
+        String value = "Unknown";
 
         if (characteristic.getUuid().toString().contains(CHARACTERISTIC_HUMIDITY)) {
             if (!characteristic.getIntValue(FORMAT_UINT16, 0).equals(0)) {
                 final float humidity = characteristic.getIntValue(FORMAT_UINT16, 0) / 100f;
                 final String humidityString = String.format(Locale.US, "%.1f %%", humidity);
                 return humidityString;
-            }
-        } else if (characteristic.getUuid().toString().contains(CHARACTERISTIC_TEMPERATURE)) {
-            byte[] buf = characteristic.getValue();
-            if (buf != null && buf.length > 1) {
-                int flags = characteristic.getIntValue(FORMAT_UINT8, 0);
-
-                int offset = ((flags & 0x1) == 0) ? 1 : 5;
-                String unit = ((flags & 0x1) == 0) ? "°C" : "°F";
-
-                float temperature = characteristic.getFloatValue(BluetoothGattCharacteristic.FORMAT_FLOAT, offset);
-                final String temperatureString = String.format(Locale.US, "%.1f %s", temperature, unit);
-                return temperatureString;
             }
         } else  {
 
