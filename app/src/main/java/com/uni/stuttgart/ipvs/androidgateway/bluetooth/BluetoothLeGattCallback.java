@@ -51,14 +51,14 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     public void connect() {
         mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
-        //refreshDeviceCache(mBluetoothGatt);
+        refreshDeviceCache(mBluetoothGatt);
     }
 
     public void connect(BluetoothAdapter mBluetoothAdapter, String macAddress) {
         mDevice = mBluetoothAdapter.getRemoteDevice(macAddress);
         mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
-        //refreshDeviceCache(mBluetoothGatt);
+        refreshDeviceCache(mBluetoothGatt);
     }
 
     public void disconnect() {
@@ -109,9 +109,9 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             BluetoothGattDescriptor descriptor = characteristic.getDescriptor(descriptorUUID);
             if (descriptor != null) {
                 try {
-                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
+                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     Log.d(TAG, "descriptor notify " + descriptorUUID.toString() + " has been written");
                 } catch(Exception e) {
                     e.printStackTrace();
@@ -130,9 +130,9 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             if (descriptor != null) {
                 mBluetoothGatt.readDescriptor(descriptor);
                 try {
-                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
+                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     Log.d(TAG, "descriptor indicate " + descriptorUUID.toString() + " has been written");
                 } catch(Exception e) {
                     e.printStackTrace();

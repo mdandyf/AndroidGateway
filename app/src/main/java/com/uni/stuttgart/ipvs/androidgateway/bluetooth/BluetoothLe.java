@@ -15,6 +15,7 @@ import java.util.UUID;
 
 public class BluetoothLe {
 
+    public static int DISCOVERED = 99;
     public static int READ = 100;
     public static int REGISTER_NOTIFY = 101;
     public static int REGISTER_INDICATE = 102;
@@ -26,6 +27,10 @@ public class BluetoothLe {
     public static int CONNECTING = 303;
     public static int CONNECTED = 304;
     public static int DISCONNECTED = 305;
+
+    public static int STOP_SEQUENCE = 400;
+    public static int UPDATE_UI_CONNECTED = 401;
+    public static int UPDATE_UI_DISCONNECTED = 402;
 
     private BluetoothGatt gatt;
     private UUID serviceUUID;

@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -159,6 +160,19 @@ public class GatewayActivity extends AppCompatActivity {
                 if(mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
                     startServiceGateway();
                 }
+            } else if(action.equals(GatewayService.STOP_COMMAND)) {
+                String message = intent.getStringExtra("command");
+                setCommandLine(message);
+                stopServiceGateway();
+                Handler handler = new Handler();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if(mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
+                            startServiceGateway();
+                        }
+                    }
+                }, 10000);
             }
 
         }

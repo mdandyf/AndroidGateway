@@ -25,14 +25,14 @@ public class ServicesDatabase extends SQLiteOpenHelper {
     public static final String BLE_TIMESTAMP = "timestamp";
 
     public ServicesDatabase(Context context) {
-        super(context, DATABASE_NAME , null, 1);
+        super(context, DATABASE_NAME, null, 1);
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleServicesData " +
-                        "(id integer primary key, mac_address text, device_name text, service_uuid text, timestamp text)"
+                        "(id integer primary key, mac_address text, service_uuid text, timestamp text)"
         );
     }
 
@@ -42,18 +42,22 @@ public class ServicesDatabase extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-    public boolean insertData(String data, String device_name, String serviceUUID) {
+    public boolean insertData(String data, String serviceUUID) {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues contentValues = new ContentValues();
             contentValues.put("mac_address", data);
-            contentValues.put("device_name", device_name);
             contentValues.put("service_uuid", serviceUUID);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
             contentValues.put("timestamp", date);
-            db.insert("BleServicesData", null, contentValues);
+
+            if (isMacExist(data) && isServiceExist(serviceUUID)) {
+                db.update("BleServicesData", contentValues, "mac_address = ? AND service_uuid = ?", new String[]{data, serviceUUID});
+            } else {
+                db.insert("BleServicesData", null, contentValues);
+            }
             status = true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -62,20 +66,61 @@ public class ServicesDatabase extends SQLiteOpenHelper {
     }
 
     public boolean deleteAllData() {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.execSQL("delete from BleServicesData ");
-        db.close();
-        return true;
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            db.execSQL("delete from BleServicesData ");
+            db.close();
+            status = true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return status;
     }
 
-    public Map<Integer, Map<String, Date>>  getAllData() {
+    public boolean isMacExist(String key) {
+        Cursor cursor = null;
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery("SELECT mac_address from BleServicesData WHERE mac_address=?", new String[]{key + ""});
+            if (cursor.getCount() > 0) {
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            cursor.close();
+        }
+        return status;
+    }
+
+    public boolean isServiceExist(String key) {
+        Cursor cursor = null;
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery("SELECT service_uuid from BleServicesData WHERE service_uuid=?", new String[]{key + ""});
+            if (cursor.getCount() > 0) {
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            cursor.close();
+        }
+        return status;
+    }
+
+    public Map<Integer, Map<String, Date>> getAllData() {
         Map<Integer, Map<String, Date>> mapResult = new HashMap<>();
         Map<String, Date> mapData = new HashMap<>();
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor res =  db.rawQuery( "select * from BleServicesData", null );
+        Cursor res = db.rawQuery("select * from BleServicesData", null);
         res.moveToFirst();
 
-        while(res.isAfterLast() == false){
+        while (res.isAfterLast() == false) {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             Date date = null;
             try {

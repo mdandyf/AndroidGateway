@@ -10,7 +10,7 @@
     <string name="action_scan">Scan</string>
     <string name="action_stop">Stop</string>
     <string name="action_connect">Connect</string>
-    <string name="action_subscribe">Subscribe</string>
+    <string name="action_disconnect">Disconnect</string>
 
     <!-- Strings related to content of main activity -->
     <string name="text_gateway">Gateway</string>

@@ -20,8 +20,11 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
 
     public static final String DATABASE_NAME = "BleCharacteristicsData.db";
     public static final String ID = "id";
+    public static final String MAC_ADDRESS = "mac_address";
     public static final String SERVICE_UUID = "service_uuid";
     public static final String CHARACRERISTIC_UUID = "characteristic_uuid";
+    public static final String CHARACRERISTIC_PROPERTY = "characteristic_property";
+    public static final String CHARACRERISTIC_VALUE = "characteristic_value";
     public static final String TIMESTAMP = "timestamp";
 
     public CharacteristicsDatabase(Context context) {
@@ -32,7 +35,7 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleCharacteristicsData " +
-                        "(id integer primary key, service_uuid text,characteristic_uuid text,timestamp text)"
+                        "(id integer primary key, mac_address text, service_uuid text, characteristic_uuid text, characteristic_property text, characteristic_value text, timestamp text)"
         );
     }
 
@@ -42,17 +45,26 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-    public boolean insertData(String serviceUUID, String characteristicUUID) {
+    public boolean insertData(String macAddress, String serviceUUID, String characteristicUUID, String characteristicProperty, String charcteristicValue) {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues contentValues = new ContentValues();
-            contentValues.put("characteristic_uuid", characteristicUUID);
+            contentValues.put("mac_address", macAddress);
             contentValues.put("service_uuid", serviceUUID);
+            contentValues.put("characteristic_uuid", characteristicUUID);
+            contentValues.put("characteristic_property", characteristicProperty);
+            contentValues.put("characteristic_value", charcteristicValue);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
             contentValues.put("timestamp", date);
-            db.insert("BleCharacteristicsData", null, contentValues);
+
+            if(isServiceExist(serviceUUID) && isMacAddressExist(macAddress) && isCharacteristicExist(characteristicUUID)) {
+                db.update("BleCharacteristicsData", contentValues, "mac_address = ? AND service_uuid = ? AND characteristic_uuid = ?", new String[]{macAddress, serviceUUID, characteristicUUID});
+            } else {
+                db.insert("BleCharacteristicsData", null, contentValues);
+            }
+
             status = true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -67,6 +79,60 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
         return true;
     }
 
+    public boolean isMacAddressExist(String key) {
+        Cursor cursor = null;
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery("SELECT mac_address from BleCharacteristicsData WHERE mac_address=?", new String[] {key + ""});
+            if(cursor.getCount() > 0) {
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            cursor.close();
+        }
+
+        return status;
+    }
+
+    public boolean isServiceExist(String key) {
+        Cursor cursor = null;
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery("SELECT service_uuid from BleCharacteristicsData WHERE service_uuid=?", new String[] {key + ""});
+            if(cursor.getCount() > 0) {
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            cursor.close();
+        }
+
+        return status;
+    }
+
+    public boolean isCharacteristicExist(String key) {
+        Cursor cursor = null;
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery("SELECT characteristic_uuid from BleCharacteristicsData WHERE characteristic_uuid=?", new String[] {key + ""});
+            if(cursor.getCount() > 0) {
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            cursor.close();
+        }
+
+        return status;
+    }
+
     public Map<Integer, Map<String, Date>>  getAllData() {
         Map<Integer, Map<String, Date>> mapResult = new HashMap<>();
         Map<String, Date> mapData = new HashMap<>();
@@ -79,10 +145,12 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
             Date date = null;
             try {
                 date = sdf.parse(res.getString(res.getColumnIndex(TIMESTAMP)));
-                String data = res.getString(res.getColumnIndex(CHARACRERISTIC_UUID));
-                String action = res.getString(res.getColumnIndex(SERVICE_UUID));
+                String characteristicUUID = res.getString(res.getColumnIndex(CHARACRERISTIC_UUID));
+                String serviceUUID = res.getString(res.getColumnIndex(SERVICE_UUID));
+                String characteristicValue = res.getString(res.getColumnIndex(CHARACRERISTIC_VALUE));
+                String characteristicProperty = res.getString(res.getColumnIndex(CHARACRERISTIC_PROPERTY));
                 int key = res.getInt(res.getColumnIndex(ID));
-                mapData.put(data, date);
+                mapData.put(characteristicUUID, date);
                 mapResult.put(key, mapData);
             } catch (ParseException e) {
                 e.printStackTrace();

@@ -15,22 +15,12 @@
 
     <TextView
         android:id="@+id/lblListItem"
-        android:layout_width="340dp"
+        android:layout_width="380dp"
         android:layout_height="wrap_content"
-        android:paddingTop="3dp"
         android:paddingBottom="3dp"
-        android:textSize="14dp"
+        android:paddingLeft="10dp"
+        android:paddingTop="3dp"
         android:textColor="@color/colorViolet"
-        android:paddingLeft="10dp" />
-
-    <ImageView
-        android:id="@+id/imageWrite"
-        android:layout_width="43dp"
-        android:layout_height="match_parent"
-        android:layout_gravity="right"
-        android:focusable="false"
-        android:focusableInTouchMode="false"
-        android:src="@drawable/pencil"
-        android:visibility="visible" />
+        android:textSize="14dp" />
 
 </LinearLayout>

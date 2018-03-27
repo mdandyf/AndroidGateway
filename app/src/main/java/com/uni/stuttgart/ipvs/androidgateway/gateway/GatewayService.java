@@ -52,6 +52,8 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.TERMINATE_COMMAND";
     public static final String START_COMMAND =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_COMMAND";
+    public static final String STOP_COMMAND =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.STOP_COMMAND";
 
     private Intent mService;
     private Context context;
@@ -71,6 +73,7 @@ public class GatewayService extends Service {
     private Handler mHandlerMessage;
     private Handler mHandlerScanning;
     private boolean isExecCommand = false;
+    private boolean mProcessing = false;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
@@ -101,6 +104,7 @@ public class GatewayService extends Service {
         mService = intent;
         context = this;
 
+        mProcessing = true;
         initQueue();
         execQueue();
 
@@ -110,15 +114,7 @@ public class GatewayService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        for (Map.Entry<BluetoothGatt, BluetoothLeGattCallback> entry : mapGattCallback.entrySet()) {
-            BluetoothLeGattCallback gattCallback = entry.getValue();
-            BluetoothGatt gatt = entry.getKey();
-            if (gatt != null) {
-                gattCallback.disconnect();
-            }
-        }
-
-        stopSelf();
+        disconnect();
     }
 
     @Override
@@ -154,6 +150,19 @@ public class GatewayService extends Service {
         }
     }
 
+    public void disconnect() {
+        for (Map.Entry<BluetoothGatt, BluetoothLeGattCallback> entry : mapGattCallback.entrySet()) {
+            BluetoothLeGattCallback gattCallback = entry.getValue();
+            BluetoothGatt gatt = entry.getKey();
+            if (gatt != null) {
+                gattCallback.disconnect();
+            }
+        }
+
+        mProcessing = false;
+        stopSelf();
+    }
+
     private boolean commandCall(final BluetoothLe bluetoothLe) {
 
         int type = bluetoothLe.getTypeCommand();
@@ -162,7 +171,7 @@ public class GatewayService extends Service {
             broadcastUpdate("Starting sequence commands...");
             broadcastUpdate("Checking permissions...");
             if (!checkPermissions()) {
-                broadcastTerminate("Please turn on location!");
+                broadcastStop("Please turn on location!");
                 return false;
             }
             broadcastUpdate("Checking permissions done...");
@@ -184,7 +193,7 @@ public class GatewayService extends Service {
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 0, 0, mBluetoothLeScanProcess.getScanResult()));
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 1, 0, mBluetoothLeScanProcess.getScanProperties()));
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 2, 0, isExecCommand));
-                    updateDatabaseDevice(mBluetoothLeScanProcess.getScanResult());
+                    updateDatabaseDevice(mBluetoothLeScanProcess.getScanResult(), mBluetoothLeScanProcess.getScanProperties());
                 }
             }, SCAN_PERIOD * 1000);
 
@@ -206,12 +215,14 @@ public class GatewayService extends Service {
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 9, 0, mapGatt));
 
         } else if (type == BluetoothLe.CONNECTED) {
-            BluetoothGatt gatt = bluetoothLe.getGatt();
+            final BluetoothGatt gatt = bluetoothLe.getGatt();
             broadcastUpdate("connected to " + gatt.getDevice().getAddress());
             broadcastUpdate("discovering services...");
             gatt.readRemoteRssi();
             gatt.discoverServices();
         } else if (type == BluetoothLe.DISCONNECTED) {
+            BluetoothGatt gatt = bluetoothLe.getGatt();
+            gatt.disconnect();
             broadcastUpdate("Disconnected from " + bluetoothLe.getGatt().getDevice().getAddress());
         } else if (type == BluetoothLe.READ) {
             mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
@@ -231,6 +242,9 @@ public class GatewayService extends Service {
             //broadcastUpdate("\n");
             //broadcastUpdate("writing characteristic " + bluetoothLe.getCharacteristicUUID().toString());
             //mBluetoothGattCallback.writeCharacteristic()
+        } else if (type == BluetoothLe.STOP_SEQUENCE) {
+            broadcastUpdate("Stoping sequence command... ");
+            queue = new ConcurrentLinkedQueue();
         }
 
         return true;
@@ -243,6 +257,9 @@ public class GatewayService extends Service {
 
         GattDataJson dataJson;
         BluetoothGatt mBluetoothGatt;
+        int callbackCounter = 0;
+        int readCounter = 0;
+
 
         @Override
         public boolean handleMessage(Message msg) {
@@ -282,6 +299,7 @@ public class GatewayService extends Service {
                         BluetoothGatt disconnectedGatt = ((BluetoothGatt) msg.obj);
                         dataJson = new GattDataJson(disconnectedGatt.getDevice(), disconnectedGatt);
                         queueCommand(disconnectedGatt, null, null, null, BluetoothLe.DISCONNECTED);
+                        callbackCounter++;
                     } else if (msg.arg1 == 3) {
                         // read all bluetoothGatt rssi
                         isExecCommand = false;
@@ -293,10 +311,19 @@ public class GatewayService extends Service {
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
                         getServiceCharacteristic(mBluetoothGatt);
                         dataJson.setGatt(mBluetoothGatt);
+                        Handler handler = new Handler();
+                        handler.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                mBluetoothGatt.disconnect();
+                                mBluetoothGatt.close();
+                            }
+                        }, SCAN_PERIOD * 1000);
                     } else if (msg.arg1 == 5) {
                         // onReadCharacteristic
                         isExecCommand = false;
                         readData(msg);
+                        readCounter++;
                     } else if (msg.arg1 == 6) {
                         // onWriteCharacteristic
                         isExecCommand = false;
@@ -305,10 +332,17 @@ public class GatewayService extends Service {
                         //onCharacteristicChanged
                         isExecCommand = false;
                         readData(msg);
+                        readCounter++;
                     }
                 }
 
-                if (isExecCommand) {
+                if (listBluetoothGatt.size() == callbackCounter && mProcessing && readCounter>=10) {
+                    mProcessing = false;
+                    broadcastStop("Finishing sequences....");
+                    return false;
+                }
+
+                if (isExecCommand && mProcessing) {
                     execQueue();
                 }
 
@@ -319,25 +353,41 @@ public class GatewayService extends Service {
         }
 
         private String readData(Message msg) {
-            String result = null;
+            boolean databaseService = false;
+            boolean databaseCharacteristic = false;
             BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
             GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
-            for(BluetoothGattService service : gatt.getServices()) {
-                for(BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
+            for (BluetoothGattService service : gatt.getServices()) {
+                for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
                     String characteristicValue = GattDataHelper.decodeCharacteristicValue(characteristic, gatt);
+                    JSONArray characteristicProperty = GattDataHelper.decodeProperties(characteristic);
+                    String properties = null;
+                    for (int i = 0; i < characteristicProperty.length(); i++) {
+                        try {
+                            if (characteristicProperty.get(i) != null && properties != null) {
+                                properties = properties + ", " + (String) characteristicProperty.get(i);
+                            } else if (characteristicProperty.get(i) != null && properties == null) {
+                                properties = (String) characteristicProperty.get(i);
+                            }
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
                     broadcastUpdate("Characteristic : " + GattLookUp.characteristicNameLookup(characteristic.getUuid()));
+                    broadcastUpdate("Characteristic property: " + properties);
                     broadcastUpdate("Characteristic read value: " + characteristicValue);
+                    databaseService = updateDatabaseService(gatt.getDevice().getAddress(), service.getUuid().toString());
+                    databaseCharacteristic = updateDatabaseCharacteristics(gatt.getDevice().getAddress(), service.getUuid().toString(), characteristic.getUuid().toString(), properties, characteristicValue);
                 }
             }
 
-            updateDatabaseService(gatt);
-            updateDatabaseCharacteristics(gatt);
+            if (databaseService) {
+                broadcastUpdate("Services have been written to database");
+            }
+            if (databaseCharacteristic) {
+                broadcastUpdate("Characteristics have been written to database");
+            }
             return json.getJsonData().toString();
-        }
-
-        private String shortUUID(String uuid) {
-            int begin = 4;
-            return uuid.substring(begin, begin + 4);
         }
     };
 
@@ -384,37 +434,35 @@ public class GatewayService extends Service {
         sendBroadcast(intent);
     }
 
-    private void broadcastTerminate(String message) {
-        final Intent intent = new Intent(GatewayService.TERMINATE_COMMAND);
+    private void broadcastStop(String message) {
+        final Intent intent = new Intent(GatewayService.STOP_COMMAND);
         intent.putExtra("command", message);
         sendBroadcast(intent);
     }
 
-    private void updateDatabaseDevice(List<BluetoothDevice> listDevices) {
+    private void updateDatabaseDevice(List<BluetoothDevice> listDevices, Map<BluetoothDevice, GattDataJson> data) {
         broadcastUpdate("Write device to database");
-        for(BluetoothDevice device : listDevices) {
+        for (BluetoothDevice device : listDevices) {
             String deviceName = "unknown";
-            if(device.getName() != null) {deviceName = device.getName();}
-            bleDeviceDatabase.insertData(device.getAddress(), deviceName);
-        }
-    }
-
-    private void updateDatabaseService(BluetoothGatt gatt) {
-        broadcastUpdate("Write services to database");
-        for(BluetoothGattService service : gatt.getServices()) {
-            String deviceName = "unknown";
-            if(gatt.getDevice().getName() != null) {deviceName = gatt.getDevice().getName();}
-            bleServicesDatabase.insertData(gatt.getDevice().getAddress(), deviceName, service.getUuid().toString());
-        }
-    }
-
-    private void updateDatabaseCharacteristics(BluetoothGatt gatt) {
-        broadcastUpdate("Write characteristics to database");
-        for(BluetoothGattService service : gatt.getServices()) {
-            for(BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
-                bleCharacteristicDatabase.insertData(service.getUuid().toString(), characteristic.getUuid().toString());
+            int deviceRssi = 0;
+            try {
+                deviceRssi = (Integer) data.get(device).getJsonAdvertising().get("rssi");
+            } catch (JSONException e) {
+                e.printStackTrace();
             }
+            if (device.getName() != null) {
+                deviceName = device.getName();
+            }
+            bleDeviceDatabase.insertData(device.getAddress(), deviceName, deviceRssi);
         }
+    }
+
+    private boolean updateDatabaseService(String macAddress, String serviceUUID) {
+        return bleServicesDatabase.insertData(macAddress, serviceUUID);
+    }
+
+    private boolean updateDatabaseCharacteristics(String macAddress, String serviceUUID, String characteristicUUID, String property, String value) {
+        return bleCharacteristicDatabase.insertData(macAddress, serviceUUID, characteristicUUID, property, value);
     }
 
     private void sleepThread(long time) {
