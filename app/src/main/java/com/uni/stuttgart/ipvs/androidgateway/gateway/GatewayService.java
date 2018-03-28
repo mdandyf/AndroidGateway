@@ -128,7 +128,7 @@ public class GatewayService extends Service {
         queueCommand(null, null, null, null, BluetoothLe.SCANNING);
     }
 
-    public boolean execQueue() {
+    public synchronized boolean execQueue() {
         if (!queue.isEmpty()) {
             for (ble = (BluetoothLe) queue.poll(); ble != null; ble = (BluetoothLe) queue.poll()) {
                 synchronized (ble) {
@@ -143,7 +143,7 @@ public class GatewayService extends Service {
         return true;
     }
 
-    public void queueCommand(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, byte[] data, int commandType) {
+    public synchronized void queueCommand(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, byte[] data, int commandType) {
         ble = new BluetoothLe(gatt, serviceUUID, characteristicUUID, data, commandType);
         if (!queue.contains(ble)) {
             queue.add(ble);
@@ -163,7 +163,7 @@ public class GatewayService extends Service {
         stopSelf();
     }
 
-    private boolean commandCall(final BluetoothLe bluetoothLe) {
+    private synchronized boolean commandCall(final BluetoothLe bluetoothLe) {
 
         int type = bluetoothLe.getTypeCommand();
 
@@ -201,29 +201,37 @@ public class GatewayService extends Service {
             broadcastUpdate("\n");
             final Map<BluetoothGatt, BluetoothLeGattCallback> mapGatt = new HashMap<>();
             for (BluetoothDevice device : scanResults) {
-                broadcastUpdate("connecting to " + device.getAddress());
-                final BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        gattCallback.setHandlerMessage(mHandlerMessage);
-                        gattCallback.connect();
-                        mapGatt.put(gattCallback.getBluetoothGatt(), gattCallback);
+                synchronized (lock) {
+                    broadcastUpdate("connecting to " + device.getAddress());
+                    BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
+                    gattCallback.setHandlerMessage(mHandlerMessage);
+                    gattCallback.connect();
+                    mapGatt.put(gattCallback.getBluetoothGatt(), gattCallback);
+                    try {
+                        lock.wait(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
-                }).start();
+                }
             }
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 9, 0, mapGatt));
 
         } else if (type == BluetoothLe.CONNECTED) {
-            final BluetoothGatt gatt = bluetoothLe.getGatt();
-            broadcastUpdate("connected to " + gatt.getDevice().getAddress());
-            broadcastUpdate("discovering services...");
-            gatt.readRemoteRssi();
-            gatt.discoverServices();
+            synchronized (lock) {
+                final BluetoothGatt gatt = bluetoothLe.getGatt();
+                broadcastUpdate("connected to " + gatt.getDevice().getAddress());
+                broadcastUpdate("discovering services...");
+                gatt.readRemoteRssi();
+                gatt.discoverServices();
+                lock.notifyAll();
+            }
         } else if (type == BluetoothLe.DISCONNECTED) {
-            BluetoothGatt gatt = bluetoothLe.getGatt();
-            gatt.disconnect();
-            broadcastUpdate("Disconnected from " + bluetoothLe.getGatt().getDevice().getAddress());
+            synchronized (lock) {
+                BluetoothGatt gatt = bluetoothLe.getGatt();
+                gatt.disconnect();
+                broadcastUpdate("Disconnected from " + bluetoothLe.getGatt().getDevice().getAddress());
+                lock.notifyAll();
+            }
         } else if (type == BluetoothLe.READ) {
             mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
             sleepThread(100);
@@ -231,10 +239,12 @@ public class GatewayService extends Service {
             mBluetoothGattCallback.readCharacteristic(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID());
         } else if (type == BluetoothLe.REGISTER_NOTIFY) {
             mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
+            sleepThread(100);
             broadcastUpdate("Registering Notify Characteristic " + bluetoothLe.getCharacteristicUUID().toString());
             mBluetoothGattCallback.writeDescriptorNotify(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
         } else if (type == BluetoothLe.REGISTER_INDICATE) {
             mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
+            sleepThread(100);
             broadcastUpdate("Registering Indicate Characteristic " + bluetoothLe.getCharacteristicUUID().toString());
             mBluetoothGattCallback.writeDescriptorIndication(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
         } else if (type == BluetoothLe.WRITE) {
@@ -352,7 +362,7 @@ public class GatewayService extends Service {
             return false;
         }
 
-        private String readData(Message msg) {
+        private synchronized String readData(Message msg) {
             boolean databaseService = false;
             boolean databaseCharacteristic = false;
             BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
@@ -403,7 +413,7 @@ public class GatewayService extends Service {
         return true;
     }
 
-    private void getServiceCharacteristic(BluetoothGatt gatt) {
+    private synchronized void getServiceCharacteristic(BluetoothGatt gatt) {
         for (BluetoothGattService service : gatt.getServices()) {
             for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
                 JSONArray properties = GattDataHelper.decodeProperties(characteristic);
@@ -417,6 +427,7 @@ public class GatewayService extends Service {
                         } else if (property.equals("Notify")) {
                             queueCommand(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_NOTIFY);
                         } else if (property.equals("Indicate")) {
+                            queueCommand(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_INDICATE);
                             queueCommand(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_INDICATE);
                         }
                     } catch (JSONException e) {

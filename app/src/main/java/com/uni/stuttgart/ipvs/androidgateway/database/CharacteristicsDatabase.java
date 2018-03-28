@@ -60,7 +60,7 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
             contentValues.put("timestamp", date);
 
             if(isServiceExist(serviceUUID) && isMacAddressExist(macAddress) && isCharacteristicExist(characteristicUUID)) {
-                db.update("BleCharacteristicsData", contentValues, "mac_address = ? AND service_uuid = ? AND characteristic_uuid = ?", new String[]{macAddress, serviceUUID, characteristicUUID});
+                db.update("BleCharacteristicsData", contentValues, "mac_address = '" + macAddress + "' AND service_uuid = '" + serviceUUID +"' AND characteristic_uuid = '" + characteristicUUID + "'", null);
             } else {
                 db.insert("BleCharacteristicsData", null, contentValues);
             }
