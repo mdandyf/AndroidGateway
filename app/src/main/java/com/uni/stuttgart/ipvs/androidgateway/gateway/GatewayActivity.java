@@ -1,5 +1,6 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
+import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
@@ -10,10 +11,14 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.location.LocationManager;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
@@ -21,15 +26,53 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
+import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 
 public class GatewayActivity extends AppCompatActivity {
 
     private int countCommandLine;
     private BluetoothAdapter mBluetoothAdapter;
-    private boolean mBound = false;
-    private GatewayService mService;
+    private boolean mService = false;
     private Intent mGatewayService;
     private EditText textArea;
+    private Menu menuBar;
+
+    private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
+    private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
+    private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_gateway, menu);
+        menuBar = menu;
+
+        setMenuVisibility();
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        switch (id) {
+            case R.id.action_start:
+                startServiceGateway();
+                setMenuVisibility();
+                break;
+            case R.id.action_stop:
+                stopServiceGateway();
+                setMenuVisibility();
+                break;
+        }
+        return true;
+    }
 
 
     @Override
@@ -97,14 +140,29 @@ public class GatewayActivity extends AppCompatActivity {
     }
 
     private void startServiceGateway() {
+        mService = true;
         mGatewayService = new Intent(this, GatewayService.class);
         startService(mGatewayService);
         setCommandLine("Starting Gateway Service...");
+        clearDatabase();
     }
 
     private void stopServiceGateway() {
         if (mGatewayService != null) {
+            mService = false;
             stopService(mGatewayService);
+        }
+    }
+
+    private void setMenuVisibility() {
+        if (mService) {
+            menuBar.findItem(R.id.menu_refresh_gateway).setActionView(R.layout.action_interdeminate_progress);
+            menuBar.findItem(R.id.action_start).setVisible(false);
+            menuBar.findItem(R.id.action_stop).setVisible(true);
+        } else {
+            menuBar.findItem(R.id.menu_refresh_gateway).setActionView(null);
+            menuBar.findItem(R.id.action_start).setVisible(true);
+            menuBar.findItem(R.id.action_stop).setVisible(false);
         }
     }
 
@@ -124,10 +182,24 @@ public class GatewayActivity extends AppCompatActivity {
 
         // Checks if Bluetooth is supported on the device.
         if (bluetoothManager.getAdapter() == null) {
-            Toast.makeText(this, "bluetooth is not supported", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Bluetooth is not supported", Toast.LENGTH_SHORT).show();
             finish();
-            return;
         }
+
+        // check if location is enabled
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            /** force user to turn on location service */
+            if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Please turn on Location Access Permission!", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+    }
+
+    private void clearDatabase() {
+        bleDeviceDatabase.deleteAllData();
+        bleServicesDatabase.deleteAllData();
+        bleCharacteristicDatabase.deleteAllData();
     }
 
     private void registerBroadcastListener() {
@@ -154,22 +226,28 @@ public class GatewayActivity extends AppCompatActivity {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
                 stopServiceGateway();
-            } else if(action.equals(GatewayService.START_COMMAND)) {
+                mService = false;
+                setMenuVisibility();
+            } else if (action.equals(GatewayService.START_COMMAND)) {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-                if(mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
+                if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
                     startServiceGateway();
                 }
-            } else if(action.equals(GatewayService.STOP_COMMAND)) {
+            } else if (action.equals(GatewayService.STOP_COMMAND)) {
                 String message = intent.getStringExtra("command");
                 setCommandLine(message);
                 stopServiceGateway();
+                mService = false;
+                setMenuVisibility();
                 Handler handler = new Handler();
                 handler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        if(mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
+                        if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
                             startServiceGateway();
+                            mService = true;
+                            setMenuVisibility();
                         }
                     }
                 }, 10000);

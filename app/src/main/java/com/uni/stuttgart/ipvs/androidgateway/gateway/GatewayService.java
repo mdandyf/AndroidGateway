@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -66,6 +67,8 @@ public class GatewayService extends Service {
     private BluetoothLeGattCallback mBluetoothGattCallback;
     private List<BluetoothDevice> scanResults;
     private List<BluetoothGatt> listBluetoothGatt;
+    private List<BluetoothGatt> listConnectedGatt;
+    private List<BluetoothGatt> listDisconnectedGatt;
     private Map<BluetoothDevice, GattDataJson> mapScanResults;
     private Map<BluetoothGatt, BluetoothLeGattCallback> mapGattCallback;
 
@@ -90,12 +93,7 @@ public class GatewayService extends Service {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
 
-        listBluetoothGatt = new ArrayList<>();
-        mapGattCallback = new HashMap<>();
-
-        bleDeviceDatabase.deleteAllData();
-        bleServicesDatabase.deleteAllData();
-        bleCharacteristicDatabase.deleteAllData();
+        clearAllLists();
 
     }
 
@@ -123,21 +121,131 @@ public class GatewayService extends Service {
     }
 
     public void initQueue() {
-        queueCommand(null, null, null, null, BluetoothLe.CHECK_BLUETOOTH_STATE);
-        queueCommand(null, null, null, null, BluetoothLe.CHECK_PERMISSION);
-        queueCommand(null, null, null, null, BluetoothLe.SCANNING);
+        queueCommand(null, null, null, null, BluetoothLe.START_SEQUENCE);
     }
 
-    public synchronized boolean execQueue() {
+    public boolean execQueue() {
         if (!queue.isEmpty()) {
             for (ble = (BluetoothLe) queue.poll(); ble != null; ble = (BluetoothLe) queue.poll()) {
                 synchronized (ble) {
-                    boolean status = commandCall(ble);
-                    if (!status) {
-                        stopSelf();
+                    int type = ble.getTypeCommand();
+
+                    if(type == BluetoothLe.START_SEQUENCE) {
+                        broadcastUpdate("Starting sequence command... ");
+                        if(listConnectedGatt.size() != 0) {
+                           clearAllLists();
+                           //read dbase
+                            //scan known device
+                            // scan unknown device
+                            broadcastUpdate("Start sequence sticky... ");
+                            queueCommand(null, null, null, null, BluetoothLe.SCANNING);
+                            execQueue();
+                        } else {
+                            // scan all possible devices
+                            queueCommand(null, null, null, null, BluetoothLe.SCANNING);
+                            execQueue();
+                        }
+                    } else if (type == BluetoothLe.SCANNING) {
+                        //step scan new BLE devices
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                broadcastUpdate("Scanning bluetooth...");
+                                Log.d(TAG, "Start scanning for " + SCAN_PERIOD + " seconds");
+                                mBluetoothLeScanProcess.scanLeDevice(true);
+                                mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                                mHandlerScanning.postDelayed(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        mBluetoothLeScanProcess.scanLeDevice(false);
+                                        Log.d(TAG, "Stop scanning...");
+                                        broadcastUpdate("Stop scanning bluetooth...");
+                                        broadcastUpdate("Found " + mBluetoothLeScanProcess.getScanResult().size() + " device(s)");
+                                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 0, 0, mBluetoothLeScanProcess.getScanResult()));
+                                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 1, 0, mBluetoothLeScanProcess.getScanProperties()));
+                                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 2, 0, true));
+                                        updateDatabaseDevice(mBluetoothLeScanProcess.getScanResult(), mBluetoothLeScanProcess.getScanProperties());
+                                    }
+                                }, SCAN_PERIOD * 1000);
+                            }
+                        }).start();
+
+                    } else if(type == BluetoothLe.FIND_LE_DEVICE) {
+                        // step scan known BLE devices
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                broadcastUpdate("Scanning known BLE devices...");
+                                Log.d(TAG, "Start scanning for known BLE device ");
+                                UUID[] listBle = new UUID[1];
+                                listBle[0] = ble.getServiceUUID();
+                                mBluetoothLeScanProcess.findLeDevice(listBle, true);
+                                mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                            }
+                        }).start();
+                    } else if (type == BluetoothLe.CONNECTING) {
+                        broadcastUpdate("\n");
+                        for (final BluetoothDevice device : scanResults) {
+                            new Thread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    synchronized (lock) {
+                                        broadcastUpdate("connecting to " + device.getAddress());
+                                        BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
+                                        gattCallback.setHandlerMessage(mHandlerMessage);
+                                        gattCallback.connect();
+                                        try {
+                                            lock.wait();
+                                        } catch (InterruptedException e) {
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                }
+                            }).start();
+                        }
+                        broadcastUpdate("\n");
+                    } else if (type == BluetoothLe.CONNECTED) {
+                        synchronized (lock) {
+                            final BluetoothGatt gatt = ble.getGatt();
+                            broadcastUpdate("connected to " + gatt.getDevice().getAddress());
+                            broadcastUpdate("discovering services...");
+                            gatt.readRemoteRssi();
+                            gatt.discoverServices();
+                            lock.notifyAll();
+                        }
+                    } else if (type == BluetoothLe.DISCONNECTED) {
+                        synchronized (lock) {
+                            BluetoothGatt gatt = ble.getGatt();
+                            gatt.disconnect();
+                            broadcastUpdate("Disconnected from " + ble.getGatt().getDevice().getAddress());
+                            lock.notifyAll();
+                        }
+                    } else if (type == BluetoothLe.READ) {
+                        mBluetoothGattCallback = new BluetoothLeGattCallback(ble.getGatt());
+                        sleepThread(100);
+                        broadcastUpdate("Reading Characteristic " + GattLookUp.characteristicNameLookup(ble.getCharacteristicUUID()));
+                        mBluetoothGattCallback.readCharacteristic(ble.getServiceUUID(), ble.getCharacteristicUUID());
+                    } else if (type == BluetoothLe.REGISTER_NOTIFY) {
+                        mBluetoothGattCallback = new BluetoothLeGattCallback(ble.getGatt());
+                        sleepThread(100);
+                        broadcastUpdate("Registering Notify Characteristic " + ble.getCharacteristicUUID().toString());
+                        mBluetoothGattCallback.writeDescriptorNotify(ble.getServiceUUID(), ble.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
+                    } else if (type == BluetoothLe.REGISTER_INDICATE) {
+                        mBluetoothGattCallback = new BluetoothLeGattCallback(ble.getGatt());
+                        sleepThread(100);
+                        broadcastUpdate("Registering Indicate Characteristic " + ble.getCharacteristicUUID().toString());
+                        mBluetoothGattCallback.writeDescriptorIndication(ble.getServiceUUID(), ble.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
+                    } else if (type == BluetoothLe.WRITE) {
+                        mBluetoothGattCallback = new BluetoothLeGattCallback(ble.getGatt());
+                    } else if (type == BluetoothLe.STOP_SEQUENCE) {
+                        broadcastUpdate("Stoping sequence command... ");
+                        initQueue();
+                        execQueue();
                     }
+
                 }
             }
+
         }
 
         return true;
@@ -161,103 +269,6 @@ public class GatewayService extends Service {
 
         mProcessing = false;
         stopSelf();
-    }
-
-    private synchronized boolean commandCall(final BluetoothLe bluetoothLe) {
-
-        int type = bluetoothLe.getTypeCommand();
-
-        if (type == BluetoothLe.CHECK_PERMISSION) {
-            broadcastUpdate("Starting sequence commands...");
-            broadcastUpdate("Checking permissions...");
-            if (!checkPermissions()) {
-                broadcastStop("Please turn on location!");
-                return false;
-            }
-            broadcastUpdate("Checking permissions done...");
-        } else if (type == BluetoothLe.SCANNING) {
-
-            //step scan BLE
-            broadcastUpdate("Scanning bluetooth...");
-            Log.d(TAG, "Start scanning for " + SCAN_PERIOD + " seconds");
-            mBluetoothLeScanProcess.scanLeDevice(true);
-            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-            mHandlerScanning.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    mBluetoothLeScanProcess.scanLeDevice(false);
-                    Log.d(TAG, "Stop scanning...");
-                    broadcastUpdate("Stop scanning bluetooth...");
-                    broadcastUpdate("Found " + mBluetoothLeScanProcess.getScanResult().size() + " device(s)");
-                    isExecCommand = true;
-                    mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 0, 0, mBluetoothLeScanProcess.getScanResult()));
-                    mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 1, 0, mBluetoothLeScanProcess.getScanProperties()));
-                    mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 2, 0, isExecCommand));
-                    updateDatabaseDevice(mBluetoothLeScanProcess.getScanResult(), mBluetoothLeScanProcess.getScanProperties());
-                }
-            }, SCAN_PERIOD * 1000);
-
-        } else if (type == BluetoothLe.CONNECTING) {
-            broadcastUpdate("\n");
-            final Map<BluetoothGatt, BluetoothLeGattCallback> mapGatt = new HashMap<>();
-            for (BluetoothDevice device : scanResults) {
-                synchronized (lock) {
-                    broadcastUpdate("connecting to " + device.getAddress());
-                    BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
-                    gattCallback.setHandlerMessage(mHandlerMessage);
-                    gattCallback.connect();
-                    mapGatt.put(gattCallback.getBluetoothGatt(), gattCallback);
-                    try {
-                        lock.wait(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 9, 0, mapGatt));
-
-        } else if (type == BluetoothLe.CONNECTED) {
-            synchronized (lock) {
-                final BluetoothGatt gatt = bluetoothLe.getGatt();
-                broadcastUpdate("connected to " + gatt.getDevice().getAddress());
-                broadcastUpdate("discovering services...");
-                gatt.readRemoteRssi();
-                gatt.discoverServices();
-                lock.notifyAll();
-            }
-        } else if (type == BluetoothLe.DISCONNECTED) {
-            synchronized (lock) {
-                BluetoothGatt gatt = bluetoothLe.getGatt();
-                gatt.disconnect();
-                broadcastUpdate("Disconnected from " + bluetoothLe.getGatt().getDevice().getAddress());
-                lock.notifyAll();
-            }
-        } else if (type == BluetoothLe.READ) {
-            mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
-            sleepThread(100);
-            broadcastUpdate("Reading Characteristic " + GattLookUp.characteristicNameLookup(bluetoothLe.getCharacteristicUUID()));
-            mBluetoothGattCallback.readCharacteristic(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID());
-        } else if (type == BluetoothLe.REGISTER_NOTIFY) {
-            mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
-            sleepThread(100);
-            broadcastUpdate("Registering Notify Characteristic " + bluetoothLe.getCharacteristicUUID().toString());
-            mBluetoothGattCallback.writeDescriptorNotify(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
-        } else if (type == BluetoothLe.REGISTER_INDICATE) {
-            mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
-            sleepThread(100);
-            broadcastUpdate("Registering Indicate Characteristic " + bluetoothLe.getCharacteristicUUID().toString());
-            mBluetoothGattCallback.writeDescriptorIndication(bluetoothLe.getServiceUUID(), bluetoothLe.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
-        } else if (type == BluetoothLe.WRITE) {
-            mBluetoothGattCallback = new BluetoothLeGattCallback(bluetoothLe.getGatt());
-            //broadcastUpdate("\n");
-            //broadcastUpdate("writing characteristic " + bluetoothLe.getCharacteristicUUID().toString());
-            //mBluetoothGattCallback.writeCharacteristic()
-        } else if (type == BluetoothLe.STOP_SEQUENCE) {
-            broadcastUpdate("Stoping sequence command... ");
-            queue = new ConcurrentLinkedQueue();
-        }
-
-        return true;
     }
 
     /**
@@ -301,15 +312,25 @@ public class GatewayService extends Service {
                         // read all bluetoothGatt connected servers
                         isExecCommand = true;
                         BluetoothGatt connectedGatt = ((BluetoothGatt) msg.obj);
+                        listConnectedGatt.add(connectedGatt);
                         dataJson = new GattDataJson(connectedGatt.getDevice(), connectedGatt);
                         queueCommand(connectedGatt, null, null, null, BluetoothLe.CONNECTED);
+                        callbackCounter++;
                     } else if (msg.arg1 == 2) {
                         // read all bluetoothGatt disconnected servers
                         isExecCommand = true;
                         BluetoothGatt disconnectedGatt = ((BluetoothGatt) msg.obj);
+                        listDisconnectedGatt.add(disconnectedGatt);
+                        disconnectedGatt.close();
                         dataJson = new GattDataJson(disconnectedGatt.getDevice(), disconnectedGatt);
                         queueCommand(disconnectedGatt, null, null, null, BluetoothLe.DISCONNECTED);
-                        callbackCounter++;
+                        if(listConnectedGatt.contains(disconnectedGatt)) {callbackCounter--;}
+
+                        // if all devices have been disconnected
+                        if (listBluetoothGatt.size() == listDisconnectedGatt.size()) {
+                            queueCommand(null, null, null, null, BluetoothLe.STOP_SEQUENCE);
+                        }
+
                     } else if (msg.arg1 == 3) {
                         // read all bluetoothGatt rssi
                         isExecCommand = false;
@@ -318,17 +339,12 @@ public class GatewayService extends Service {
                         //discovered services and read all characteristics
                         broadcastUpdate("\n");
                         isExecCommand = true;
+                        mProcessing = true;
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        getServiceCharacteristic(mBluetoothGatt);
-                        dataJson.setGatt(mBluetoothGatt);
-                        Handler handler = new Handler();
-                        handler.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                mBluetoothGatt.disconnect();
-                                mBluetoothGatt.close();
-                            }
-                        }, SCAN_PERIOD * 1000);
+                        if (mBluetoothGatt != null) {
+                            getServiceCharacteristic(mBluetoothGatt);
+                            dataJson.setGatt(mBluetoothGatt);
+                        }
                     } else if (msg.arg1 == 5) {
                         // onReadCharacteristic
                         isExecCommand = false;
@@ -343,13 +359,9 @@ public class GatewayService extends Service {
                         isExecCommand = false;
                         readData(msg);
                         readCounter++;
+                    } else if(msg.arg1 == 10) {
+                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
                     }
-                }
-
-                if (listBluetoothGatt.size() == callbackCounter && mProcessing && readCounter>=10) {
-                    mProcessing = false;
-                    broadcastStop("Finishing sequences....");
-                    return false;
                 }
 
                 if (isExecCommand && mProcessing) {
@@ -397,20 +409,19 @@ public class GatewayService extends Service {
             if (databaseCharacteristic) {
                 broadcastUpdate("Characteristics have been written to database");
             }
+
+            if (databaseService && databaseCharacteristic) {
+                gatt.disconnect();
+            }
             return json.getJsonData().toString();
         }
     };
 
-    private boolean checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            /** force user to turn on location service */
-            if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Please turn on Location Access", Toast.LENGTH_LONG).show();
-                return false;
-            }
-        }
-
-        return true;
+    private void clearAllLists() {
+        listBluetoothGatt = new ArrayList<>();
+        listConnectedGatt = new ArrayList<>();
+        listDisconnectedGatt = new ArrayList<>();
+        mapGattCallback = new HashMap<>();
     }
 
     private synchronized void getServiceCharacteristic(BluetoothGatt gatt) {
@@ -427,7 +438,6 @@ public class GatewayService extends Service {
                         } else if (property.equals("Notify")) {
                             queueCommand(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_NOTIFY);
                         } else if (property.equals("Indicate")) {
-                            queueCommand(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_INDICATE);
                             queueCommand(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_INDICATE);
                         }
                     } catch (JSONException e) {

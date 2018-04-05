@@ -50,7 +50,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         try {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues contentValues = new ContentValues();
-            if(!isExist(data)) {
+            if(!isDeviceExist(data)) {
                 contentValues.put("mac_address", data);
                 contentValues.put("device_name", device_name);
                 contentValues.put("device_rssi", rssi);
@@ -79,7 +79,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         return status;
     }
 
-    public boolean isExist(String key) {
+    public boolean isDeviceExist(String key) {
         Cursor cursor = null;
         boolean status = false;
         try {

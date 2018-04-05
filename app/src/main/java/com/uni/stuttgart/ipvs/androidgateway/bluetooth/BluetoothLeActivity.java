@@ -58,7 +58,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
     private BluetoothLeScanProcess mBluetoothLeScanProcess;
     private List<BluetoothDevice> listDevice;
     private BluetoothGatt mBluetoothGatt;
-    private int mGattRssi;
     private List<BluetoothGatt> listConnectedGatt;
     private int counter;
     private boolean mProcessing; // flag to track processing
@@ -84,7 +83,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_bluetooth, menu);
         menuBar = menu;
-        menuBar.findItem(R.id.menu_refresh).setActionView(null);
 
         setMenuVisibility();
         return true;
@@ -208,7 +206,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
             counter = 0;
             mBluetoothLeScanProcess.scanLeDevice(true);
             mScanning = true;
-            menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
             setMenuVisibility();
             Handler handler = new Handler();
             handler.postDelayed(new Runnable() {
@@ -223,7 +220,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
     private void stopLeDevice() {
         if (mBluetoothLeScanProcess != null) {
             mBluetoothLeScanProcess.scanLeDevice(false);
-            menuBar.findItem(R.id.menu_refresh).setActionView(null);
             mScanning = false;
             setMenuVisibility();
         }
@@ -233,7 +229,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         mProcessing = true;
         mConnecting = true;
         isCOnnectAllDevices = true;
-        menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
         setMenuVisibility();
 
         for (final BluetoothDevice device : listDevice) {
@@ -252,7 +247,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         mProcessing = true;
         mConnecting = true;
         isCOnnectAllDevices = false;
-        menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
         setMenuVisibility();
 
         for (final BluetoothDevice device : listDevice) {
@@ -267,7 +261,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
     private void disconnectLeDevice() {
         mProcessing = false;
         mConnecting = false;
-        menuBar.findItem(R.id.menu_refresh).setActionView(null);
         setMenuVisibility();
 
         for(BluetoothGatt gatt : listConnectedGatt) {
@@ -406,7 +399,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        menuBar.findItem(R.id.menu_refresh).setActionView(null);
                         setMenuVisibility();
                     }
                 });
@@ -652,17 +644,20 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
             // when scanning is stop
             if(listDataHeader != null && listDataHeader.size() != 0) {
                 if(mConnecting) {
+                    menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
                     menuBar.findItem(R.id.action_scan).setVisible(false);
                     menuBar.findItem(R.id.action_stop).setVisible(false);
                     menuBar.findItem(R.id.action_connect).setVisible(false);
                     menuBar.findItem(R.id.action_disconnect).setVisible(true);
                 } else {
+                    menuBar.findItem(R.id.menu_refresh).setActionView(null);
                     menuBar.findItem(R.id.action_scan).setVisible(false);
                     menuBar.findItem(R.id.action_stop).setVisible(false);
                     menuBar.findItem(R.id.action_connect).setVisible(true);
                     menuBar.findItem(R.id.action_disconnect).setVisible(false);
                 }
             } else {
+                menuBar.findItem(R.id.menu_refresh).setActionView(null);
                 menuBar.findItem(R.id.action_scan).setVisible(true);
                 menuBar.findItem(R.id.action_stop).setVisible(false);
                 menuBar.findItem(R.id.action_connect).setVisible(false);
@@ -670,6 +665,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
             }
         } else {
             // when scanning is running
+            menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
             menuBar.findItem(R.id.action_scan).setVisible(false);
             menuBar.findItem(R.id.action_stop).setVisible(true);
             menuBar.findItem(R.id.action_connect).setVisible(false);

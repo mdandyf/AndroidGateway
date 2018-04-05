@@ -1,13 +1,12 @@
 <resources>
     <!-- Strings related to Main UI -->
-    <string name="app_name">Android IoT Gateway</string>
-    <string name="title_activity_login">Sign in</string>
-    <string name="title_activity_logout">Sign out</string>
+    <string name="app_name">IoT Gateway</string>
 
     <!-- Strings related to Top Menu -->
     <string name="action_settings">Settings</string>
     <string name="action_logout">Log Out</string>
     <string name="action_scan">Scan</string>
+    <string name="action_start">Start</string>
     <string name="action_stop">Stop</string>
     <string name="action_connect">Connect</string>
     <string name="action_disconnect">Disconnect</string>
@@ -23,7 +22,7 @@
     <string name="text_cancel">Cancel</string>
 
     <!-- Strings related to content of bluetooth activity -->
-    <string name="title_activity_bluetooth">Bluetooth Low Energy</string>
+    <string name="title_activity_bluetooth">Bluetooth LE Scanner</string>
     <string name="title_activity_bluetooth_list">BLE Device</string>
     <string name="title_activity_bluetooth_characteristic">Characteristic</string>
     <string name="title_activity_bluetooth_rw">R/W Characteristic</string>

@@ -15,15 +15,14 @@ import java.util.UUID;
 
 public class BluetoothLe {
 
-    public static int DISCOVERED = 99;
     public static int READ = 100;
     public static int REGISTER_NOTIFY = 101;
     public static int REGISTER_INDICATE = 102;
     public static int WRITE = 200;
 
-    public static int CHECK_BLUETOOTH_STATE = 300;
-    public static int CHECK_PERMISSION = 301;
-    public static int SCANNING = 302;
+    public static int START_SEQUENCE = 300;
+    public static int SCANNING = 301;
+    public static int FIND_LE_DEVICE = 302;
     public static int CONNECTING = 303;
     public static int CONNECTED = 304;
     public static int DISCONNECTED = 305;
