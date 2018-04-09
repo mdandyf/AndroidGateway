@@ -47,7 +47,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Created by mdand on 2/24/2018.
  */
 
-public class BluetoothLeActivity extends AppCompatActivity implements ImageViewClickListener {
+public class BluetoothLeScannerActivity extends AppCompatActivity implements ImageViewClickListener {
 
     private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
     private static final int SCAN_PERIOD = 10;

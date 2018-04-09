@@ -6,7 +6,7 @@ import android.os.Bundle;
 import android.widget.TabHost;
 import android.widget.Toast;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeActivity;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScannerActivity;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayActivity;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 
@@ -39,7 +39,7 @@ public class MainTabActivity extends TabActivity {
         spec = tabHost.newTabSpec("Scanner"); // Create a new TabSpec using tab host
         spec.setIndicator("SCANNER"); // set the “CONTACT” as an indicator
         // Create an Intent to launch an Activity for the tab (to be reused)
-        intent = new Intent(this, BluetoothLeActivity.class);
+        intent = new Intent(this, BluetoothLeScannerActivity.class);
         spec.setContent(intent);
         tabHost.addTab(spec);
 

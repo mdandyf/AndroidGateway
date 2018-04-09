@@ -51,7 +51,7 @@
         </activity>
 
         <activity
-            android:name=".bluetooth.BluetoothLeActivity"
+            android:name=".bluetooth.BluetoothLeScannerActivity"
             android:label="@string/title_activity_bluetooth" />
 
         <activity

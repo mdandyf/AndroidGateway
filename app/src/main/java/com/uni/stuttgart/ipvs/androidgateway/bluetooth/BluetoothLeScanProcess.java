@@ -79,7 +79,7 @@ public class BluetoothLeScanProcess {
 
     public BluetoothDevice getRemoteDevice(String address) {return mBluetoothAdapter.getRemoteDevice(address);}
 
-    /** method to start or stop scan */
+    /** method to start or stop scan for new devices */
     public void scanLeDevice(boolean enable) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             mBleScanner = mBluetoothAdapter.getBluetoothLeScanner();
@@ -103,7 +103,7 @@ public class BluetoothLeScanProcess {
 
     }
 
-    /** method to start or stop scan for known LE Device */
+    /** method to start or stop scan for known LE Device services */
     public void findLeDevice(UUID[] servicesUUID, boolean enable) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
