@@ -164,9 +164,6 @@ public class GattDataJson extends JsonParser {
                 if (advertisingData != null) {
                     result.add("Advertising: " + json.getString("data"));
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    result.add("tx Power :" + String.valueOf(json.getInt("tx power")) + " dBm");
-                }
 
                 if (!json.isNull("services")) {
                     JSONArray services = json.getJSONArray("services");

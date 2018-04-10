@@ -1,7 +1,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:context="com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeActivity">
+    tools:context="com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScannerActivity">
 
     <item android:id="@+id/menu_refresh"
         android:checkable="false"
@@ -17,5 +17,15 @@
         android:id="@+id/action_stop"
         android:orderInCategory="101"
         android:title="@string/action_stop"
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/action_connect"
+        android:orderInCategory="102"
+        android:title="@string/action_connect"
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/action_disconnect"
+        android:orderInCategory="103"
+        android:title="@string/action_disconnect"
         app:showAsAction="ifRoom|withText" />
 </menu>

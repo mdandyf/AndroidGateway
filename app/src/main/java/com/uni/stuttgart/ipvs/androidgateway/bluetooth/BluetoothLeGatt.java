@@ -13,19 +13,12 @@ import java.util.UUID;
  * Created by mdand on 2/28/2018.
  */
 
-public class BluetoothLe {
+public class BluetoothLeGatt {
 
     public static int READ = 100;
     public static int REGISTER_NOTIFY = 101;
     public static int REGISTER_INDICATE = 102;
     public static int WRITE = 200;
-
-    public static int CHECK_BLUETOOTH_STATE = 300;
-    public static int CHECK_PERMISSION = 301;
-    public static int SCANNING = 302;
-    public static int CONNECTING = 303;
-    public static int CONNECTED = 304;
-    public static int DISCONNECTED = 305;
 
     private BluetoothGatt gatt;
     private UUID serviceUUID;
@@ -34,9 +27,9 @@ public class BluetoothLe {
     private int typeCommand;
     private String jsonData;
 
-    public BluetoothLe(){}
+    public BluetoothLeGatt(){}
 
-    public BluetoothLe(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, byte[] data, int typeCommand) {
+    public BluetoothLeGatt(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, byte[] data, int typeCommand) {
         this.gatt = gatt;
         this.serviceUUID = serviceUUID;
         this.characteristicUUID = characteristicUUID;

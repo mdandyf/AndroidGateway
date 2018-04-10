@@ -8,6 +8,7 @@ import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
+import android.os.ParcelUuid;
 import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Created by mdand on 2/24/2018.
@@ -77,11 +79,12 @@ public class BluetoothLeScanProcess {
 
     public BluetoothDevice getRemoteDevice(String address) {return mBluetoothAdapter.getRemoteDevice(address);}
 
+    /** method to start or stop scan for new devices */
     public void scanLeDevice(boolean enable) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             mBleScanner = mBluetoothAdapter.getBluetoothLeScanner();
         } else {
-            // directly scan
+            // directly scan or use bluetooth adapter
         }
 
         if(enable) {
@@ -98,8 +101,30 @@ public class BluetoothLeScanProcess {
             stopScan();
         }
 
+    }
+
+    /** method to start or stop scan for known LE Device services */
+    public void findLeDevice(UUID[] servicesUUID, boolean enable) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mBleScanner = mBluetoothAdapter.getBluetoothLeScanner();
+        } else {
+            // directly scan or use bluetooth adapter
+        }
+
+        if(enable) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                newScan(servicesUUID);
+            } else {
+                oldScan(servicesUUID);
+            }
+        } else {
+            stopScan();
+        }
+
 
     }
+
 
     /**
      * scan using new Scan method
@@ -124,13 +149,55 @@ public class BluetoothLeScanProcess {
     }
 
     /**
+     * scan using new Scan method for known LE Device
+     */
+    private void newScan(UUID[] servicesUUID) {
+        ScanFilter scanFilter = null;
+        List<ScanFilter> scanFilters = new ArrayList<>();
+        for(UUID serviceUUID : servicesUUID) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                scanFilter = new ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(serviceUUID.toString())).build();
+                scanFilters.add(scanFilter);
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();
+            settingsBuilder.setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY);
+            settingsBuilder.setReportDelay(0);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                settingsBuilder.setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT);
+                settingsBuilder.setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE);
+                settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    settingsBuilder.setLegacy(false);
+                }
+            }
+
+            ScanSettings scanSettings = settingsBuilder.build();
+            mScanning = true;
+            mBleScanner.startScan(scanFilters, scanSettings, callback);
+        }
+    }
+
+    /**
      * scan using old scan method
      */
     private void oldScan() {
-        // Stops scanning after a pre-defined scan period.
         mScanning = true;
         mBluetoothAdapter.startLeScan(callbackOld);
     }
+
+
+    /**
+     * scan using old scan method for known LE Device
+     */
+    private void oldScan(UUID[] servicesUUID) {
+        // Stops scanning after a pre-defined scan period.
+        mScanning = true;
+        mBluetoothAdapter.startLeScan(servicesUUID, callbackOld);
+    }
+
 
     private void stopScan() {
         mScanning = false;

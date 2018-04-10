@@ -22,11 +22,9 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ExpandableListView;
-import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
-import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.ExpandableListAdapter;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
@@ -40,13 +38,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Created by mdand on 2/24/2018.
  */
 
-public class BluetoothLeActivity extends AppCompatActivity implements ImageViewClickListener {
+public class BluetoothLeScannerActivity extends AppCompatActivity implements ImageViewClickListener {
 
     private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
     private static final int SCAN_PERIOD = 10;
@@ -57,12 +56,12 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
     private BluetoothLeScanProcess mBluetoothLeScanProcess;
     private List<BluetoothDevice> listDevice;
     private BluetoothGatt mBluetoothGatt;
-    private int mGattRssi;
     private List<BluetoothGatt> listConnectedGatt;
     private int counter;
-    private boolean mProcessing;
-    private boolean mScanning;
-    private boolean isCOnnectAllDevices;
+    private boolean mProcessing; // flag to track processing
+    private boolean mScanning; // flag to track scanning process
+    private boolean mConnecting;
+    private boolean isCOnnectAllDevices; // flag to track if connection is done to all nearby devices
 
     private Context context;
     private ExpandableListView listView;
@@ -71,7 +70,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
     private HashMap<String, String> listDataHeaderSmall;
     private HashMap<String, List<String>> listDataChild;
 
-    private ConcurrentLinkedQueue<BluetoothLe> queue;
+    private ConcurrentLinkedQueue<BluetoothLeGatt> queue;
     private Menu menuBar;
 
     private HandlerThread mThread = new HandlerThread("mThreadCallback");
@@ -82,7 +81,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_bluetooth, menu);
         menuBar = menu;
-        menuBar.findItem(R.id.menu_refresh).setActionView(null);
 
         setMenuVisibility();
         return true;
@@ -102,6 +100,11 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                 break;
             case R.id.action_stop:
                 stopLeDevice();
+                break;
+            case R.id.action_connect:
+                connectLeDevice();
+            case R.id.action_disconnect:
+                disconnectLeDevice();
                 break;
         }
         return true;
@@ -144,6 +147,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
 
         mScanning = false;
         mProcessing = false;
+        mConnecting = false;
         isCOnnectAllDevices = false;
 
     }
@@ -200,7 +204,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
             counter = 0;
             mBluetoothLeScanProcess.scanLeDevice(true);
             mScanning = true;
-            menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
             setMenuVisibility();
             Handler handler = new Handler();
             handler.postDelayed(new Runnable() {
@@ -215,8 +218,6 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
     private void stopLeDevice() {
         if (mBluetoothLeScanProcess != null) {
             mBluetoothLeScanProcess.scanLeDevice(false);
-            menuBar.findItem(R.id.menu_refresh).setActionView(null);
-            mProcessing = false;
             mScanning = false;
             setMenuVisibility();
         }
@@ -224,8 +225,10 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
 
     private void connectLeDevice() {
         mProcessing = true;
+        mConnecting = true;
         isCOnnectAllDevices = true;
-        menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
+        setMenuVisibility();
+
         for (final BluetoothDevice device : listDevice) {
             new Thread(new Runnable() {
                 @Override
@@ -240,20 +243,27 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
 
     private void connectLeDevice(final String macAddress) {
         mProcessing = true;
+        mConnecting = true;
         isCOnnectAllDevices = false;
-        menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
-        for(final BluetoothDevice device : listDevice) {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    if(macAddress.equals(device.getAddress())) {
-                        BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
-                        gattCallback.setHandlerMessage(mHandlerMessage);
-                        gattCallback.connect();
-                    }
+        setMenuVisibility();
 
-                }
-            }).start();
+        for (final BluetoothDevice device : listDevice) {
+            if (macAddress.equals(device.getAddress())) {
+                BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
+                gattCallback.setHandlerMessage(mHandlerMessage);
+                gattCallback.connect();
+            }
+        }
+    }
+
+    private void disconnectLeDevice() {
+        mProcessing = false;
+        mConnecting = false;
+        setMenuVisibility();
+
+        for(BluetoothGatt gatt : listConnectedGatt) {
+            gatt.disconnect();
+            gatt.close();
         }
     }
 
@@ -281,6 +291,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                             ScanResult result = ((ScanResult) msg.obj);
                             updateUIScan(result);
+                            queue = new ConcurrentLinkedQueue<>();
                         }
                     } else if (msg.arg1 == 4) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -288,10 +299,12 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                             for (ScanResult result : results) {
                                 updateUIScan(result);
                             }
+                            queue = new ConcurrentLinkedQueue<>();
                         }
                     } else if (msg.arg1 == 5) {
                         final Map<BluetoothDevice, GattDataJson> mapDevice = ((Map<BluetoothDevice, GattDataJson>) msg.obj);
                         updateUIScan(mapDevice);
+                        queue = new ConcurrentLinkedQueue<>();
                     }
 
                 } else if (msg.what == 1) {
@@ -299,93 +312,65 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                     if (msg.arg1 == 0) {
                         // read all bluetoothGatt servers
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
+                        processBle = false;
                     } else if (msg.arg1 == 1) {
                         // read all bluetoothGatt connected servers
-                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        synchronized (mBluetoothGatt) {
-                            Toast.makeText(context, "Connected to " + mBluetoothGatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
-                            mBluetoothGatt.readRemoteRssi();
-                            mBluetoothGatt.discoverServices();
-                            listConnectedGatt.add(mBluetoothGatt);
-                            updateUIConnected(mBluetoothGatt);
-                            counter++;
+                        final BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
+                        if(gatt != null) {
+                            mBluetoothGatt = gatt;
+                            queueCommand(gatt, null, null, null, BluetoothLeDevice.CONNECTED);
+                            processBle = true;
                         }
                     } else if (msg.arg1 == 2) {
                         // read all bluetoothGatt disconnected servers
-                        synchronized (mBluetoothGatt) {
-                            Toast.makeText(context, "Disconnected from " + mBluetoothGatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
-                            mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                            mBluetoothGatt.readRemoteRssi();
-                            updateUIDisonnected(mBluetoothGatt);
-                            counter++;
+                        final BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
+                        if(gatt != null) {
+                            mBluetoothGatt = gatt;
+                            queueCommand(gatt, null, null, null, BluetoothLeDevice.DISCONNECTED);
+                            processBle = true;
                         }
                     } else if (msg.arg1 == 3) {
                         // read all bluetoothGatt rssi
-                        synchronized (mBluetoothGatt) {
-                            mGattRssi = ((Integer) msg.obj);
-                            updateUIRssiUpdate(mBluetoothGatt, mGattRssi);
-                        }
+                        // do nothing
                     } else if (msg.arg1 == 4) {
                         //discovered services and read all characteristics
-                        synchronized (mBluetoothGatt) {
-                            mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                            queueSubscribeOrReadGatt(mBluetoothGatt);
-                            mBluetoothGatt.readRemoteRssi();
-                            updateUIConnected(mBluetoothGatt);
-                            processBle = true;
-                        }
+                        BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
+                        mBluetoothGatt = gatt;
+                        queueSubscribeOrReadGatt(gatt);
+                        queueUI(gatt);
+                        queueCommand(gatt, null, null, null, BluetoothLeDevice.STOP_SEQUENCE);
+                        processBle = true;
                     } else if (msg.arg1 == 5) {
                         // onReadCharacteristic
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        mBluetoothGatt.readRemoteRssi();
-                        updateUIConnected(mBluetoothGatt);
-                        queueReadGatt(mBluetoothGatt);
+                        queueReadWriteGatt(mBluetoothGatt, null);
+                        queueUI(mBluetoothGatt);
                         processBle = true;
                     } else if (msg.arg1 == 6) {
                         // onWriteCharacteristic
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        mBluetoothGatt.readRemoteRssi();
-                        updateUIConnected(mBluetoothGatt);
-                        queueReadGatt(mBluetoothGatt);
+                        queueReadWriteGatt(mBluetoothGatt, null);
+                        queueUI(mBluetoothGatt);
                         processBle = true;
                     } else if (msg.arg1 == 7) {
                         //onCharacteristicChanged
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        mBluetoothGatt.readRemoteRssi();
-                        updateUIConnected(mBluetoothGatt);
-                        queueReadGatt(mBluetoothGatt);
+                        queueReadWriteGatt(mBluetoothGatt, null);
+                        queueUI(mBluetoothGatt);
                         processBle = true;
                     } else if (msg.arg1 == 8) {
                         //onDescriptorRead
-                        synchronized (mBluetoothGatt) {
-                            mBluetoothGatt.readRemoteRssi();
-                            queueReadGatt(mBluetoothGatt);
-                            updateUIConnected(mBluetoothGatt);
-                        }
+
                     } else if (msg.arg1 == 9) {
                         //onDescriptorWrite
-                        synchronized (mBluetoothGatt) {
-                            mBluetoothGatt.readRemoteRssi();
-                            queueReadGatt(mBluetoothGatt);
-                            updateUIConnected(mBluetoothGatt);
-                        }
+
                     }
 
                     // signalling a device or all devices have been connected
-                    if (isCOnnectAllDevices &&listDevice != null && counter == listDevice.size()) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                menuBar.findItem(R.id.menu_refresh).setActionView(null);
-                            }
-                        });
-                    } else if(!isCOnnectAllDevices && counter == 1) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                menuBar.findItem(R.id.menu_refresh).setActionView(null);
-                            }
-                        });
+                    if (isCOnnectAllDevices && listDevice != null && counter == listDevice.size()) {
+                        postConnected();
+                    } else if (!isCOnnectAllDevices && counter == 1) {
+                        postConnected();
                     }
 
                     // processing next queue
@@ -402,9 +387,31 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
 
     };
 
-    private void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
-        queue = new ConcurrentLinkedQueue<>();
-        BluetoothLe ble = new BluetoothLe();
+    private void postConnected() {
+        mConnecting = false;
+        Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                mProcessing = false;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        setMenuVisibility();
+                    }
+                });
+            }
+        }, SCAN_PERIOD * 1000);
+
+    }
+
+    private synchronized void queueCommand(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, byte[] data, int typeCommand) {
+        BluetoothLeGatt ble = new BluetoothLeGatt(gatt, serviceUUID, characteristicUUID, data, typeCommand);
+        queue.add(ble);
+    }
+
+    private synchronized void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
+        BluetoothLeGatt ble = new BluetoothLeGatt();
 
         for (BluetoothGattService service : gatt.getServices()) {
             for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
@@ -413,16 +420,16 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                     try {
                         String property = properties.getString(i);
                         if (property.equals("Read")) {
-                            ble = new BluetoothLe(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.READ);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.READ);
                             queue.add(ble);
                         } else if (property.equals("Write")) {
-                            ble = new BluetoothLe(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.WRITE);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.WRITE);
                             queue.add(ble);
                         } else if (property.equals("Notify")) {
-                            ble = new BluetoothLe(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_NOTIFY);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.REGISTER_NOTIFY);
                             queue.add(ble);
                         } else if (property.equals("Indicate")) {
-                            ble = new BluetoothLe(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.REGISTER_INDICATE);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.REGISTER_INDICATE);
                             queue.add(ble);
                         }
                     } catch (JSONException e) {
@@ -435,9 +442,8 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
 
     }
 
-    private void queueReadGatt(BluetoothGatt gatt) {
-        queue = new ConcurrentLinkedQueue<>();
-        BluetoothLe ble = new BluetoothLe();
+    private synchronized void queueReadWriteGatt(BluetoothGatt gatt, byte[] data) {
+        BluetoothLeGatt ble = new BluetoothLeGatt();
 
         for (BluetoothGattService service : gatt.getServices()) {
             for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
@@ -446,10 +452,10 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                     try {
                         String property = properties.getString(i);
                         if (property.equals("Read")) {
-                            ble = new BluetoothLe(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.READ);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.READ);
                             queue.add(ble);
                         } else if (property.equals("Write")) {
-                            ble = new BluetoothLe(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLe.WRITE);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), data, BluetoothLeGatt.WRITE);
                             queue.add(ble);
                         }
                     } catch (JSONException e) {
@@ -458,41 +464,62 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
                 }
             }
         }
-
-
     }
 
-    private void setMenuVisibility() {
-        if (!mScanning) {
-            menuBar.findItem(R.id.action_scan).setVisible(true);
-            menuBar.findItem(R.id.action_stop).setVisible(false);
-        } else {
-            menuBar.findItem(R.id.action_scan).setVisible(false);
-            menuBar.findItem(R.id.action_stop).setVisible(true);
-        }
+    private synchronized void queueUI(BluetoothGatt gatt) {
+        BluetoothLeGatt ble = new BluetoothLeGatt(gatt, null, null, null, BluetoothLeDevice.UPDATE_UI_CONNECTED);
+        queue.add(ble);
     }
 
-    private void processQueue() {
+    private synchronized void processQueue() {
         if (!queue.isEmpty()) {
-            for (BluetoothLe bleQueue = queue.poll(); bleQueue != null; bleQueue = queue.poll()) {
+            for (BluetoothLeGatt bleQueue = queue.poll(); bleQueue != null; bleQueue = queue.poll()) {
                 if (bleQueue != null) {
                     synchronized (bleQueue) {
                         BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(bleQueue.getGatt());
-                        if (bleQueue.getTypeCommand() == BluetoothLe.READ) {
+                        if (bleQueue.getTypeCommand() == BluetoothLeDevice.CONNECTED) {
+                            final BluetoothGatt gatt = bleQueue.getGatt();
+                            Toast.makeText(context, "Connected to " + gatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
+                            gatt.readRemoteRssi();
+                            gatt.discoverServices();
+                            updateUIConnected(gatt);
+                            listConnectedGatt.add(gatt);
+                            counter++;
+                        } else if (bleQueue.getTypeCommand() == BluetoothLeDevice.DISCONNECTED) {
+                            final BluetoothGatt gatt = bleQueue.getGatt();
+                            updateUIDisonnected(gatt);
+                            counter++;
+                            Toast.makeText(context, "Disconnected from " + gatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
+                        } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.READ) {
                             sleepThread(100);
                             gattCallback.readCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID());
-                        } else if (bleQueue.getTypeCommand() == BluetoothLe.REGISTER_NOTIFY) {
+                        } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.REGISTER_NOTIFY) {
                             sleepThread(100);
                             gattCallback.writeDescriptorNotify(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
-                        } else if (bleQueue.getTypeCommand() == BluetoothLe.REGISTER_INDICATE) {
+                        } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.REGISTER_INDICATE) {
                             sleepThread(100);
                             gattCallback.writeDescriptorIndication(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
-                        } else if (bleQueue.getTypeCommand() == BluetoothLe.WRITE) {
+                        } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.WRITE) {
                             sleepThread(100);
-                            //mService.writeCharacteristic();
+                            //gattCallback.writeCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getData());
+                        } else if(bleQueue.getTypeCommand() == BluetoothLeDevice.UPDATE_UI_CONNECTED) {
+                            final BluetoothGatt gatt = bleQueue.getGatt();
+                            updateUIConnected(gatt);
+                        } else if(bleQueue.getTypeCommand() == BluetoothLeDevice.STOP_SEQUENCE) {
+                            final BluetoothGatt gatt = bleQueue.getGatt();
+                            mProcessing = false;
+                            Handler handler = new Handler();
+                            handler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (gatt != null) {
+                                        updateUIDisonnected(gatt);
+                                        gatt.disconnect();
+                                        gatt.close();
+                                    }
+                                }
+                            }, SCAN_PERIOD * 10000);
                         }
-
-
                     }
                 } else {
                     Log.d(TAG, "Command Queue is empty.");
@@ -502,7 +529,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         }
     }
 
-    private void updateUIScan(final ScanResult result) {
+    private synchronized void updateUIScan(final ScanResult result) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (!listDevice.contains(result.getDevice())) {
                 listDevice.add(result.getDevice());
@@ -528,16 +555,16 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
 
     }
 
-    private void updateUIScan(Map<BluetoothDevice, GattDataJson> map) {
-        for (Map.Entry entry : map.entrySet()) {
+    private synchronized void updateUIScan(Map<BluetoothDevice, GattDataJson> map) {
+        for (final Map.Entry entry : map.entrySet()) {
             final BluetoothDevice device = (BluetoothDevice) entry.getKey();
             if (!listDevice.contains(device)) {
                 listDevice.add(device);
             }
-            final GattDataJson json = (GattDataJson) entry.getValue();
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
+                    GattDataJson json = (GattDataJson) entry.getValue();
                     if (!listDataHeader.contains(device.getAddress())) {
                         listDataHeader.add(device.getAddress());
                         json.setJsonData(json.getJsonAdvertising().toString());
@@ -552,7 +579,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         }
     }
 
-    private void updateUIConnected(final BluetoothGatt gatt) {
+    private synchronized void updateUIConnected(final BluetoothGatt gatt) {
         final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
         runOnUiThread(new Runnable() {
             @Override
@@ -569,7 +596,7 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         });
     }
 
-    private void updateUIRssiUpdate(final BluetoothGatt gatt, int rssi) {
+    private synchronized void updateUIRssiUpdate(final BluetoothGatt gatt, int rssi) {
         final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt, rssi);
         runOnUiThread(new Runnable() {
             @Override
@@ -584,15 +611,13 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
         });
     }
 
-    private void updateUIDisonnected(final BluetoothGatt gatt) {
+    private synchronized void updateUIDisonnected(final BluetoothGatt gatt) {
         final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 if (listDataHeader.contains(gatt.getDevice().getAddress())) {
-                    json.setJsonData(json.getJsonAdvertising().toString());
-                    listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
-                    listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Disonnected");
+                    listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Disconnected");
                     listAdapter.setTextAppearanceHeader("Medium");
                     listAdapter.notifyDataSetChanged();
                 }
@@ -602,14 +627,48 @@ public class BluetoothLeActivity extends AppCompatActivity implements ImageViewC
 
     private int findPositionWriteable(List<String> inputs) {
         int counter = 0;
-        for(String input : inputs) {
-            if(input.contains("Write")) {
+        for (String input : inputs) {
+            if (input.contains("Write")) {
                 return counter;
             }
             counter++;
         }
 
         return 0;
+    }
+
+    private void setMenuVisibility() {
+        if (!mScanning) {
+            // when scanning is stop
+            if(listDataHeader != null && listDataHeader.size() != 0) {
+                if(mConnecting) {
+                    menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
+                    menuBar.findItem(R.id.action_scan).setVisible(false);
+                    menuBar.findItem(R.id.action_stop).setVisible(false);
+                    menuBar.findItem(R.id.action_connect).setVisible(false);
+                    menuBar.findItem(R.id.action_disconnect).setVisible(true);
+                } else {
+                    menuBar.findItem(R.id.menu_refresh).setActionView(null);
+                    menuBar.findItem(R.id.action_scan).setVisible(false);
+                    menuBar.findItem(R.id.action_stop).setVisible(false);
+                    menuBar.findItem(R.id.action_connect).setVisible(true);
+                    menuBar.findItem(R.id.action_disconnect).setVisible(false);
+                }
+            } else {
+                menuBar.findItem(R.id.menu_refresh).setActionView(null);
+                menuBar.findItem(R.id.action_scan).setVisible(true);
+                menuBar.findItem(R.id.action_stop).setVisible(false);
+                menuBar.findItem(R.id.action_connect).setVisible(false);
+                menuBar.findItem(R.id.action_disconnect).setVisible(false);
+            }
+        } else {
+            // when scanning is running
+            menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
+            menuBar.findItem(R.id.action_scan).setVisible(false);
+            menuBar.findItem(R.id.action_stop).setVisible(true);
+            menuBar.findItem(R.id.action_connect).setVisible(false);
+            menuBar.findItem(R.id.action_disconnect).setVisible(false);
+        }
     }
 
     private void sleepThread(long time) {

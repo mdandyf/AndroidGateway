@@ -45,13 +45,12 @@
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
         <activity
-            android:name=".bluetooth.BluetoothLeActivity"
+            android:name=".bluetooth.BluetoothLeScannerActivity"
             android:label="@string/title_activity_bluetooth" />
 
         <activity
@@ -62,7 +61,9 @@
             android:label="@string/title_activity_settings" />
 
         <activity android:name=".gateway.GatewayActivity"></activity>
-        <service android:name=".gateway.GatewayService" />
+        <service android:name=".gateway.GatewayService"/>
+        <service android:name=".gateway.GatewayController"/>
+
     </application>
 
 </manifest>

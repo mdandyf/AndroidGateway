@@ -10,8 +10,10 @@ import android.provider.ContactsContract;
 import java.sql.SQLClientInfoException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,6 +25,8 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public static final String BLE_ID = "id";
     public static final String BLE_DATA = "mac_address";
     public static final String BLE_NAME = "device_name";
+    public static final String BLE_RSSI = "device_rssi";
+    public static final String BLE_STATE = "device_state";
     public static final String BLE_TIMESTAMP = "timestamp";
 
     public BleDeviceDatabase(Context context) {
@@ -33,7 +37,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleDeviceData " +
-                        "(id integer primary key, mac_address text,device_name text,timestamp text)"
+                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, timestamp text)"
         );
     }
 
@@ -44,17 +48,36 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-    public boolean insertData(String data, String device_name) {
+    public boolean insertData(String data, String device_name, int rssi, String state) {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues contentValues = new ContentValues();
-            contentValues.put("mac_address", data);
-            contentValues.put("device_name", device_name);
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
-            String date = sdf.format(new Date());
-            contentValues.put("timestamp", date);
-            db.insert("BleDeviceData", null, contentValues);
+            if(!isDeviceExist(data)) {
+                contentValues.put("mac_address", data);
+                contentValues.put("device_name", device_name);
+                contentValues.put("device_rssi", rssi);
+                contentValues.put("device_state", state);
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
+                String date = sdf.format(new Date());
+                contentValues.put("timestamp", date);
+                db.insert("BleDeviceData", null, contentValues);
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return status;
+    }
+
+
+
+    public boolean deleteAllData() {
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            db.execSQL("delete from BleDeviceData ");
+            db.close();
             status = true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -62,35 +85,47 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         return status;
     }
 
-    public boolean deleteAllData() {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.execSQL("delete from BleDeviceData ");
-        db.close();
-        return true;
+    public boolean isDeviceExist(String key) {
+        boolean status = false;
+        Cursor cursor = getQuery("SELECT mac_address from BleDeviceData WHERE mac_address=?", new String[] {key + ""});
+        if(cursor.getCount() > 0) {
+            status = true;
+        }
+        cursor.close();
+        return status;
     }
 
-    public Map<Integer, Map<String, Date>>  getAllData() {
-        Map<Integer, Map<String, Date>> mapResult = new HashMap<>();
-        Map<String, Date> mapData = new HashMap<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor res =  db.rawQuery( "select * from BleDeviceData", null );
-        res.moveToFirst();
-
-        while(res.isAfterLast() == false){
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
-            Date date = null;
-            try {
-                date = sdf.parse(res.getString(res.getColumnIndex(BLE_TIMESTAMP)));
-                String data = res.getString(res.getColumnIndex(BLE_DATA));
-                String action = res.getString(res.getColumnIndex(BLE_NAME));
-                int key = res.getInt(res.getColumnIndex(BLE_ID));
-                mapData.put(data, date);
-                mapResult.put(key, mapData);
-            } catch (ParseException e) {
-                e.printStackTrace();
-            }
+    public boolean isDeviceExist() {
+        boolean status = false;
+        Cursor cursor = getQuery("SELECT mac_address from BleDeviceData", null);
+        if(cursor.getCount() > 0) {
+            status = true;
         }
-        return mapResult;
+        cursor.close();
+        return status;
+    }
+
+    public List<String> getListDevices() {
+        List<String> list = new ArrayList<>();
+        Cursor cursor = getQuery("SELECT mac_address from BleDeviceData", null);
+        while(cursor.isAfterLast() == false) {
+            String macAddress = cursor.getString(cursor.getColumnIndex(BLE_DATA));
+            list.add(macAddress);
+        }
+        cursor.close();
+        return list;
+    }
+
+    private Cursor getQuery(String query, String[] argument) {
+        Cursor cursor = null;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery(query, argument);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return cursor;
     }
 
 }
