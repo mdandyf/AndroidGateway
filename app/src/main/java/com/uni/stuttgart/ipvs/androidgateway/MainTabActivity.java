@@ -9,6 +9,7 @@ import android.widget.Toast;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScannerActivity;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayActivity;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 
 /**
  * Created by mdand on 3/25/2018.
@@ -45,7 +46,7 @@ public class MainTabActivity extends TabActivity {
 
         //set tab which one you want to open first time 0 or 1 or 2
         tabHost.setCurrentTab(0);
-        broadcast("Start Gateway Service", GatewayService.START_COMMAND);
+        broadcast("Start Services", GatewayService.START_COMMAND);
 
         tabHost.setOnTabChangedListener(new TabHost.OnTabChangeListener() {
             @Override
@@ -53,9 +54,9 @@ public class MainTabActivity extends TabActivity {
                 // display the name of the tab whenever a tab is changed
                 Toast.makeText(getApplicationContext(), tabId, Toast.LENGTH_SHORT).show();
                 if(tabId == "Scanner") {
-                    broadcast("Stop Gateway Service", GatewayService.TERMINATE_COMMAND);
+                    broadcast("Stop Services", GatewayService.TERMINATE_COMMAND);
                 } else if (tabId == "Gateway") {
-                    broadcast("Start Gateway Service", GatewayService.START_COMMAND);
+                    broadcast("Start Services", GatewayService.START_COMMAND);
                 }
             }
         });
