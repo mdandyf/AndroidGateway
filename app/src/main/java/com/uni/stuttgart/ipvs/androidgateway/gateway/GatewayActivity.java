@@ -34,6 +34,8 @@ import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 
 import java.util.List;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is used to start and stop services of Gateway and also for UI in Gateway Program
@@ -41,12 +43,16 @@ import java.util.List;
 
 public class GatewayActivity extends AppCompatActivity {
 
+    private final ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(10);
+    private final int PROCESSING_TIME = 60000;
+
     private BluetoothAdapter mBluetoothAdapter;
     private Intent mGatewayService;
     private EditText textArea;
     private Menu menuBar;
 
     private boolean mProcessing = false;
+    private Context context;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
@@ -88,7 +94,7 @@ public class GatewayActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_gateway);
-
+        context = this;
         textArea = (EditText) findViewById(R.id.textArea);
         textArea.setFocusable(false);
         textArea.setOnTouchListener(new View.OnTouchListener() {
@@ -106,6 +112,7 @@ public class GatewayActivity extends AppCompatActivity {
 
         registerBroadcastListener();
         checkBluetoothState();
+        clearDatabase();
     }
 
     @Override
@@ -150,31 +157,50 @@ public class GatewayActivity extends AppCompatActivity {
      */
 
     private void startServiceGateway() {
-        mGatewayService = new Intent(this, GatewayController.class);
-        startService(mGatewayService);
-        setCommandLine("Start Gateway Service...");
-        mProcessing = true;
-        clearDatabase();
+        scheduler.scheduleAtFixedRate(new StartServiceGateway(), 0, PROCESSING_TIME + 100, TimeUnit.MILLISECONDS);
+        scheduler.scheduleWithFixedDelay(new StopServiceGateway(), PROCESSING_TIME, PROCESSING_TIME, TimeUnit.MILLISECONDS);
     }
 
     private void stopServiceGateway() {
-        if(mGatewayService != null) {
-            stopService(mGatewayService);
-            setCommandLine("Stop Gateway Service...");
-            mProcessing = false;
+        scheduler.scheduleAtFixedRate(new StartServiceGateway(), 0, 1, TimeUnit.MILLISECONDS);
+    }
+
+    protected class StartServiceGateway implements Runnable {
+        @Override
+        public void run() {
+            mGatewayService = new Intent(context, GatewayController.class);
+            startService(mGatewayService);
+            setCommandLine("Start Services...");
+            mProcessing = true;
+        }
+    }
+
+    protected class StopServiceGateway implements Runnable {
+        @Override
+        public void run() {
+            if(mGatewayService != null) {
+                stopService(mGatewayService);
+                setCommandLine("Stop Services...");
+                mProcessing = false;
+            }
         }
     }
 
     private void setMenuVisibility() {
-        if (mProcessing) {
-            menuBar.findItem(R.id.menu_refresh_gateway).setActionView(R.layout.action_interdeminate_progress);
-            menuBar.findItem(R.id.action_start).setVisible(false);
-            menuBar.findItem(R.id.action_stop).setVisible(true);
-        } else {
-            menuBar.findItem(R.id.menu_refresh_gateway).setActionView(null);
-            menuBar.findItem(R.id.action_start).setVisible(true);
-            menuBar.findItem(R.id.action_stop).setVisible(false);
-        }
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mProcessing) {
+                    menuBar.findItem(R.id.menu_refresh_gateway).setActionView(R.layout.action_interdeminate_progress);
+                    menuBar.findItem(R.id.action_start).setVisible(false);
+                    menuBar.findItem(R.id.action_stop).setVisible(true);
+                } else {
+                    menuBar.findItem(R.id.menu_refresh_gateway).setActionView(null);
+                    menuBar.findItem(R.id.action_start).setVisible(true);
+                    menuBar.findItem(R.id.action_stop).setVisible(false);
+                }
+            }
+        });
     }
 
     private void checkBluetoothState() {

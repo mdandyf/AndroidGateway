@@ -239,6 +239,7 @@ public class GatewayService extends Service {
                     } else if (type == BluetoothLeDevice.CONNECTED) {
                         synchronized (lock) {
                             final BluetoothGatt gatt = bleDevice.getBluetoothGatt();
+                            mBluetoothGatt = gatt;
                             broadcastUpdate("connected to " + bleDevice.getMacAddress());
                             broadcastUpdate("discovering services...");
                             status = "Discovering";
@@ -248,6 +249,7 @@ public class GatewayService extends Service {
                     } else if (type == BluetoothLeDevice.DISCONNECTED) {
                         synchronized (lock) {
                             BluetoothGatt gatt = bleDevice.getBluetoothGatt();
+                            mBluetoothGatt = gatt;
                             if(bleDevice.getMacAddress() == null) {
                                 gatt.disconnect();
                                 broadcastUpdate("Disconnected from " + gatt.getDevice().getAddress());

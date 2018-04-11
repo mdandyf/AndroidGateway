@@ -13,11 +13,13 @@ import android.os.Looper;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
 
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -29,21 +31,14 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  */
 
 public class GatewayController extends Service {
-    private static final int DURATION = 60 * 60 * 24; // set to 24 hours
-    private static final int PROCESSING_TIME = 60000; // set one cycle to 60 seconds
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
-
-    private final ScheduledExecutorService scheduler =
-            Executors.newScheduledThreadPool(1);
 
     private GatewayService mGatewayService;
     private boolean mBound = false;
     private boolean mProcessing = false;
     private boolean mScanning = false;
 
-    private Handler handlerPeriodic = null;
-    private Thread threadPeriodic = null;
-    private static Runnable runnablePeriodic = null;
+    private Runnable runnablePeriodic = null;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
 
@@ -57,9 +52,6 @@ public class GatewayController extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if(runnablePeriodic != null) {
-            handlerPeriodic.removeCallbacks(runnablePeriodic);
-        }
         unbindService(mConnection);
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         stopSelf();
@@ -88,7 +80,7 @@ public class GatewayController extends Service {
             mBound = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
-            startProcessing();
+            doScheduleRR();
         }
 
         @Override
@@ -99,94 +91,31 @@ public class GatewayController extends Service {
         }
     };
 
-    protected void startProcessing() {
-        doScheduleRR();
-    }
-
     private void doScheduleRR() {
-        final ScheduledFuture<?> timerSchedule =
-                scheduler.scheduleAtFixedRate(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            broadcastUpdate("Start new cycle...");
-                            mProcessing = true;
-                            while (mBound && mGatewayService != null && mProcessing) {
-                                final String[] status = {mGatewayService.getCurrentStatus()};
-                                mGatewayService.setProcessing(mProcessing);
-                                doGatewayController(status[0]);
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }, 1, 60, SECONDS);
-        scheduler.schedule(new Runnable() {
-            public void run() {
-                broadcastUpdate("Stop cycle...");
-                mProcessing = false;
-                timerSchedule.cancel(true);
-            }
-        }, 60, SECONDS);
-
-    }
-
-    /*private void doScheduleRR() {
-        handlerPeriodic = new Handler();
-        runnablePeriodic = new Runnable() {
+        ProcessPriority processPriority = new ProcessPriority(8);
+         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
-                try {
-                    if(threadPeriodic != null) {
-                        mProcessing = false;
-                        mGatewayService.setProcessing(mProcessing);
-                        broadcastUpdate("Start new cycle...");
-                        threadPeriodic.interrupt();
-                        threadPeriodic = null;
-                        handlerPeriodic.postDelayed(runnablePeriodic, 1000);
-                        return;
-                    } else {
-                        mProcessing = true;
-                        handlerPeriodic.postDelayed(runnablePeriodic, PROCESSING_TIME);
-                    }
-
-                    threadPeriodic = new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            while (mBound && mGatewayService != null) {
-                                final String[] status = {mGatewayService.getCurrentStatus()};
-                                mGatewayService.setProcessing(mProcessing);
-                                doGatewayController(status[0]);
-                            }
-                        }
-                    });
-                    threadPeriodic.start();
-                } catch (Exception e) {
-                    e.printStackTrace();
+                mProcessing = true;
+                while (mBound && mGatewayService != null && mProcessing) {
+                    final String[] status = {mGatewayService.getCurrentStatus()};
+                    mGatewayService.setProcessing(mProcessing);
+                    doGatewayController(status[0]);
+                    if(!mProcessing) {return;}
                 }
             }
         };
-        handlerPeriodic.postDelayed(runnablePeriodic, 1000);
-    }*/
+
+         processPriority.newThread(runnablePeriodic).start();
+    }
+
 
     // using scheduler for Round Robin Method
     private void doGatewayController(String status) {
-
         switch (status) {
             case "Created":
-                boolean deviceExist = bleDeviceDatabase.isDeviceExist();
-                if (deviceExist) {
-                    List<String> macAddresses = bleDeviceDatabase.getListDevices();
-                    for (String mac : macAddresses) {
-                        mGatewayService.addQueueScanning(mac, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null);
-                    }
-                    mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
-                    mGatewayService.execScanningQueue();
-                } else {
-                    mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
-                    mGatewayService.execScanningQueue();
-                }
-
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                mGatewayService.execScanningQueue();
                 mScanning = true;
                 break;
             case "Scanning":
