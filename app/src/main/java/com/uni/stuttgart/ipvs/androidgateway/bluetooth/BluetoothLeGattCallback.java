@@ -51,7 +51,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     }
 
     public void connect() {
-        mBluetoothGatt = mDevice.connectGatt(context, true, mGattCallback);
+        mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
         refreshDeviceCache(mBluetoothGatt);
     }
@@ -158,6 +158,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
         super.onConnectionStateChange(gatt, status, newState);
+        mBluetoothGatt = gatt;
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             Log.i(TAG, "Connected to GATT server.");
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 1, 0, mBluetoothGatt));

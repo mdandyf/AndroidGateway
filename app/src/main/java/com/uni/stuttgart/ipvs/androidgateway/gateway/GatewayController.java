@@ -10,28 +10,40 @@ import android.content.ServiceConnection;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.support.annotation.Nullable;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Created by mdand on 4/10/2018.
  */
 
 public class GatewayController extends Service {
+    private static final int DURATION = 60 * 60 * 24; // set to 24 hours
+    private static final int PROCESSING_TIME = 60000; // set one cycle to 60 seconds
+    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
 
-    private static final int PROCESSING_TIME = 60000;
-    private static final int SCAN_TIME = 10000;
+    private final ScheduledExecutorService scheduler =
+            Executors.newScheduledThreadPool(1);
 
     private GatewayService mGatewayService;
     private boolean mBound = false;
     private boolean mProcessing = false;
     private boolean mScanning = false;
 
-    private int counter;
+    private Handler handlerPeriodic = null;
+    private Thread threadPeriodic = null;
+    private static Runnable runnablePeriodic = null;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
 
@@ -45,19 +57,26 @@ public class GatewayController extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if(runnablePeriodic != null) {
+            handlerPeriodic.removeCallbacks(runnablePeriodic);
+        }
         unbindService(mConnection);
         broadcastUpdate("Unbind to GatewayService...");
         stopSelf();
     }
 
     @Override
-    public IBinder onBind(Intent intent) {return null;}
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
 
     /**
      * Gateway Controller Section
      */
 
-    /** Defines callbacks for service binding, passed to bindService() */
+    /**
+     * Defines callbacks for service binding, passed to bindService()
+     */
     private ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
@@ -68,7 +87,8 @@ public class GatewayController extends Service {
             mGatewayService = binder.getService();
             mBound = true;
             broadcastUpdate("GatewayService & GatewayController have bound...");
-            start();
+            broadcastUpdate("\n");
+            startProcessing();
         }
 
         @Override
@@ -79,44 +99,76 @@ public class GatewayController extends Service {
         }
     };
 
-    private void start() {
-        counter = 0;
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Looper.prepare();
-                mProcessing = true;
-                counter++;
-                while(mBound && mGatewayService != null && mProcessing) {
-                    final String[] status = {mGatewayService.getCurrentStatus()};
-
-                    if(counter == 1) {
-                        mGatewayService.setProcessing(mProcessing);
-                        Handler handler = new Handler();
-                        handler.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                mProcessing = false;
-                                mGatewayService.setProcessing(mProcessing);
-                                start();
-                            }
-                        }, PROCESSING_TIME);
-                    }
-
-                    doGatewayController(status[0]);
-                }
-            }
-        }).start();
+    private void startProcessing() {
+        doScheduleRR();
     }
 
+    private void doScheduleRR() {
+        final ScheduledFuture<?> timerSchedule =
+                scheduler.scheduleAtFixedRate(new Runnable() {
+                    @Override
+                    public void run() {
+                        mProcessing = true;
+                        while (mBound && mGatewayService != null) {
+                            final String[] status = {mGatewayService.getCurrentStatus()};
+                            mGatewayService.setProcessing(mProcessing);
+                            doGatewayController(status[0]);
+                        }
+                    }
+                }, 10, PROCESSING_TIME, MILLISECONDS);
+        scheduler.schedule(new Runnable() {
+            public void run() { timerSchedule.cancel(true); }
+        }, 60, SECONDS);
+
+    }
+
+    /*private void doScheduleRR() {
+        handlerPeriodic = new Handler();
+        runnablePeriodic = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if(threadPeriodic != null) {
+                        mProcessing = false;
+                        mGatewayService.setProcessing(mProcessing);
+                        broadcastUpdate("Start new cycle...");
+                        threadPeriodic.interrupt();
+                        threadPeriodic = null;
+                        handlerPeriodic.postDelayed(runnablePeriodic, 1000);
+                        return;
+                    } else {
+                        mProcessing = true;
+                        handlerPeriodic.postDelayed(runnablePeriodic, PROCESSING_TIME);
+                    }
+
+                    threadPeriodic = new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            while (mBound && mGatewayService != null) {
+                                final String[] status = {mGatewayService.getCurrentStatus()};
+                                mGatewayService.setProcessing(mProcessing);
+                                doGatewayController(status[0]);
+                            }
+                        }
+                    });
+                    threadPeriodic.start();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        handlerPeriodic.postDelayed(runnablePeriodic, 1000);
+    }*/
+
+    // using scheduler for Round Robin Method
     private void doGatewayController(String status) {
 
         switch (status) {
             case "Created":
                 boolean deviceExist = bleDeviceDatabase.isDeviceExist();
-                if(deviceExist) {
+                if (deviceExist) {
                     List<String> macAddresses = bleDeviceDatabase.getListDevices();
-                    for(String mac : macAddresses) {
+                    for (String mac : macAddresses) {
                         mGatewayService.addQueueScanning(mac, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null);
                     }
                     mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
@@ -127,40 +179,43 @@ public class GatewayController extends Service {
                 }
 
                 mScanning = true;
+                break;
             case "Scanning":
-                if(mScanning) {
+                if (mScanning) {
                     waitThread(SCAN_TIME);
                     mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
                     mGatewayService.execScanningQueue();
 
                     waitThread(1000);
+
                     List<BluetoothDevice> scanResults = mGatewayService.getScanResults();
-                    for(BluetoothDevice device : scanResults) {
+                    for (BluetoothDevice device : scanResults) {
                         mGatewayService.addQueueConnecting(device.getAddress(), device.getName(), 0, BluetoothLeDevice.CONNECTING, null);
+                        mGatewayService.execConnectingQueue();
                     }
-                    mGatewayService.execConnectingQueue();
                     mScanning = false;
                 }
+                break;
             case "Connecting":
                 // nothing to do
             case "Discovering":
-                while(mGatewayService.getCurrentStatus() == "Discovering") {
-                    waitThread(SCAN_TIME);
-                    BluetoothGatt gatt = mGatewayService.getCurrentGatt();
-                    gatt.disconnect();
-                    break;
-                }
+                waitThread(SCAN_TIME);
+                mGatewayService.addQueueConnecting(null, null, 0, BluetoothLeDevice.DISCONNECTED, mGatewayService.getCurrentGatt());
+                mGatewayService.execConnectingQueue();
+                break;
             case "Reading":
-                while(mGatewayService.getCurrentStatus() == "Reading") {
-                    waitThread(5000);
-                    BluetoothGatt gatt = mGatewayService.getCurrentGatt();
-                    gatt.disconnect();
-                    break;
-                }
+                waitThread(5000);
+                mGatewayService.addQueueConnecting(null, null, 0, BluetoothLeDevice.DISCONNECTED, mGatewayService.getCurrentGatt());
+                mGatewayService.execConnectingQueue();
+                break;
         }
     }
 
-    private void doSmartGatewayController() {
+    private void doScheduleFEP() {
+
+    }
+
+    private void doSmartGatewayController(String status) {
 
     }
 
