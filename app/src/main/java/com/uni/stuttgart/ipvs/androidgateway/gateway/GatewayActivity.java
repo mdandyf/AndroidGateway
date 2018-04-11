@@ -111,7 +111,7 @@ public class GatewayActivity extends AppCompatActivity {
         });
 
         registerBroadcastListener();
-        checkBluetoothState();
+        checkingPermission();
         clearDatabase();
     }
 
@@ -162,7 +162,7 @@ public class GatewayActivity extends AppCompatActivity {
     }
 
     private void stopServiceGateway() {
-        scheduler.scheduleAtFixedRate(new StartServiceGateway(), 0, 1, TimeUnit.MILLISECONDS);
+        scheduler.scheduleAtFixedRate(new StopServiceGateway(), 0, 1, TimeUnit.MILLISECONDS);
     }
 
     protected class StartServiceGateway implements Runnable {
@@ -203,7 +203,7 @@ public class GatewayActivity extends AppCompatActivity {
         });
     }
 
-    private void checkBluetoothState() {
+    private void checkingPermission() {
         // Use this check to determine whether BLE is supported on the device.  Then you can
         // selectively disable BLE-related features.
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
@@ -228,7 +228,7 @@ public class GatewayActivity extends AppCompatActivity {
             /** force user to turn on location service */
             if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Please turn on Location Access Permission!", Toast.LENGTH_LONG).show();
-                return;
+                finish();
             }
         }
     }
