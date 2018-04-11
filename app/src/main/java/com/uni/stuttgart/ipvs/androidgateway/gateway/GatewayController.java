@@ -50,7 +50,7 @@ public class GatewayController extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         bindService(new Intent(this, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
-        broadcastUpdate("Bind to GatewayService...");
+        broadcastUpdate("Bind GatewayController to GatewayService...");
         return super.onStartCommand(intent, flags, startId);
     }
 
@@ -61,7 +61,7 @@ public class GatewayController extends Service {
             handlerPeriodic.removeCallbacks(runnablePeriodic);
         }
         unbindService(mConnection);
-        broadcastUpdate("Unbind to GatewayService...");
+        broadcastUpdate("Unbind GatewayController to GatewayService...");
         stopSelf();
     }
 
@@ -77,7 +77,7 @@ public class GatewayController extends Service {
     /**
      * Defines callbacks for service binding, passed to bindService()
      */
-    private ServiceConnection mConnection = new ServiceConnection() {
+    protected ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName className,
@@ -86,7 +86,7 @@ public class GatewayController extends Service {
             GatewayService.LocalBinder binder = (GatewayService.LocalBinder) service;
             mGatewayService = binder.getService();
             mBound = true;
-            broadcastUpdate("GatewayService & GatewayController have bound...");
+            broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
             startProcessing();
         }
@@ -99,7 +99,7 @@ public class GatewayController extends Service {
         }
     };
 
-    private void startProcessing() {
+    protected void startProcessing() {
         doScheduleRR();
     }
 
@@ -108,16 +108,25 @@ public class GatewayController extends Service {
                 scheduler.scheduleAtFixedRate(new Runnable() {
                     @Override
                     public void run() {
-                        mProcessing = true;
-                        while (mBound && mGatewayService != null) {
-                            final String[] status = {mGatewayService.getCurrentStatus()};
-                            mGatewayService.setProcessing(mProcessing);
-                            doGatewayController(status[0]);
+                        try {
+                            broadcastUpdate("Start new cycle...");
+                            mProcessing = true;
+                            while (mBound && mGatewayService != null && mProcessing) {
+                                final String[] status = {mGatewayService.getCurrentStatus()};
+                                mGatewayService.setProcessing(mProcessing);
+                                doGatewayController(status[0]);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
-                }, 10, PROCESSING_TIME, MILLISECONDS);
+                }, 1, 60, SECONDS);
         scheduler.schedule(new Runnable() {
-            public void run() { timerSchedule.cancel(true); }
+            public void run() {
+                broadcastUpdate("Stop cycle...");
+                mProcessing = false;
+                timerSchedule.cancel(true);
+            }
         }, 60, SECONDS);
 
     }
