@@ -61,8 +61,8 @@
             android:label="@string/title_activity_settings" />
 
         <activity android:name=".gateway.GatewayActivity"></activity>
-        <service android:name=".gateway.GatewayService"/>
-        <service android:name=".gateway.GatewayController"/>
+        <service android:name=".gateway.GatewayService" android:process=":remote"/>
+        <service android:name=".gateway.GatewayController" android:process=":remote"/>
 
     </application>
 

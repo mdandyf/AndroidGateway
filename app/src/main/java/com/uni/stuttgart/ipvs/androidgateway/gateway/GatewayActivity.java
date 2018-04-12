@@ -170,6 +170,7 @@ public class GatewayActivity extends AppCompatActivity {
         public void run() {
             mGatewayService = new Intent(context, GatewayController.class);
             startService(mGatewayService);
+            setCommandLine("\n");
             setCommandLine("Start Services...");
             mProcessing = true;
         }
@@ -180,6 +181,7 @@ public class GatewayActivity extends AppCompatActivity {
         public void run() {
             if(mGatewayService != null) {
                 stopService(mGatewayService);
+                setCommandLine("\n");
                 setCommandLine("Stop Services...");
                 mProcessing = false;
             }
@@ -206,6 +208,7 @@ public class GatewayActivity extends AppCompatActivity {
     private void checkingPermission() {
         // Use this check to determine whether BLE is supported on the device.  Then you can
         // selectively disable BLE-related features.
+        setCommandLine("Start checking permissions...");
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Toast.makeText(this, "Ble is not supported", Toast.LENGTH_SHORT).show();
             finish();
@@ -231,6 +234,8 @@ public class GatewayActivity extends AppCompatActivity {
                 finish();
             }
         }
+
+        setCommandLine("Checking permissions done...");
     }
 
     /**
@@ -246,6 +251,7 @@ public class GatewayActivity extends AppCompatActivity {
 
         IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
         registerReceiver(mReceiver, filter3);
+        setCommandLine("Registering Broadcast Listener");
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
