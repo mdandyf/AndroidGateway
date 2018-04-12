@@ -131,9 +131,12 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public List<String> getListDevices() {
         List<String> list = new ArrayList<>();
         Cursor cursor = getQuery("SELECT mac_address from BleDeviceData", null);
-        while(cursor.isAfterLast() == false) {
-            String macAddress = cursor.getString(cursor.getColumnIndex(BLE_DATA));
-            list.add(macAddress);
+        if (cursor.moveToFirst()) {
+            while(!cursor.isAfterLast()) {
+                String macAddress = cursor.getString(cursor.getColumnIndex(BLE_DATA));
+                list.add(macAddress);
+                cursor.moveToNext();
+            }
         }
         cursor.close();
         return list;
@@ -143,9 +146,12 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         List<String> list = new ArrayList<>();
         String key = "active";
         Cursor cursor = getQuery("SELECT mac_address from BleDeviceData WHERE device_state=?", new String[] {key + ""});
-        while(cursor.isAfterLast() == false) {
-            String macAddress = cursor.getString(cursor.getColumnIndex(BLE_DATA));
-            list.add(macAddress);
+        if (cursor.moveToFirst()) {
+            while(!cursor.isAfterLast()) {
+                String macAddress = cursor.getString(cursor.getColumnIndex(BLE_DATA));
+                list.add(macAddress);
+                cursor.moveToNext();
+            }
         }
         cursor.close();
         return list;
