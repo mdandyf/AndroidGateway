@@ -18,4 +18,8 @@ public class ProcessPriority implements ThreadFactory {
         return thread;
     }
 
+    public void interruptThread() {
+        thread.interrupt();
+    }
+
 }

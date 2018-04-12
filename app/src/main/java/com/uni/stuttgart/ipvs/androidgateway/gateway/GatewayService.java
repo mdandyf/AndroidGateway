@@ -210,19 +210,30 @@ public class GatewayService extends Service {
     }
 
     public void doConnecting(String macAddress) {
+        status = "Connecting";
         final BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
         synchronized (lock) {
             broadcastUpdate("\n");
             broadcastUpdate("connecting to " + device.getAddress());
             BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
             gattCallback.setHandlerMessage(mHandlerMessage);
-            gattCallback.connect();
+            mBluetoothGatt = gattCallback.connect();
             try {
                 lock.wait();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    public Runnable doConnecting(final String macAddress, Runnable runnable) {
+        status = "Connecting";
+        return new Runnable() {
+            @Override
+            public void run() {
+                doConnecting(macAddress);
+            }
+        };
     }
 
     public void doConnected(BluetoothGatt gatt) {

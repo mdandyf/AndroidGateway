@@ -50,10 +50,11 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         this.mBluetoothGatt = gatt;
     }
 
-    public void connect() {
+    public BluetoothGatt connect() {
         mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
         refreshDeviceCache(mBluetoothGatt);
+        return mBluetoothGatt;
     }
 
     public void connect(BluetoothAdapter mBluetoothAdapter, String macAddress) {

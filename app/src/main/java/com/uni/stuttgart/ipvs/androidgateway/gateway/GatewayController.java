@@ -83,8 +83,8 @@ public class GatewayController extends Service {
             mBound = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
-            doScheduleNormal();
-            //doScheduleRR();
+            //doScheduleNormal();
+            doScheduleRR();
             //doScheduleFEP();
         }
 
@@ -143,6 +143,7 @@ public class GatewayController extends Service {
 
     // scheduling using Round Robin Method
     private void doScheduleRR() {
+        broadcastUpdate("Start Round Robin Scheduling...");
         ProcessPriority processPriority = new ProcessPriority(8);
          runnablePeriodic = new Runnable() {
             @Override
@@ -187,19 +188,42 @@ public class GatewayController extends Service {
                     }
 
                     for (final BluetoothDevice device : scanResults) {
-                        mGatewayService.doConnecting(device.getAddress());
+                        Runnable runnable = mGatewayService.doConnecting(device.getAddress(), null);
+                        ProcessPriority processPriority = new ProcessPriority(10);
+                        processPriority.newThread(runnable).start();
+                        // set timer to xx seconds
                         waitThread(maxConnectTime);
-                        if(mGatewayService.getCurrentStatus().equals("Connecting")) {mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");}
+                        broadcastUpdate("Wait time finished, disconnected...");
+                        mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
+                        waitThread(100);
+                        processPriority.interruptThread();
                     }
                 }
                 break;
         }
     }
 
+    // scheduling using Fair Exhaustive Polling (FEP)
     private void doScheduleFEP() {
+        broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
+        ProcessPriority processPriority = new ProcessPriority(8);
+        runnablePeriodic = new Runnable() {
+            @Override
+            public void run() {
+                mProcessing = true;
+                while (mBound && mGatewayService != null && mProcessing) {
+                    final String[] status = {mGatewayService.getCurrentStatus()};
+                    mGatewayService.setProcessing(mProcessing);
+                    if(status[0] != null) {doGatewayControllerFEP(status[0]);}
+                    if(!mProcessing) {return;}
+                }
+            }
+        };
 
+        processPriority.newThread(runnablePeriodic).start();
     }
 
+    // implementation of scheduling using Fair Exhaustive Polling (FEP)
     private void doGatewayControllerFEP(String status) {
         switch (status) {
             case "Created":
