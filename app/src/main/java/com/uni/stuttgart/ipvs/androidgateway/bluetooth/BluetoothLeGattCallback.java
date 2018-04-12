@@ -50,10 +50,11 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         this.mBluetoothGatt = gatt;
     }
 
-    public void connect() {
-        mBluetoothGatt = mDevice.connectGatt(context, true, mGattCallback);
+    public BluetoothGatt connect() {
+        mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
         refreshDeviceCache(mBluetoothGatt);
+        return mBluetoothGatt;
     }
 
     public void connect(BluetoothAdapter mBluetoothAdapter, String macAddress) {
@@ -81,6 +82,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     }
 
     public void readCharacteristic(UUID serviceUUID, UUID characteristicUUID) {
+        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         final BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUUID);
         if (characteristic == null) {
@@ -92,6 +94,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     }
 
     public void writeCharacteristic(UUID serviceUUID, UUID characteristicUUID, byte[] data) {
+        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         final BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUUID);
         if (characteristic == null) {
@@ -103,6 +106,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     }
 
     public void writeDescriptorNotify(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
+        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
@@ -123,6 +127,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     }
 
     public void writeDescriptorIndication(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
+        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
@@ -154,10 +159,20 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         }
     }
 
+    private void sleepThread(long time) {
+        try {
+            Log.d(TAG, "Sleep for " + String.valueOf(time) + " ms");
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     @Override
     public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
         super.onConnectionStateChange(gatt, status, newState);
+        mBluetoothGatt = gatt;
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             Log.i(TAG, "Connected to GATT server.");
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 1, 0, mBluetoothGatt));
@@ -186,6 +201,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
+        sleepThread(100);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, gatt));
     }
 
@@ -198,6 +214,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
+        sleepThread(100);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, gatt));
     }
 

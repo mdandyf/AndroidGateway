@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
@@ -27,6 +28,7 @@ import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -141,14 +143,21 @@ public class GatewayService extends Service {
         }
     }
 
+    public String getCurrentStatus() {
+        return status;
+    }
 
-    public String getCurrentStatus() {return status;}
+    public void setProcessing(boolean mProcessing) {
+        this.mProcessing = mProcessing;
+    };
 
-    public void setProcessing(boolean mProcessing) {this.mProcessing = mProcessing;};
+    public List<BluetoothDevice> getScanResults() {
+        return this.scanResults;
+    }
 
-    public List<BluetoothDevice> getScanResults() {return this.scanResults;}
-
-    public BluetoothGatt getCurrentGatt() {return this.mBluetoothGatt;}
+    public BluetoothGatt getCurrentGatt() {
+        return this.mBluetoothGatt;
+    }
 
     public void addQueueScanning(String macAddress, String name, int rssi, int typeCommand, UUID serviceUUID) {
         bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, serviceUUID);
@@ -157,7 +166,7 @@ public class GatewayService extends Service {
 
     public void execScanningQueue() {
         status = "Scanning";
-        if (!queueScanning.isEmpty()) {
+        if (!queueScanning.isEmpty() && mProcessing) {
             for (bleDevice = (BluetoothLeDevice) queueScanning.poll(); bleDevice != null; bleDevice = (BluetoothLeDevice) queueScanning.poll()) {
                 synchronized (bleDevice) {
                     int type = bleDevice.getType();
@@ -200,57 +209,54 @@ public class GatewayService extends Service {
         }
     }
 
-    public void addQueueConnecting(String macAddress, String name, int rssi, int typeCommand, BluetoothGatt bluetoothGatt) {
-        bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, null);
-        bleDevice.setBluetoothGatt(bluetoothGatt);
-        queueConnecting.add(bleDevice);
+    public void doConnecting(String macAddress) {
+        status = "Connecting";
+        final BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
+        synchronized (lock) {
+            broadcastUpdate("\n");
+            broadcastUpdate("connecting to " + device.getAddress());
+            BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
+            gattCallback.setHandlerMessage(mHandlerMessage);
+            mBluetoothGatt = gattCallback.connect();
+            try {
+                lock.wait();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
-    public void execConnectingQueue() {
-        if (!queueConnecting.isEmpty()) {
-            for (bleDevice = (BluetoothLeDevice) queueConnecting.poll(); bleDevice != null; bleDevice = (BluetoothLeDevice) queueConnecting.poll()) {
-                synchronized (bleDevice) {
-                    int type = bleDevice.getType();
-                    if (type == BluetoothLeDevice.CONNECTING) {
-                        broadcastUpdate("\n");
-                        final BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(bleDevice.getMacAddress());
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                synchronized (lock) {
-                                    status = "Connecting";
-                                    broadcastUpdate("connecting to " + device.getAddress());
-                                    BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
-                                    gattCallback.setHandlerMessage(mHandlerMessage);
-                                    gattCallback.connect();
-                                    try {
-                                        lock.wait();
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-                            }
-                        }).start();
+    public Runnable doConnecting(final String macAddress, Runnable runnable) {
+        status = "Connecting";
+        return new Runnable() {
+            @Override
+            public void run() {
+                doConnecting(macAddress);
+            }
+        };
+    }
 
-                        broadcastUpdate("\n");
-                    } else if (type == BluetoothLeDevice.CONNECTED) {
-                        synchronized (lock) {
-                            final BluetoothGatt gatt = bleDevice.getBluetoothGatt();
-                            broadcastUpdate("connected to " + bleDevice.getMacAddress());
-                            broadcastUpdate("discovering services...");
-                            status = "Discovering";
-                            gatt.discoverServices();
-                            lock.notifyAll();
-                        }
-                    } else if (type == BluetoothLeDevice.DISCONNECTED) {
-                        synchronized (lock) {
-                            BluetoothGatt gatt = bleDevice.getBluetoothGatt();
-                            gatt.disconnect();
-                            broadcastUpdate("Disconnected from " + bleDevice.getMacAddress());
-                            lock.notifyAll();
-                        }
-                    }
-                }
+    public void doConnected(BluetoothGatt gatt) {
+        synchronized (lock) {
+            status = "Connected";
+            mBluetoothGatt = gatt;
+            broadcastUpdate("connected to " + gatt.getDevice().getAddress());
+            broadcastUpdate("discovering services...");
+            status = "Discovering";
+            gatt.discoverServices();
+            lock.notifyAll();
+        }
+    }
+
+    public void doDisconnected(BluetoothGatt gatt, String type) {
+        synchronized (lock) {
+            if(type.equals("GatewayService")) {
+                status = "Disconnected";
+                mBluetoothGatt = gatt;
+                broadcastUpdate("Disconnected from " + gatt.getDevice().getAddress());
+                lock.notifyAll();
+            } else {
+                gatt.disconnect();
             }
         }
     }
@@ -262,23 +268,20 @@ public class GatewayService extends Service {
 
     public void execCharacteristicQueue() {
         status = "Reading";
-        if (!queueCharacteristic.isEmpty()) {
+        if (!queueCharacteristic.isEmpty() && mProcessing) {
             for (bleGatt = (BluetoothLeGatt) queueCharacteristic.poll(); bleGatt != null; bleGatt = (BluetoothLeGatt) queueCharacteristic.poll()) {
                 synchronized (bleGatt) {
                     int type = bleGatt.getTypeCommand();
                     if (type == BluetoothLeGatt.READ) {
                         mBluetoothGattCallback = new BluetoothLeGattCallback(bleGatt.getGatt());
-                        sleepThread(100);
                         broadcastUpdate("Reading Characteristic " + GattLookUp.characteristicNameLookup(bleGatt.getCharacteristicUUID()));
                         mBluetoothGattCallback.readCharacteristic(bleGatt.getServiceUUID(), bleGatt.getCharacteristicUUID());
                     } else if (type == BluetoothLeGatt.REGISTER_NOTIFY) {
                         mBluetoothGattCallback = new BluetoothLeGattCallback(bleGatt.getGatt());
-                        sleepThread(100);
                         broadcastUpdate("Registering Notify Characteristic " + bleGatt.getCharacteristicUUID().toString());
                         mBluetoothGattCallback.writeDescriptorNotify(bleGatt.getServiceUUID(), bleGatt.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
                     } else if (type == BluetoothLeGatt.REGISTER_INDICATE) {
                         mBluetoothGattCallback = new BluetoothLeGattCallback(bleGatt.getGatt());
-                        sleepThread(100);
                         broadcastUpdate("Registering Indicate Characteristic " + bleGatt.getCharacteristicUUID().toString());
                         mBluetoothGattCallback.writeDescriptorIndication(bleGatt.getServiceUUID(), bleGatt.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
                     } else if (type == BluetoothLeGatt.WRITE) {
@@ -337,7 +340,7 @@ public class GatewayService extends Service {
                     } else if (msg.arg1 == 3) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                             ScanResult result = ((ScanResult) msg.obj);
-                            if(!scanResults.contains(result.getDevice())) {
+                            if (!scanResults.contains(result.getDevice())) {
                                 scanResults.add(result.getDevice());
                                 insertDatabaseDevice(result.getDevice(), result.getRssi(), "inactive");
                             }
@@ -346,7 +349,7 @@ public class GatewayService extends Service {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                             List<ScanResult> results = ((List<ScanResult>) msg.obj);
                             for (ScanResult result : results) {
-                                if(!scanResults.contains(result.getDevice())) {
+                                if (!scanResults.contains(result.getDevice())) {
                                     scanResults.add(result.getDevice());
                                     insertDatabaseDevice(result.getDevice(), result.getRssi(), "inactive");
                                 }
@@ -354,9 +357,9 @@ public class GatewayService extends Service {
                         }
                     } else if (msg.arg1 == 5) {
                         final Map<BluetoothDevice, GattDataJson> mapDevice = ((Map<BluetoothDevice, GattDataJson>) msg.obj);
-                        for(Map.Entry entry : mapDevice.entrySet()) {
+                        for (Map.Entry entry : mapDevice.entrySet()) {
                             BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                            if(!scanResults.contains(device)) {
+                            if (!scanResults.contains(device)) {
                                 scanResults.add(device);
                                 insertDatabaseDevice(device, (GattDataJson) entry.getValue(), "inactive");
                             }
@@ -374,15 +377,13 @@ public class GatewayService extends Service {
                         // read all bluetoothGatt connected servers
                         BluetoothGatt connectedGatt = ((BluetoothGatt) msg.obj);
                         dataJson = new GattDataJson(connectedGatt.getDevice(), connectedGatt);
-                        addQueueConnecting(connectedGatt.getDevice().getAddress(), connectedGatt.getDevice().getName(), 0, BluetoothLeDevice.CONNECTED, connectedGatt);
-                        execConnectingQueue();
+                        doConnected(connectedGatt);
                     } else if (msg.arg1 == 2) {
                         // read all bluetoothGatt disconnected servers
                         BluetoothGatt disconnectedGatt = ((BluetoothGatt) msg.obj);
-                        addQueueConnecting(disconnectedGatt.getDevice().getAddress(), disconnectedGatt.getDevice().getName(), 0, BluetoothLeDevice.CONNECTED, disconnectedGatt);
-                        execConnectingQueue();
-                        disconnectedGatt.close();
                         dataJson = new GattDataJson(disconnectedGatt.getDevice(), disconnectedGatt);
+                        doDisconnected(disconnectedGatt, "GatewayService");
+                        disconnectedGatt.close();
                     } else if (msg.arg1 == 3) {
                         // read all bluetoothGatt rssi
                         dataJson.setRssi((int) msg.obj);
@@ -461,7 +462,7 @@ public class GatewayService extends Service {
      */
 
     private void insertDatabaseDevice(BluetoothDevice device, int rssi, String deviceState) {
-        broadcastUpdate("Write device to database");
+        broadcastUpdate("Write device " + device.getAddress() + " to database");
         String deviceName = "unknown";
         if (device.getName() != null) {
             deviceName = device.getName();
@@ -470,7 +471,7 @@ public class GatewayService extends Service {
     }
 
     private void insertDatabaseDevice(BluetoothDevice device, GattDataJson data, String deviceState) {
-        broadcastUpdate("Write device to database");
+        broadcastUpdate("Write device " + device.getAddress() + " to database");
         String deviceName = "unknown";
         int deviceRssi = 0;
         try {
@@ -501,14 +502,9 @@ public class GatewayService extends Service {
      */
 
     public void disconnect() {
-        for (Map.Entry<BluetoothGatt, BluetoothLeGattCallback> entry : mapGattCallback.entrySet()) {
-            BluetoothLeGattCallback gattCallback = entry.getValue();
-            BluetoothGatt gatt = entry.getKey();
-            if (gatt != null) {
-                gattCallback.disconnect();
-            }
+        for(BluetoothGatt gatt : listBluetoothGatt) {
+            gatt.close();
         }
-
         mProcessing = false;
         stopSelf();
     }
@@ -519,12 +515,4 @@ public class GatewayService extends Service {
         sendBroadcast(intent);
     }
 
-    private void sleepThread(long time) {
-        try {
-            Log.d(TAG, "Sleep for " + String.valueOf(time) + " ms");
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
 }
