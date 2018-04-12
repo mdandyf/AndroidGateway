@@ -103,6 +103,25 @@ public class BluetoothLeScanProcess {
 
     }
 
+    // method to start scan only for spesific known LE Device
+    public void findLeDevice(String macAddress, boolean enable) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mBleScanner = mBluetoothAdapter.getBluetoothLeScanner();
+        } else {
+            // directly scan or use bluetooth adapter
+        }
+
+        if(enable) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                newScan(macAddress);
+            } else {
+                oldScan(macAddress);
+            }
+        } else {
+            stopScan();
+        }
+    }
+
     /** method to start or stop scan for known LE Device services */
     public void findLeDevice(UUID[] servicesUUID, boolean enable) {
 
@@ -149,7 +168,7 @@ public class BluetoothLeScanProcess {
     }
 
     /**
-     * scan using new Scan method for known LE Device
+     * scan using new Scan method for known LE Device's services
      */
     private void newScan(UUID[] servicesUUID) {
         ScanFilter scanFilter = null;
@@ -181,6 +200,34 @@ public class BluetoothLeScanProcess {
     }
 
     /**
+     * scan using new Scan method for known LE Device's address
+     */
+    private void newScan(String macAddress) {
+        ScanFilter scanFilter = null;
+        List<ScanFilter> scanFilters = new ArrayList<>();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            scanFilter = new ScanFilter.Builder().setDeviceAddress(macAddress).build();
+            scanFilters.add(scanFilter);
+            ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();
+            settingsBuilder.setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY);
+            settingsBuilder.setReportDelay(0);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                settingsBuilder.setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT);
+                settingsBuilder.setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE);
+                settingsBuilder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    settingsBuilder.setLegacy(false);
+                }
+            }
+
+            ScanSettings scanSettings = settingsBuilder.build();
+            mScanning = true;
+            mBleScanner.startScan(scanFilters, scanSettings, callback);
+        }
+    }
+
+    /**
      * scan using old scan method
      */
     private void oldScan() {
@@ -190,12 +237,19 @@ public class BluetoothLeScanProcess {
 
 
     /**
-     * scan using old scan method for known LE Device
+     * scan using old scan method for known LE Device's services
      */
     private void oldScan(UUID[] servicesUUID) {
-        // Stops scanning after a pre-defined scan period.
         mScanning = true;
         mBluetoothAdapter.startLeScan(servicesUUID, callbackOld);
+    }
+
+    /**
+     * scan using old scan method for known LE Device's address
+     */
+    private void oldScan(String macAddress) {
+        mScanning = true;
+        mBluetoothAdapter.startLeScan(callbackOld);
     }
 
 

@@ -19,6 +19,7 @@ public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
     private List<BluetoothDevice> listDevices;
     private Map<BluetoothDevice, GattDataJson> mapProperties;
     private Handler mHandlerMessage;
+    private String macAddress;
 
     public ScanCallbackOld(List<BluetoothDevice> listDevices, Map<BluetoothDevice, GattDataJson> mapProperties) {
         this.listDevices = listDevices;
@@ -27,6 +28,7 @@ public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
     public List<BluetoothDevice> getListDevices() {return listDevices;}
     public Map<BluetoothDevice, GattDataJson> getMapProperties(){return mapProperties;}
     public void setHandlerMessage(Handler mHandlerMessage) {this.mHandlerMessage = mHandlerMessage;}
+    public void setFilter(String macAddress) {this.macAddress = macAddress;}
 
 
     @Override
@@ -36,6 +38,10 @@ public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
             GattDataJson json = new GattDataJson(device, rssi, scanRecord);
             mapProperties.put(device, json);
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 5, 0, mapProperties));
+        }
+
+        if(macAddress != null && device.getAddress().equals(macAddress)) {
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
         }
     }
 }
