@@ -182,21 +182,28 @@ public class GatewayService extends Service {
                             }
                         }).start();
                     } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
-                        // step scan known BLE devices
+                        // step scan for known BLE devices
+                        broadcastUpdate("Scanning known BLE devices...");
+                        Log.d(TAG, "Start scanning for known BLE device ");
                         if (bleDevice.getMacAddress() != null) {
+                            // scan using specific macAddress
                             BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(bleDevice.getMacAddress());
+                            if(device == null) {
+                                mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), true);
+                                mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                                sleepThread(100);
+                                mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), false);
+                            } else {
+                                mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
+                            }
                         } else if (bleDevice.getServiceUUID() != null) {
-                            new Thread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    broadcastUpdate("Scanning known BLE devices...");
-                                    Log.d(TAG, "Start scanning for known BLE device ");
-                                    UUID[] listBle = new UUID[1];
-                                    listBle[0] = bleDevice.getServiceUUID();
-                                    mBluetoothLeScanProcess.findLeDevice(listBle, true);
-                                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                                }
-                            }).start();
+                            // scan using specific service
+                            UUID[] listBle = new UUID[1];
+                            listBle[0] = bleDevice.getServiceUUID();
+                            mBluetoothLeScanProcess.findLeDevice(listBle, true);
+                            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                            sleepThread(1000);
+                            mBluetoothLeScanProcess.findLeDevice(listBle, false);
                         }
                     } else if (type == BluetoothLeDevice.STOP_SCANNING) {
                         mBluetoothLeScanProcess.scanLeDevice(false);
@@ -364,6 +371,11 @@ public class GatewayService extends Service {
                                 insertDatabaseDevice(device, (GattDataJson) entry.getValue(), "inactive");
                             }
                         }
+                    } else if (msg.arg1 == 7) {
+                        final BluetoothDevice device = (BluetoothDevice) msg.obj;
+                        if (!scanResults.contains(device)) {
+                            scanResults.add(device);
+                        }
                     }
 
                 } else if (msg.what == 1) {
@@ -453,6 +465,10 @@ public class GatewayService extends Service {
                 broadcastUpdate("Characteristics have been written to database");
             }
 
+            if(databaseService && databaseCharacteristic) {
+                updateDatabaseDeviceState(mBluetoothGatt.getDevice(), "active");
+            }
+
             return json.getJsonData().toString();
         }
     };
@@ -485,8 +501,12 @@ public class GatewayService extends Service {
         }
     }
 
-    private void updateDatabaseDevice(BluetoothDevice device, String deviceState) {
-
+    private void updateDatabaseDeviceState(BluetoothDevice device, String deviceState) {
+        try {
+            bleDeviceDatabase.updateDeviceState(device.getAddress(), deviceState);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private boolean updateDatabaseService(String macAddress, String serviceUUID) {
@@ -500,6 +520,14 @@ public class GatewayService extends Service {
     /**
      * Some routines section
      */
+
+    public void sleepThread(long time) {
+        try {
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
     public void disconnect() {
         for(BluetoothGatt gatt : listBluetoothGatt) {

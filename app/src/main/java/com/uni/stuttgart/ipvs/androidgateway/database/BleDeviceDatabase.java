@@ -66,7 +66,29 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
             }
         } catch (Exception e) {
             e.printStackTrace();
+            status = false;
         }
+        return status;
+    }
+
+    public boolean updateDeviceState(String key, String state) {
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            ContentValues contentValues = new ContentValues();
+            if(isDeviceExist(key)) {
+                contentValues.put("device_state", state);
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
+                String date = sdf.format(new Date());
+                contentValues.put("timestamp", date);
+                db.update("BleDeviceData", contentValues, "mac_address=?", new String[] {key + ""});
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            status = false;
+        }
+
         return status;
     }
 
@@ -81,6 +103,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
             status = true;
         } catch (Exception e) {
             e.printStackTrace();
+            status = false;
         }
         return status;
     }
@@ -115,6 +138,19 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         cursor.close();
         return list;
     }
+
+    public List<String> getListActiveDevices() {
+        List<String> list = new ArrayList<>();
+        String key = "active";
+        Cursor cursor = getQuery("SELECT mac_address from BleDeviceData WHERE device_state=?", new String[] {key + ""});
+        while(cursor.isAfterLast() == false) {
+            String macAddress = cursor.getString(cursor.getColumnIndex(BLE_DATA));
+            list.add(macAddress);
+        }
+        cursor.close();
+        return list;
+    }
+
 
     private Cursor getQuery(String query, String[] argument) {
         Cursor cursor = null;
