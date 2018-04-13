@@ -28,7 +28,6 @@ import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattLookUp;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -166,7 +165,7 @@ public class GatewayService extends Service {
 
     public void execScanningQueue() {
         status = "Scanning";
-        if (!queueScanning.isEmpty() && mProcessing) {
+        if (queueScanning != null &&!queueScanning.isEmpty() && mProcessing) {
             for (bleDevice = (BluetoothLeDevice) queueScanning.poll(); bleDevice != null; bleDevice = (BluetoothLeDevice) queueScanning.poll()) {
                 synchronized (bleDevice) {
                     int type = bleDevice.getType();
@@ -275,7 +274,7 @@ public class GatewayService extends Service {
 
     public void execCharacteristicQueue() {
         status = "Reading";
-        if (!queueCharacteristic.isEmpty() && mProcessing) {
+        if (queueCharacteristic != null && !queueCharacteristic.isEmpty() && mProcessing) {
             for (bleGatt = (BluetoothLeGatt) queueCharacteristic.poll(); bleGatt != null; bleGatt = (BluetoothLeGatt) queueCharacteristic.poll()) {
                 synchronized (bleGatt) {
                     int type = bleGatt.getTypeCommand();
@@ -530,17 +529,22 @@ public class GatewayService extends Service {
     }
 
     public void disconnect() {
+        mProcessing = false;
+        mHandlerMessage.removeCallbacksAndMessages(mHandlerCallback);
         for(BluetoothGatt gatt : listBluetoothGatt) {
+            gatt.disconnect();
             gatt.close();
         }
-        mProcessing = false;
+        stopService(mIntent);
         stopSelf();
     }
 
     private void broadcastUpdate(String message) {
-        final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
-        intent.putExtra("command", message);
-        sendBroadcast(intent);
+        if(mProcessing) {
+            final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
+            intent.putExtra("command", message);
+            sendBroadcast(intent);
+        }
     }
 
 }

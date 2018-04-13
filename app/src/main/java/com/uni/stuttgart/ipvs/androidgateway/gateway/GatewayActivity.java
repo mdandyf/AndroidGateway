@@ -34,6 +34,7 @@ import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 
 import java.util.List;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -43,8 +44,10 @@ import java.util.concurrent.TimeUnit;
 
 public class GatewayActivity extends AppCompatActivity {
 
-    private final ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(10);
+    private ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(10);
+    private ScheduledFuture future = null;
     private final int PROCESSING_TIME = 60000;
+    private final int SCHEDULE_RESTART = 60 * 60 * 24;
 
     private BluetoothAdapter mBluetoothAdapter;
     private Intent mGatewayService;
@@ -83,6 +86,7 @@ public class GatewayActivity extends AppCompatActivity {
                 break;
             case R.id.action_stop:
                 stopServiceGateway();
+                scheduler.shutdown();
                 setMenuVisibility();
                 break;
         }
@@ -157,12 +161,16 @@ public class GatewayActivity extends AppCompatActivity {
      */
 
     private void startServiceGateway() {
+        mProcessing = true;
+        scheduler = new ScheduledThreadPoolExecutor(10);
         scheduler.scheduleAtFixedRate(new StartServiceGateway(), 0, PROCESSING_TIME + 100, TimeUnit.MILLISECONDS);
         scheduler.scheduleWithFixedDelay(new StopServiceGateway(), PROCESSING_TIME, PROCESSING_TIME, TimeUnit.MILLISECONDS);
     }
 
     private void stopServiceGateway() {
-        scheduler.scheduleAtFixedRate(new StopServiceGateway(), 0, 1, TimeUnit.MILLISECONDS);
+        mProcessing = false;
+        StopServiceGateway stopService = new StopServiceGateway();
+        stopService.run();
     }
 
     protected class StartServiceGateway implements Runnable {
@@ -267,6 +275,7 @@ public class GatewayActivity extends AppCompatActivity {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
                 stopServiceGateway();
+                scheduler.shutdown();
                 setMenuVisibility();
             } else if (action.equals(GatewayService.START_COMMAND)) {
                 String message = intent.getStringExtra("command");

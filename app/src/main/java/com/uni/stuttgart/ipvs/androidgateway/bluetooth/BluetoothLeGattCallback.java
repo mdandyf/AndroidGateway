@@ -201,7 +201,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
-        sleepThread(100);
+        sleepThread(150);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, gatt));
     }
 
@@ -214,7 +214,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
-        sleepThread(100);
+        sleepThread(150);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, gatt));
     }
 

@@ -35,10 +35,13 @@ public class GatewayController extends Service {
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
     private int maxConnectTime = 0;
 
+    private Intent mIntent;
     private GatewayService mGatewayService;
     private boolean mBound = false;
     private boolean mProcessing = false;
     private boolean mScanning = false;
+    private ProcessPriority process;
+    private ProcessPriority processConnecting;
 
     private Runnable runnablePeriodic = null;
 
@@ -46,6 +49,7 @@ public class GatewayController extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        mIntent = intent;
         broadcastUpdate("Start new program cycle...");
         bindService(new Intent(this, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
@@ -55,8 +59,12 @@ public class GatewayController extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if(processConnecting != null) {processConnecting.interruptThread();}
+        if(process != null) {process.interruptThread();}
         unbindService(mConnection);
         broadcastUpdate("Unbind GatewayController to GatewayService...");
+        mProcessing = false;
+        stopService(mIntent);
         stopSelf();
     }
 
@@ -81,17 +89,17 @@ public class GatewayController extends Service {
             GatewayService.LocalBinder binder = (GatewayService.LocalBinder) service;
             mGatewayService = binder.getService();
             mBound = true;
+            mProcessing = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
             //doScheduleNormal();
-            //doScheduleRR();
-            doScheduleFEP();
+            doScheduleRR();
+            //doScheduleFEP();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
             mBound = false;
-            mProcessing = false;
             mGatewayService.setProcessing(mProcessing);
         }
     };
@@ -99,11 +107,10 @@ public class GatewayController extends Service {
     // not using any scheduling method (based on waiting for callback connection) (Normal Scheduling)
     private void doScheduleNormal() {
         broadcastUpdate("Start Normal Scheduling...");
-        ProcessPriority processPriority = new ProcessPriority(8);
+        process = new ProcessPriority(10);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
-                mProcessing = true;
                 while (mBound && mGatewayService != null && mProcessing) {
                     final String[] status = {mGatewayService.getCurrentStatus()};
                     mGatewayService.setProcessing(mProcessing);
@@ -117,7 +124,7 @@ public class GatewayController extends Service {
             }
         };
 
-        processPriority.newThread(runnablePeriodic).start();
+        process.newThread(runnablePeriodic).start();
     }
 
     // implementation of Normal Scheduling Gateway Controller
@@ -140,6 +147,7 @@ public class GatewayController extends Service {
 
                     for (final BluetoothDevice device : scanResults) {
                         mGatewayService.doConnecting(device.getAddress());
+                        if(!mProcessing) {return;}
                     }
                 }
                 break;
@@ -149,11 +157,10 @@ public class GatewayController extends Service {
     // scheduling using Round Robin Method
     private void doScheduleRR() {
         broadcastUpdate("Start Round Robin Scheduling...");
-        ProcessPriority processPriority = new ProcessPriority(8);
+        process = new ProcessPriority(10);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
-                mProcessing = true;
                 while (mBound && mGatewayService != null && mProcessing) {
                     final String[] status = {mGatewayService.getCurrentStatus()};
                     mGatewayService.setProcessing(mProcessing);
@@ -167,7 +174,7 @@ public class GatewayController extends Service {
             }
         };
 
-        processPriority.newThread(runnablePeriodic).start();
+        process.newThread(runnablePeriodic).start();
     }
 
 
@@ -198,14 +205,15 @@ public class GatewayController extends Service {
 
                     for (final BluetoothDevice device : scanResults) {
                         Runnable runnable = mGatewayService.doConnecting(device.getAddress(), null);
-                        ProcessPriority processPriority = new ProcessPriority(10);
-                        processPriority.newThread(runnable).start();
+                       processConnecting = new ProcessPriority(10);
+                        processConnecting.newThread(runnable).start();
                         // set timer to xx seconds
                         waitThread(maxConnectTime);
+                        if(!mProcessing) {return;}
                         broadcastUpdate("Wait time finished, disconnected...");
                         mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
                         waitThread(100);
-                        processPriority.interruptThread();
+                        processConnecting.interruptThread();
                     }
                 }
                 break;
@@ -215,25 +223,22 @@ public class GatewayController extends Service {
     // scheduling using Fair Exhaustive Polling (FEP)
     private void doScheduleFEP() {
         broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
-        ProcessPriority processPriority = new ProcessPriority(8);
+        process = new ProcessPriority(10);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
-                mProcessing = true;
                 while (mBound && mGatewayService != null && mProcessing) {
                     final String[] status = {mGatewayService.getCurrentStatus()};
                     mGatewayService.setProcessing(mProcessing);
                     if (status[0] != null) {
                         doGatewayControllerFEP(status[0]);
                     }
-                    if (!mProcessing) {
-                        return;
-                    }
+                    if (!mProcessing) { return; }
                 }
             }
         };
 
-        processPriority.newThread(runnablePeriodic).start();
+        process.newThread(runnablePeriodic).start();
     }
 
     // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
@@ -286,14 +291,14 @@ public class GatewayController extends Service {
                         for (final BluetoothDevice device : scanResults) {
                             if (devices.contains(device)) {
                                 Runnable runnable = mGatewayService.doConnecting(device.getAddress(), null);
-                                ProcessPriority processPriority = new ProcessPriority(10);
-                                processPriority.newThread(runnable).start();
+                                processConnecting = new ProcessPriority(10);
+                                processConnecting.newThread(runnable).start();
                                 // set timer to xx seconds
                                 waitThread(maxConnectTime);
                                 broadcastUpdate("Wait time finished, disconnected...");
                                 mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
                                 waitThread(100);
-                                processPriority.interruptThread();
+                                processConnecting.interruptThread();
                             }
                         }
                     } else {
@@ -303,6 +308,7 @@ public class GatewayController extends Service {
                             processPriority.newThread(runnable).start();
                             // set timer to xx seconds
                             waitThread(maxConnectTime);
+                            if(!mProcessing) {return;}
                             broadcastUpdate("Wait time finished, disconnected...");
                             mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
                             waitThread(100);
@@ -342,9 +348,11 @@ public class GatewayController extends Service {
     }
 
     private void broadcastUpdate(String message) {
-        final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
-        intent.putExtra("command", message);
-        sendBroadcast(intent);
+        if(mProcessing) {
+            final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
+            intent.putExtra("command", message);
+            sendBroadcast(intent);
+        }
     }
 
 }

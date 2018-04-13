@@ -264,6 +264,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
         for(BluetoothGatt gatt : listConnectedGatt) {
             gatt.disconnect();
             gatt.close();
+            updateUIDisonnected(gatt);
         }
     }
 
@@ -410,7 +411,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
         queue.add(ble);
     }
 
-    private synchronized void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
+    private void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
         BluetoothLeGatt ble = new BluetoothLeGatt();
 
         for (BluetoothGattService service : gatt.getServices()) {
@@ -442,7 +443,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
 
     }
 
-    private synchronized void queueReadWriteGatt(BluetoothGatt gatt, byte[] data) {
+    private void queueReadWriteGatt(BluetoothGatt gatt, byte[] data) {
         BluetoothLeGatt ble = new BluetoothLeGatt();
 
         for (BluetoothGattService service : gatt.getServices()) {
@@ -466,12 +467,12 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
         }
     }
 
-    private synchronized void queueUI(BluetoothGatt gatt) {
+    private void queueUI(BluetoothGatt gatt) {
         BluetoothLeGatt ble = new BluetoothLeGatt(gatt, null, null, null, BluetoothLeDevice.UPDATE_UI_CONNECTED);
         queue.add(ble);
     }
 
-    private synchronized void processQueue() {
+    private void processQueue() {
         if (!queue.isEmpty()) {
             for (BluetoothLeGatt bleQueue = queue.poll(); bleQueue != null; bleQueue = queue.poll()) {
                 if (bleQueue != null) {
