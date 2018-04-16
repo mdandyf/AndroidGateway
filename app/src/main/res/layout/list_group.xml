@@ -36,6 +36,16 @@
                     android:textAppearance="?android:attr/textAppearanceMedium" />
 
                 <ImageView
+                    android:id="@+id/buttonBroken"
+                    android:layout_width="43dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="right"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:src="@mipmap/broken"
+                    android:visibility="gone" />
+
+                <ImageView
                     android:id="@+id/buttonRefresh"
                     android:layout_width="43dp"
                     android:layout_height="match_parent"

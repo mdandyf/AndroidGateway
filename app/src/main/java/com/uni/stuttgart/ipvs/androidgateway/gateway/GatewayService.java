@@ -182,10 +182,10 @@ public class GatewayService extends Service {
                         }).start();
                     } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
                         // step scan for known BLE devices
-                        broadcastUpdate("Scanning known BLE devices...");
                         Log.d(TAG, "Start scanning for known BLE device ");
                         if (bleDevice.getMacAddress() != null) {
                             // scan using specific macAddress
+                            broadcastUpdate("Searching device " + bleDevice.getMacAddress());
                             BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(bleDevice.getMacAddress());
                             if(device == null) {
                                 mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), true);
@@ -267,8 +267,8 @@ public class GatewayService extends Service {
         }
     }
 
-    public void addQueueCharacteristic(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, byte[] data, int typeCommand) {
-        bleGatt = new BluetoothLeGatt(gatt, serviceUUID, characteristicUUID, data, typeCommand);
+    public void addQueueCharacteristic(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, UUID descriptorUUID, byte[] data, int typeCommand) {
+        bleGatt = new BluetoothLeGatt(gatt, serviceUUID, characteristicUUID, descriptorUUID, data, typeCommand);
         queueCharacteristic.add(bleGatt);
     }
 
@@ -308,13 +308,13 @@ public class GatewayService extends Service {
                     try {
                         String property = properties.getString(i);
                         if (property.equals("Read")) {
-                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.READ);
+                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.READ);
                         } else if (property.equals("Write")) {
-                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.WRITE);
+                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.WRITE);
                         } else if (property.equals("Notify")) {
-                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.REGISTER_NOTIFY);
+                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.REGISTER_NOTIFY);
                         } else if (property.equals("Indicate")) {
-                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.REGISTER_INDICATE);
+                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.REGISTER_INDICATE);
                         }
                     } catch (JSONException e) {
                         e.printStackTrace();
@@ -427,7 +427,7 @@ public class GatewayService extends Service {
             return false;
         }
 
-        private synchronized String readData(Message msg) {
+      /*  private synchronized String readData(Message msg) {
             boolean databaseService = false;
             boolean databaseCharacteristic = false;
             BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
@@ -470,11 +470,61 @@ public class GatewayService extends Service {
 
             return json.getJsonData().toString();
         }
-    };
+    };*/
 
-    /**
-     * some database routines section
-     */
+    private synchronized String readData(Message msg) {
+        boolean databaseService = false;
+        boolean databaseCharacteristic = false;
+        GattDataJson json = null;
+        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
+        for(Map.Entry entry : mapGatt.entrySet()) {
+            mBluetoothGatt = (BluetoothGatt) entry.getKey();
+            BluetoothGattCharacteristic characteristic = (BluetoothGattCharacteristic) entry.getValue();
+            json = new GattDataJson(mBluetoothGatt.getDevice(), mBluetoothGatt);
+            json.updateJsonData(json.getJsonData(), (BluetoothGattCharacteristic) entry.getValue());
+            String characteristicValue = GattDataHelper.decodeCharacteristicValue(characteristic, mBluetoothGatt);
+            JSONArray characteristicProperty = GattDataHelper.decodeProperties(characteristic);
+            String properties = null;
+            for (int i = 0; i < characteristicProperty.length(); i++) {
+                try {
+                    if (characteristicProperty.get(i) != null && properties != null) {
+                        properties = properties + ", " + (String) characteristicProperty.get(i);
+                    } else if (characteristicProperty.get(i) != null && properties == null) {
+                        properties = (String) characteristicProperty.get(i);
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+            broadcastUpdate("Characteristic : " + GattLookUp.characteristicNameLookup(characteristic.getUuid()));
+            broadcastUpdate("Characteristic property: " + properties);
+            broadcastUpdate("Characteristic read value: " + characteristicValue);
+            databaseService = updateDatabaseService(mBluetoothGatt.getDevice().getAddress(), characteristic.getService().getUuid().toString());
+            databaseCharacteristic = updateDatabaseCharacteristics(mBluetoothGatt.getDevice().getAddress(), characteristic.getService().getUuid().toString(), characteristic.getUuid().toString(), properties, characteristicValue);
+
+
+            if (databaseService) {
+                broadcastUpdate("Services have been written to database");
+            }
+            if (databaseCharacteristic) {
+                broadcastUpdate("Characteristics have been written to database");
+            }
+
+            if(databaseService && databaseCharacteristic) {
+                updateDatabaseDeviceState(mBluetoothGatt.getDevice(), "active");
+            }
+        }
+
+
+
+        return json.getJsonData().toString();
+    }
+};
+
+
+/**
+ * some database routines section
+ */
 
     private void insertDatabaseDevice(BluetoothDevice device, int rssi, String deviceState) {
         broadcastUpdate("Write device " + device.getAddress() + " to database");

@@ -27,6 +27,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.location.LocationRequest;
 import com.uni.stuttgart.ipvs.androidgateway.R;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
@@ -45,11 +46,10 @@ import java.util.concurrent.TimeUnit;
 public class GatewayActivity extends AppCompatActivity {
 
     private ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(10);
-    private ScheduledFuture future = null;
     private final int PROCESSING_TIME = 60000;
-    private final int SCHEDULE_RESTART = 60 * 60 * 24;
 
     private BluetoothAdapter mBluetoothAdapter;
+    private LocationRequest mLocation;
     private Intent mGatewayService;
     private EditText textArea;
     private Menu menuBar;
@@ -99,6 +99,7 @@ public class GatewayActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_gateway);
         context = this;
+        mLocation = LocationRequest.create();
         textArea = (EditText) findViewById(R.id.textArea);
         textArea.setFocusable(false);
         textArea.setOnTouchListener(new View.OnTouchListener() {
@@ -238,7 +239,14 @@ public class GatewayActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             /** force user to turn on location service */
             if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Please turn on Location Access Permission!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Please turn on Location Permission!", Toast.LENGTH_LONG).show();
+                finish();
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Please turn on Storage Permission!", Toast.LENGTH_LONG).show();
                 finish();
             }
         }
