@@ -228,8 +228,9 @@ public class GattDataJson extends JsonParser {
                             JSONObject obj = characteristics.getJSONObject(i);
                             result.add(" Service Name: " + obj.get("serviceName"));
                             result.add(" Service UUID: " + obj.get("serviceUUID"));
-                            result.add("    Characteristic Name: " + obj.get("characteristicName"));
-                            result.add("    Characteristic UUID: " + obj.get("characteristicUUID"));
+                            result.add("    Characteristic details:");
+                            result.add("    Name: " + obj.get("characteristicName"));
+                            result.add("    UUID: " + obj.get("characteristicUUID"));
                             if(obj.has("characteristicValue")) { result.add("    Value: " + obj.get("characteristicValue")); }
                             result.add("    Property: " + obj.get("properties"));
                             if(obj.has("permission")) {result.add("    Permissions: " + obj.get("permissions")); }
@@ -237,9 +238,10 @@ public class GattDataJson extends JsonParser {
                                 JSONArray descriptors = json.getJSONArray("descriptors");
                                 for (int j = 0; j < descriptors.length(); j++) {
                                     JSONObject objDesc = characteristics.getJSONObject(i);
-                                    result.add("       Descriptor Name: " + objDesc.get("descriptorName"));
-                                    result.add("       Descriptor UUID: " + objDesc.get("descriptorUUID"));
-                                    result.add("       Descriptor Value: " + objDesc.get("descriptorValue"));
+                                    result.add("       Descriptor details:");
+                                    result.add("       Name: " + objDesc.get("descriptorName"));
+                                    result.add("       UUID: " + objDesc.get("descriptorUUID"));
+                                    result.add("       Value: " + objDesc.get("descriptorValue"));
                                 }
                             }
                         }

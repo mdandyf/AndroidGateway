@@ -226,18 +226,12 @@ public class GattLookUp {
         return (characteristic==null) ? "unknown" : characteristic;
     }
 
-    public static String bodySensorLocationLookup(String i) {
-        return (bodySensorLocations.get(i) == null) ? "unknown" : bodySensorLocations.get(i);
-    }
-
     public static Integer formatLookup(String format) {
         return characteristicFormats.get(format);
     }
 
     // SHORT UUID GENERATOR (WHERE s IS 4-DIGIT HEX STRING)
 
-    public static UUID shortUUID(String s) {
-        return UUID.fromString("0000" + s + "-0000-1000-8000-00805f9b34fb");
-    }
+    public static UUID shortUUID(String s) { return UUID.fromString("0000" + s + "-0000-1000-8000-00805f9b34fb"); }
 
 }

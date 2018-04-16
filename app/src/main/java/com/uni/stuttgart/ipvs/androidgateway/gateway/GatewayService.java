@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
@@ -274,6 +275,7 @@ public class GatewayService extends Service {
 
     public void execCharacteristicQueue() {
         status = "Reading";
+        broadcastUpdate("\n");
         if (queueCharacteristic != null && !queueCharacteristic.isEmpty() && mProcessing) {
             for (bleGatt = (BluetoothLeGatt) queueCharacteristic.poll(); bleGatt != null; bleGatt = (BluetoothLeGatt) queueCharacteristic.poll()) {
                 synchronized (bleGatt) {
@@ -285,11 +287,11 @@ public class GatewayService extends Service {
                     } else if (type == BluetoothLeGatt.REGISTER_NOTIFY) {
                         mBluetoothGattCallback = new BluetoothLeGattCallback(bleGatt.getGatt());
                         broadcastUpdate("Registering Notify Characteristic " + bleGatt.getCharacteristicUUID().toString());
-                        mBluetoothGattCallback.writeDescriptorNotify(bleGatt.getServiceUUID(), bleGatt.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
+                        mBluetoothGattCallback.writeDescriptorNotify(bleGatt.getServiceUUID(), bleGatt.getCharacteristicUUID(), bleGatt.getDescriptorUUID());
                     } else if (type == BluetoothLeGatt.REGISTER_INDICATE) {
                         mBluetoothGattCallback = new BluetoothLeGattCallback(bleGatt.getGatt());
                         broadcastUpdate("Registering Indicate Characteristic " + bleGatt.getCharacteristicUUID().toString());
-                        mBluetoothGattCallback.writeDescriptorIndication(bleGatt.getServiceUUID(), bleGatt.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
+                        mBluetoothGattCallback.writeDescriptorIndication(bleGatt.getServiceUUID(), bleGatt.getCharacteristicUUID(), bleGatt.getDescriptorUUID());
                     } else if (type == BluetoothLeGatt.WRITE) {
                         mBluetoothGattCallback = new BluetoothLeGattCallback(bleGatt.getGatt());
                     }
@@ -312,9 +314,13 @@ public class GatewayService extends Service {
                         } else if (property.equals("Write")) {
                             addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.WRITE);
                         } else if (property.equals("Notify")) {
-                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.REGISTER_NOTIFY);
+                            for(BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
+                                addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), descriptor.getUuid(), null, BluetoothLeGatt.REGISTER_NOTIFY);
+                            }
                         } else if (property.equals("Indicate")) {
-                            addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.REGISTER_INDICATE);
+                            for(BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
+                                addQueueCharacteristic(gatt, service.getUuid(), characteristic.getUuid(), descriptor.getUuid(), null, BluetoothLeGatt.REGISTER_INDICATE);
+                            }
                         }
                     } catch (JSONException e) {
                         e.printStackTrace();
@@ -496,9 +502,10 @@ public class GatewayService extends Service {
                     e.printStackTrace();
                 }
             }
-            broadcastUpdate("Characteristic : " + GattLookUp.characteristicNameLookup(characteristic.getUuid()));
-            broadcastUpdate("Characteristic property: " + properties);
-            broadcastUpdate("Characteristic read value: " + characteristicValue);
+            broadcastUpdate("Characteristic: " + GattLookUp.characteristicNameLookup(characteristic.getUuid()));
+            broadcastUpdate("UUID: " + characteristic.getUuid().toString());
+            broadcastUpdate("Property: " + properties);
+            broadcastUpdate("Value: " + characteristicValue);
             databaseService = updateDatabaseService(mBluetoothGatt.getDevice().getAddress(), characteristic.getService().getUuid().toString());
             databaseCharacteristic = updateDatabaseCharacteristics(mBluetoothGatt.getDevice().getAddress(), characteristic.getService().getUuid().toString(), characteristic.getUuid().toString(), properties, characteristicValue);
 
