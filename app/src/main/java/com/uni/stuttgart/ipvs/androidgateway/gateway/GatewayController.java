@@ -319,19 +319,6 @@ public class GatewayController extends Service {
 
                 }
                 break;
-            case "Connecting":
-                // nothing to do
-                waitThread(maxConnectTime);
-                mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
-                break;
-            case "Connected":
-                waitThread(5000);
-                mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
-                break;
-            case "Reading":
-                waitThread(5000);
-                mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
-                break;
         }
     }
 
