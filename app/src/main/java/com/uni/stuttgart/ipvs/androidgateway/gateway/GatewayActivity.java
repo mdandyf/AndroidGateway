@@ -45,9 +45,6 @@ import java.util.concurrent.TimeUnit;
 
 public class GatewayActivity extends AppCompatActivity {
 
-    private ScheduledThreadPoolExecutor scheduler;
-    private final int PROCESSING_TIME = 60000;
-
     private BluetoothAdapter mBluetoothAdapter;
     private LocationRequest mLocation;
     private Intent mGatewayService;
@@ -158,56 +155,22 @@ public class GatewayActivity extends AppCompatActivity {
     }
 
     /**
-     * Start and Stop Service Gateway Section
+     * Start and Stop Gateway Controller Section
      */
 
     private void startServiceGateway() {
-        /*mProcessing = true;
-        scheduler = new ScheduledThreadPoolExecutor(10);
-        scheduler.scheduleAtFixedRate(new StartServiceGateway(), 0, PROCESSING_TIME + 100, TimeUnit.MILLISECONDS);
-        scheduler.scheduleWithFixedDelay(new StopServiceGateway(), PROCESSING_TIME, PROCESSING_TIME, TimeUnit.MILLISECONDS);*/
-
         mGatewayService = new Intent(context, GatewayController.class);
         startService(mGatewayService);
         setCommandLine("\n");
         setCommandLine("Start Services...");
         mProcessing = true;
-
-
     }
 
     private void stopServiceGateway() {
-       /* mProcessing = false;
-        StopServiceGateway stopService = new StopServiceGateway();
-        stopService.run();*/
-
         stopService(mGatewayService);
         setCommandLine("\n");
         setCommandLine("Stop Services...");
         mProcessing = false;
-    }
-
-    protected class StartServiceGateway implements Runnable {
-        @Override
-        public void run() {
-            mGatewayService = new Intent(context, GatewayController.class);
-            startService(mGatewayService);
-            setCommandLine("\n");
-            setCommandLine("Start Services...");
-            mProcessing = true;
-        }
-    }
-
-    protected class StopServiceGateway implements Runnable {
-        @Override
-        public void run() {
-            if(mGatewayService != null) {
-                stopService(mGatewayService);
-                setCommandLine("\n");
-                setCommandLine("Stop Services...");
-                mProcessing = false;
-            }
-        }
     }
 
     private void setMenuVisibility() {
