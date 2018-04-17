@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
@@ -25,11 +26,11 @@ import android.widget.ExpandableListView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
-import com.uni.stuttgart.ipvs.androidgateway.helper.ExpandableListAdapter;
+import com.uni.stuttgart.ipvs.androidgateway.helper.DeviceListAdapter;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
-import com.uni.stuttgart.ipvs.androidgateway.helper.GattLookUp;
-import com.uni.stuttgart.ipvs.androidgateway.helper.ImageViewClickListener;
+import com.uni.stuttgart.ipvs.androidgateway.helper.ImageViewConnectListener;
+import com.uni.stuttgart.ipvs.androidgateway.helper.ImageViewDisconnectListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -45,7 +46,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Created by mdand on 2/24/2018.
  */
 
-public class BluetoothLeScannerActivity extends AppCompatActivity implements ImageViewClickListener {
+public class ScannerActivity extends AppCompatActivity implements ImageViewConnectListener, ImageViewDisconnectListener {
 
     private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
     private static final int SCAN_PERIOD = 10;
@@ -65,7 +66,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
 
     private Context context;
     private ExpandableListView listView;
-    private ExpandableListAdapter listAdapter;
+    private DeviceListAdapter listAdapter;
     private List<String> listDataHeader;
     private HashMap<String, String> listDataHeaderSmall;
     private HashMap<String, List<String>> listDataChild;
@@ -103,6 +104,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                 break;
             case R.id.action_connect:
                 connectLeDevice();
+                break;
             case R.id.action_disconnect:
                 disconnectLeDevice();
                 break;
@@ -123,9 +125,11 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
         listDataHeader = new ArrayList<String>();
         listDataChild = new HashMap<>();
         listDataHeaderSmall = new HashMap<>();
-        listAdapter = new ExpandableListAdapter(this, listDataHeader, listDataChild);
+        listAdapter = new DeviceListAdapter(this, listDataHeader, listDataChild);
         listAdapter.setDataHeaderSmall(listDataHeaderSmall);
-        listAdapter.setImageClickListener(this);
+        listAdapter.setImageConnectListener(this);
+        listAdapter.setImageDisconnectListener(this);
+        listAdapter.setConnectionListener(false, null);
         listView.setAdapter(listAdapter);
 
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
@@ -192,10 +196,21 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
     }
 
     @Override
-    public void imageViewListClicked(View v) {
+    public void imageViewConnectClicked(View v) {
+        if(!mScanning) {
+            String macAddress = (String) v.getTag();
+            connectLeDevice(macAddress);
+            Toast.makeText(context, "Connecting to " + macAddress, Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(context, "Scanning is running, Please wait!", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void imageViewDisconnectClicked(View v) {
         String macAddress = (String) v.getTag();
-        Toast.makeText(context, "Connecting to " + macAddress, Toast.LENGTH_SHORT).show();
-        connectLeDevice(macAddress);
+        disconnectLeDevice(macAddress);
+        Toast.makeText(context, "Disconnected " + macAddress, Toast.LENGTH_SHORT).show();
     }
 
     private void scanLeDevice() {
@@ -264,6 +279,20 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
         for(BluetoothGatt gatt : listConnectedGatt) {
             gatt.disconnect();
             gatt.close();
+            updateUIDisonnected(gatt);
+        }
+    }
+
+    private void disconnectLeDevice(String macAddress) {
+        mProcessing = false;
+        mConnecting = false;
+        setMenuVisibility();
+        for(BluetoothGatt gatt : listConnectedGatt) {
+            if(gatt.getDevice().getAddress().equals(macAddress)) {
+                gatt.disconnect();
+                gatt.close();
+                updateUIDisonnected(gatt);
+            }
         }
     }
 
@@ -318,7 +347,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                         final BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
                         if(gatt != null) {
                             mBluetoothGatt = gatt;
-                            queueCommand(gatt, null, null, null, BluetoothLeDevice.CONNECTED);
+                            queueCommand(gatt, null, null, null, null, BluetoothLeDevice.CONNECTED);
                             processBle = true;
                         }
                     } else if (msg.arg1 == 2) {
@@ -326,7 +355,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                         final BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
                         if(gatt != null) {
                             mBluetoothGatt = gatt;
-                            queueCommand(gatt, null, null, null, BluetoothLeDevice.DISCONNECTED);
+                            queueCommand(gatt, null, null, null, null, BluetoothLeDevice.DISCONNECTED);
                             processBle = true;
                         }
                     } else if (msg.arg1 == 3) {
@@ -338,32 +367,40 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                         mBluetoothGatt = gatt;
                         queueSubscribeOrReadGatt(gatt);
                         queueUI(gatt);
-                        queueCommand(gatt, null, null, null, BluetoothLeDevice.STOP_SEQUENCE);
+                        queueCommand(gatt, null, null, null, null, BluetoothLeDevice.STOP_SEQUENCE);
                         processBle = true;
                     } else if (msg.arg1 == 5) {
                         // onReadCharacteristic
-                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        queueReadWriteGatt(mBluetoothGatt, null);
-                        queueUI(mBluetoothGatt);
+                        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
+                        for(Map.Entry entry : mapGatt.entrySet()) {
+                            mBluetoothGatt = (BluetoothGatt) entry.getKey();
+                            updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
+                        }
                         processBle = true;
                     } else if (msg.arg1 == 6) {
                         // onWriteCharacteristic
-                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        queueReadWriteGatt(mBluetoothGatt, null);
-                        queueUI(mBluetoothGatt);
+                        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
+                        for(Map.Entry entry : mapGatt.entrySet()) {
+                            mBluetoothGatt = (BluetoothGatt) entry.getKey();
+                            updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
+                        }
                         processBle = true;
                     } else if (msg.arg1 == 7) {
                         //onCharacteristicChanged
+                        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
+                        for(Map.Entry entry : mapGatt.entrySet()) {
+                            mBluetoothGatt = (BluetoothGatt) entry.getKey();
+                            updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
+                        }
+                        processBle = true;
+                    } else if (msg.arg1 == 8) {
+                        //onDescriptorRead
                         mBluetoothGatt = ((BluetoothGatt) msg.obj);
                         queueReadWriteGatt(mBluetoothGatt, null);
                         queueUI(mBluetoothGatt);
                         processBle = true;
-                    } else if (msg.arg1 == 8) {
-                        //onDescriptorRead
-
                     } else if (msg.arg1 == 9) {
                         //onDescriptorWrite
-
                     }
 
                     // signalling a device or all devices have been connected
@@ -405,12 +442,12 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
 
     }
 
-    private synchronized void queueCommand(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, byte[] data, int typeCommand) {
-        BluetoothLeGatt ble = new BluetoothLeGatt(gatt, serviceUUID, characteristicUUID, data, typeCommand);
+    private synchronized void queueCommand(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, UUID descriptorUUID, byte[] data, int typeCommand) {
+        BluetoothLeGatt ble = new BluetoothLeGatt(gatt, serviceUUID, characteristicUUID, descriptorUUID, data, typeCommand);
         queue.add(ble);
     }
 
-    private synchronized void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
+    private void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
         BluetoothLeGatt ble = new BluetoothLeGatt();
 
         for (BluetoothGattService service : gatt.getServices()) {
@@ -420,17 +457,21 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                     try {
                         String property = properties.getString(i);
                         if (property.equals("Read")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.READ);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.READ);
                             queue.add(ble);
                         } else if (property.equals("Write")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.WRITE);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.WRITE);
                             queue.add(ble);
                         } else if (property.equals("Notify")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.REGISTER_NOTIFY);
-                            queue.add(ble);
+                            for(BluetoothGattDescriptor descriptor:characteristic.getDescriptors()) {
+                                ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), descriptor.getUuid(), null, BluetoothLeGatt.REGISTER_NOTIFY);
+                                queue.add(ble);
+                            }
                         } else if (property.equals("Indicate")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.REGISTER_INDICATE);
-                            queue.add(ble);
+                            for(BluetoothGattDescriptor descriptor:characteristic.getDescriptors()) {
+                                ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), descriptor.getUuid(), null, BluetoothLeGatt.REGISTER_INDICATE);
+                                queue.add(ble);
+                            }
                         }
                     } catch (JSONException e) {
                         e.printStackTrace();
@@ -442,7 +483,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
 
     }
 
-    private synchronized void queueReadWriteGatt(BluetoothGatt gatt, byte[] data) {
+    private void queueReadWriteGatt(BluetoothGatt gatt, byte[] data) {
         BluetoothLeGatt ble = new BluetoothLeGatt();
 
         for (BluetoothGattService service : gatt.getServices()) {
@@ -452,26 +493,31 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                     try {
                         String property = properties.getString(i);
                         if (property.equals("Read")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, BluetoothLeGatt.READ);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.READ);
                             queue.add(ble);
                         } else if (property.equals("Write")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), data, BluetoothLeGatt.WRITE);
+                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, data, BluetoothLeGatt.WRITE);
                             queue.add(ble);
                         }
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
                 }
+
+                for (BluetoothGattDescriptor descriptor:characteristic.getDescriptors()) {
+                    ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), descriptor.getUuid(), null, BluetoothLeGatt.READ_DESCRIPTOR);
+                    queue.add(ble);
+                }
             }
         }
     }
 
-    private synchronized void queueUI(BluetoothGatt gatt) {
-        BluetoothLeGatt ble = new BluetoothLeGatt(gatt, null, null, null, BluetoothLeDevice.UPDATE_UI_CONNECTED);
+    private void queueUI(BluetoothGatt gatt) {
+        BluetoothLeGatt ble = new BluetoothLeGatt(gatt, null, null, null, null, BluetoothLeDevice.UPDATE_UI_CONNECTED);
         queue.add(ble);
     }
 
-    private synchronized void processQueue() {
+    private void processQueue() {
         if (!queue.isEmpty()) {
             for (BluetoothLeGatt bleQueue = queue.poll(); bleQueue != null; bleQueue = queue.poll()) {
                 if (bleQueue != null) {
@@ -491,17 +537,15 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                             counter++;
                             Toast.makeText(context, "Disconnected from " + gatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
                         } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.READ) {
-                            sleepThread(100);
                             gattCallback.readCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID());
                         } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.REGISTER_NOTIFY) {
-                            sleepThread(100);
-                            gattCallback.writeDescriptorNotify(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
+                            gattCallback.writeDescriptorNotify(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getDescriptorUUID());
                         } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.REGISTER_INDICATE) {
-                            sleepThread(100);
-                            gattCallback.writeDescriptorIndication(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), GattLookUp.shortUUID("2902"));
+                            gattCallback.writeDescriptorIndication(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getDescriptorUUID());
                         } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.WRITE) {
-                            sleepThread(100);
                             //gattCallback.writeCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getData());
+                        } else if(bleQueue.getTypeCommand() == BluetoothLeGatt.READ_DESCRIPTOR) {
+                            gattCallback.readDescriptor(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getDescriptorUUID());
                         } else if(bleQueue.getTypeCommand() == BluetoothLeDevice.UPDATE_UI_CONNECTED) {
                             final BluetoothGatt gatt = bleQueue.getGatt();
                             updateUIConnected(gatt);
@@ -588,7 +632,7 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
                     json.setJsonData(json.getJsonData().toString());
                     listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
                     listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Connected");
-                    listAdapter.setChildDataWriteable(true, findPositionWriteable(json.getPreparedChildData()));
+                    listAdapter.setConnectionListener(true, gatt.getDevice().getAddress());
                     listAdapter.setTextAppearanceHeader("Large");
                     listAdapter.notifyDataSetChanged();
                 }
@@ -596,15 +640,18 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
         });
     }
 
-    private synchronized void updateUIRssiUpdate(final BluetoothGatt gatt, int rssi) {
-        final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt, rssi);
+    private synchronized void updateUIConnected(final BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
+        final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 if (listDataHeader.contains(gatt.getDevice().getAddress())) {
                     json.setJsonData(json.getJsonData().toString());
+                    json.updateJsonData(json.getJsonData(), characteristic);
                     listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
                     listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Connected");
+                    listAdapter.setConnectionListener(true, gatt.getDevice().getAddress());
+                    listAdapter.setTextAppearanceHeader("Large");
                     listAdapter.notifyDataSetChanged();
                 }
             }
@@ -612,55 +659,27 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
     }
 
     private synchronized void updateUIDisonnected(final BluetoothGatt gatt) {
-        final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 if (listDataHeader.contains(gatt.getDevice().getAddress())) {
                     listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Disconnected");
                     listAdapter.setTextAppearanceHeader("Medium");
+                    listAdapter.setConnectionListener(false, gatt.getDevice().getAddress());
                     listAdapter.notifyDataSetChanged();
                 }
             }
         });
     }
 
-    private int findPositionWriteable(List<String> inputs) {
-        int counter = 0;
-        for (String input : inputs) {
-            if (input.contains("Write")) {
-                return counter;
-            }
-            counter++;
-        }
-
-        return 0;
-    }
-
     private void setMenuVisibility() {
         if (!mScanning) {
             // when scanning is stop
-            if(listDataHeader != null && listDataHeader.size() != 0) {
-                if(mConnecting) {
-                    menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
-                    menuBar.findItem(R.id.action_scan).setVisible(false);
-                    menuBar.findItem(R.id.action_stop).setVisible(false);
-                    menuBar.findItem(R.id.action_connect).setVisible(false);
-                    menuBar.findItem(R.id.action_disconnect).setVisible(true);
-                } else {
-                    menuBar.findItem(R.id.menu_refresh).setActionView(null);
-                    menuBar.findItem(R.id.action_scan).setVisible(false);
-                    menuBar.findItem(R.id.action_stop).setVisible(false);
-                    menuBar.findItem(R.id.action_connect).setVisible(true);
-                    menuBar.findItem(R.id.action_disconnect).setVisible(false);
-                }
-            } else {
-                menuBar.findItem(R.id.menu_refresh).setActionView(null);
-                menuBar.findItem(R.id.action_scan).setVisible(true);
-                menuBar.findItem(R.id.action_stop).setVisible(false);
-                menuBar.findItem(R.id.action_connect).setVisible(false);
-                menuBar.findItem(R.id.action_disconnect).setVisible(false);
-            }
+            menuBar.findItem(R.id.menu_refresh).setActionView(null);
+            menuBar.findItem(R.id.action_scan).setVisible(true);
+            menuBar.findItem(R.id.action_stop).setVisible(false);
+            menuBar.findItem(R.id.action_connect).setVisible(false);
+            menuBar.findItem(R.id.action_disconnect).setVisible(false);
         } else {
             // when scanning is running
             menuBar.findItem(R.id.menu_refresh).setActionView(R.layout.action_interdeminate_progress);
@@ -670,13 +689,4 @@ public class BluetoothLeScannerActivity extends AppCompatActivity implements Ima
             menuBar.findItem(R.id.action_disconnect).setVisible(false);
         }
     }
-
-    private void sleepThread(long time) {
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
 }

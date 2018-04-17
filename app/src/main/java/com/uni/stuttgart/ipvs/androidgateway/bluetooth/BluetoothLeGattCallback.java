@@ -15,7 +15,12 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +42,9 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     private BluetoothGattCallback mGattCallback;
     private Handler mHandlerMessage;
 
+    private List<BluetoothGattCharacteristic> listCharacteristicIndicate = new ArrayList<>();
+    private List<BluetoothGattCharacteristic> listCharacteristicNotify = new ArrayList<>();
+
     public BluetoothLeGattCallback(Context context) {this.context = context;}
 
     public BluetoothLeGattCallback(Context context, BluetoothDevice device) {
@@ -49,6 +57,8 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     public BluetoothLeGattCallback(BluetoothGatt gatt) {
         this.mBluetoothGatt = gatt;
     }
+
+    public void setHandlerMessage(Handler handler) {this.mHandlerMessage = handler;}
 
     public BluetoothGatt connect() {
         mBluetoothGatt = mDevice.connectGatt(context, false, mGattCallback);
@@ -71,18 +81,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         }
     }
 
-    public BluetoothGatt getBluetoothGatt() {
-        return this.mBluetoothGatt;
-    }
-
-    public void setHandlerMessage(Handler handler) {this.mHandlerMessage = handler;}
-
-    public int getBluetoothRssi() {
-        return this.mBluetoothRssi;
-    }
-
     public void readCharacteristic(UUID serviceUUID, UUID characteristicUUID) {
-        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         final BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUUID);
         if (characteristic == null) {
@@ -90,11 +89,28 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         } else {
             mBluetoothGatt.readCharacteristic(characteristic);
             Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " read");
+            sleepThread(200);
+        }
+    }
+
+    public void readDescriptor(UUID serviceUUID, UUID characteristicUUID, UUID descriptorUUID) {
+        BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
+        final BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUUID);
+        if (characteristic == null) {
+            Log.d(TAG, "Characteristic " + characteristicUUID.toString() + " not found");
+        } else {
+            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(descriptorUUID);
+            if(descriptor == null) {
+                Log.d(TAG, "Descriptor " + descriptorUUID.toString() + " not found");
+            } else {
+                mBluetoothGatt.readDescriptor(descriptor);
+                Log.d(TAG, "Descriptor " + descriptorUUID.toString() + " read");
+                sleepThread(200);
+            }
         }
     }
 
     public void writeCharacteristic(UUID serviceUUID, UUID characteristicUUID, byte[] data) {
-        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         final BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUUID);
         if (characteristic == null) {
@@ -102,11 +118,11 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         } else {
             mBluetoothGatt.writeCharacteristic(characteristic);
             Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " has been written");
+            sleepThread(200);
         }
     }
 
     public void writeDescriptorNotify(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
-        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
@@ -116,9 +132,11 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             if (descriptor != null) {
                 try {
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                    mBluetoothGatt.writeDescriptor(descriptor);
                     mBluetoothGatt.setCharacteristicNotification(characteristic, true);
+                    mBluetoothGatt.writeDescriptor(descriptor);
+                    if(!listCharacteristicNotify.contains(characteristic)) {listCharacteristicNotify.add(characteristic);}
                     Log.d(TAG, "descriptor notify " + descriptorUUID.toString() + " has been written");
+                    sleepThread(200);
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
@@ -127,7 +145,6 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     }
 
     public void writeDescriptorIndication(UUID serviceUUID, UUID characteristicUuid, UUID descriptorUUID) {
-        sleepThread(100);
         BluetoothGattService service = mBluetoothGatt.getService(serviceUUID);
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
@@ -137,10 +154,12 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             if (descriptor != null) {
                 mBluetoothGatt.readDescriptor(descriptor);
                 try {
+                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
-                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
+                    if(!listCharacteristicIndicate.contains(characteristic)) {listCharacteristicIndicate.add(characteristic);}
                     Log.d(TAG, "descriptor indicate " + descriptorUUID.toString() + " has been written");
+                    sleepThread(200);
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
@@ -201,34 +220,38 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
-        sleepThread(100);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, gatt));
+        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+        mapGatt.put(gatt, characteristic);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, mapGatt));
     }
 
     @Override
     public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicWrite(gatt, characteristic, status);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 6, 0, gatt));
+        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+        mapGatt.put(gatt, characteristic);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 6, 0, mapGatt));
     }
 
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
-        sleepThread(100);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, gatt));
+        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+        mapGatt.put(gatt, characteristic);
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, mapGatt));
     }
 
     @Override
     public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
         super.onDescriptorRead(gatt, descriptor, status);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 8, 0, descriptor));
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 8, 0, gatt));
     }
 
     @Override
     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
         super.onDescriptorWrite(gatt, descriptor, status);
 
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 9, 0, descriptor));
+        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 9, 0, gatt));
 
         if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 10, 0, gatt));

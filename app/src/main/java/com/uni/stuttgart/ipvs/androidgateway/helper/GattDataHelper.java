@@ -31,7 +31,6 @@ public class GattDataHelper {
         // NOTE: props strings need to be consistent across iOS and Android
         JSONArray props = new JSONArray();
         int properties = characteristic.getProperties();
-
         if ((properties & BluetoothGattCharacteristic.PROPERTY_BROADCAST) != 0x0) {
             props.put("Broadcast");
         }

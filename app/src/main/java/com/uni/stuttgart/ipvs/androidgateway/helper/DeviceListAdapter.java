@@ -1,17 +1,15 @@
 package com.uni.stuttgart.ipvs.androidgateway.helper;
 
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.graphics.Typeface;
+import android.media.Image;
 import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseExpandableListAdapter;
-import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
 
@@ -22,20 +20,21 @@ import java.util.List;
  * Created by mdand on 2/19/2018.
  */
 
-public class ExpandableListAdapter extends BaseExpandableListAdapter {
+public class DeviceListAdapter extends BaseExpandableListAdapter {
 
     private Context _context;
     private List<String> _listDataHeader; // header titles
     // child data in format of header title, child title
     private HashMap<String, List<String>> _listDataChild;
     private HashMap<String, String> _listDataHeaderSmall;
-    private ImageViewClickListener clickListener;
+    private ImageViewConnectListener clickListener;
+    private ImageViewDisconnectListener disconnectListener;
     private String textAppearanceHeader;
-    private boolean isWriteable;
-    private int positionWriteable;
+    private boolean isConnected;
+    private String currentMacAddress;
 
-    public ExpandableListAdapter(Context context, List<String> listDataHeader,
-                                 HashMap<String, List<String>> listChildData) {
+    public DeviceListAdapter(Context context, List<String> listDataHeader,
+                             HashMap<String, List<String>> listChildData) {
         this._context = context;
         this._listDataHeader = listDataHeader;
         this._listDataChild = listChildData;
@@ -68,14 +67,6 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
                 .findViewById(R.id.lblListItem);
 
         txtListChild.setText(childText);
-
-
-       /* ImageView image = (ImageView) convertView.findViewById(R.id.imageWrite);
-        if(isWriteable && positionWriteable == childPosition) {
-            image.setVisibility(View.VISIBLE);
-        } else {
-            image.setVisibility(View.INVISIBLE);
-        }*/
 
         return convertView;
     }
@@ -127,9 +118,29 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
             @Override
             public void onClick(View v) {
                 v.setTag(headerTitle);
-                clickListener.imageViewListClicked(v);
+                clickListener.imageViewConnectClicked(v);
             }
         });
+
+        ImageView imageDisconnect = (ImageView) convertView.findViewById(R.id.buttonBroken);
+        imageDisconnect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                v.setTag(headerTitle);
+                disconnectListener.imageViewDisconnectClicked(v);
+            }
+        });
+
+        if(isConnected && headerTitle.equals(currentMacAddress)) {
+            image.setVisibility(View.GONE);
+            imageDisconnect.setVisibility(View.VISIBLE);
+        } else if(!isConnected && headerTitle.equals(currentMacAddress)) {
+            image.setVisibility(View.VISIBLE);
+            imageDisconnect.setVisibility(View.GONE);
+        } else {
+            image.setVisibility(View.VISIBLE);
+            imageDisconnect.setVisibility(View.GONE);
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (textAppearanceHeader == "medium") {
@@ -153,21 +164,13 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         return true;
     }
 
-    public void setImageClickListener(ImageViewClickListener clickListener) {
-        this.clickListener = clickListener;
-    }
+    public void setImageConnectListener(ImageViewConnectListener clickListener) { this.clickListener = clickListener; }
 
-    public void setTextAppearanceHeader(String textAppearance) {
-        this.textAppearanceHeader = textAppearance;
-    }
+    public void setImageDisconnectListener(ImageViewDisconnectListener disconnectListener) { this.disconnectListener = disconnectListener; }
 
-    public void setDataHeaderSmall(HashMap<String, String> stringListMap) {
-        this._listDataHeaderSmall = stringListMap;
-    }
+    public void setConnectionListener(boolean listener, String currentMacAddress) { this.isConnected = listener; this.currentMacAddress = currentMacAddress;}
 
-    public void setChildDataWriteable(boolean writeable, int position) {
-        this.isWriteable = writeable;
-        this.positionWriteable = position;
-    }
+    public void setTextAppearanceHeader(String textAppearance) { this.textAppearanceHeader = textAppearance; }
 
+    public void setDataHeaderSmall(HashMap<String, String> stringListMap) { this._listDataHeaderSmall = stringListMap; }
 }

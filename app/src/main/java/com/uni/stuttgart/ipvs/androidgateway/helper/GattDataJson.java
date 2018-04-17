@@ -154,6 +154,60 @@ public class GattDataJson extends JsonParser {
         return jsonObject;
     }
 
+    public JSONObject updateJsonData(JSONObject jsonObject, BluetoothGattCharacteristic characteristic) {
+        try {
+            JSONArray arrayCharacteristics = jsonObject.getJSONArray("characteristics");
+            for(int i = 0; i < arrayCharacteristics.length(); i++) {
+                JSONObject objectCharacteristic = arrayCharacteristics.getJSONObject(i);
+                String characteristicUUID = objectCharacteristic.getString("characteristicUUID");
+                if(characteristicUUID.equals(characteristic.getUuid().toString())) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                        arrayCharacteristics.remove(i);
+
+                        JSONObject characteristicsJSON = new JSONObject();
+                        arrayCharacteristics.put(characteristicsJSON);
+
+                        characteristicsJSON.put("serviceName", GattLookUp.serviceNameLookup(characteristic.getService().getUuid()));
+                        characteristicsJSON.put("serviceUUID", uuidToString(characteristic.getService().getUuid()));
+                        characteristicsJSON.put("characteristicName", GattLookUp.characteristicNameLookup(characteristic.getUuid()));
+                        characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
+                        characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic, gatt));
+
+                        characteristicsJSON.put("properties", GattDataHelper.decodeProperties(characteristic));
+                        characteristicsJSON.put("propertiesValue", characteristic.getProperties());
+
+                        if (characteristic.getPermissions() > 0) {
+                            characteristicsJSON.put("permissions", GattDataHelper.decodePermissions(characteristic));
+                        }
+
+                        JSONArray descriptorsArray = new JSONArray();
+
+                        for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
+                            JSONObject descriptorJSON = new JSONObject();
+                            descriptorJSON.put("descriptorName", GattLookUp.descriptorNameLookup(descriptor.getUuid()));
+                            descriptorJSON.put("descriptorUuid", uuidToString(descriptor.getUuid()));
+                            descriptorJSON.put("descriptorValue", descriptor.getValue());
+
+                            if (descriptor.getPermissions() > 0) {
+                                descriptorJSON.put("permissions", GattDataHelper.decodePermissions(descriptor));
+                            }
+                            descriptorsArray.put(descriptorJSON);
+                        }
+                        if (descriptorsArray.length() > 0) {
+                            characteristicsJSON.put("descriptors", descriptorsArray);
+                        }
+                    }
+                }
+            }
+
+            jsonObject.remove("characteristics");
+            jsonObject.put("characteristics", arrayCharacteristics);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return jsonObject;
+    }
+
     public List<String> getPreparedChildData() {
         List<String> result = new ArrayList<>();
         if (jsonData != null) {
@@ -174,19 +228,20 @@ public class GattDataJson extends JsonParser {
                             JSONObject obj = characteristics.getJSONObject(i);
                             result.add(" Service Name: " + obj.get("serviceName"));
                             result.add(" Service UUID: " + obj.get("serviceUUID"));
-                            result.add("    Characteristic Name: " + obj.get("characteristicName"));
-                            result.add("    Characteristic UUID: " + obj.get("characteristicUUID"));
-                            result.add("    Characteristic Property: " + obj.get("properties"));
-                            if(obj.has("characteristicValue")) {
-                                result.add("    Characteristic Value: " + obj.get("characteristicValue"));
-                            }
+                            result.add("    Characteristic details:");
+                            result.add("    Name: " + obj.get("characteristicName"));
+                            result.add("    UUID: " + obj.get("characteristicUUID"));
+                            if(obj.has("characteristicValue")) { result.add("    Value: " + obj.get("characteristicValue")); }
+                            result.add("    Property: " + obj.get("properties"));
+                            if(obj.has("permission")) {result.add("    Permissions: " + obj.get("permissions")); }
                             if (!json.isNull("descriptors")) {
                                 JSONArray descriptors = json.getJSONArray("descriptors");
                                 for (int j = 0; j < descriptors.length(); j++) {
                                     JSONObject objDesc = characteristics.getJSONObject(i);
-                                    result.add("       Descriptor Name: " + objDesc.get("descriptorName"));
-                                    result.add("       Descriptor UUID: " + objDesc.get("descriptorUUID"));
-                                    result.add("       Descriptor Value: " + objDesc.get("descriptorValue"));
+                                    result.add("       Descriptor details:");
+                                    result.add("       Name: " + objDesc.get("descriptorName"));
+                                    result.add("       UUID: " + objDesc.get("descriptorUUID"));
+                                    result.add("       Value: " + objDesc.get("descriptorValue"));
                                 }
                             }
                         }
