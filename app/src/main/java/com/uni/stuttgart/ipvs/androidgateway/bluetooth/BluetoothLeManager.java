@@ -202,9 +202,7 @@ public class BluetoothLeManager {
      *  connnect section
      */
 
-    public BluetoothLeGattCallback getLeGattCallback() {
-        return new BluetoothLeGattCallback(context);
-    }
+    public BluetoothLeGattCallback getLeGattCallback() { return new BluetoothLeGattCallback(context); }
 
     public void connectLe(String macAddress) {
         leGattCallback.connect(getAdapter(), macAddress);

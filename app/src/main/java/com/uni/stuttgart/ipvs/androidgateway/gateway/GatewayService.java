@@ -216,7 +216,7 @@ public class GatewayService extends Service {
         }
     }
 
-    public void doConnecting(String macAddress) {
+    public void doConnect(String macAddress) {
         status = "Connecting";
         final BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
         synchronized (lock) {
@@ -238,7 +238,7 @@ public class GatewayService extends Service {
         return new Runnable() {
             @Override
             public void run() {
-                doConnecting(macAddress);
+                doConnect(macAddress);
             }
         };
     }
@@ -354,7 +354,7 @@ public class GatewayService extends Service {
                             ScanResult result = ((ScanResult) msg.obj);
                             if (!scanResults.contains(result.getDevice())) {
                                 scanResults.add(result.getDevice());
-                                insertDatabaseDevice(result.getDevice(), result.getRssi(), "inactive");
+                                insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
                             }
                         }
                     } else if (msg.arg1 == 4) {
@@ -363,7 +363,7 @@ public class GatewayService extends Service {
                             for (ScanResult result : results) {
                                 if (!scanResults.contains(result.getDevice())) {
                                     scanResults.add(result.getDevice());
-                                    insertDatabaseDevice(result.getDevice(), result.getRssi(), "inactive");
+                                    insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
                                 }
                             }
                         }
@@ -373,7 +373,7 @@ public class GatewayService extends Service {
                             BluetoothDevice device = (BluetoothDevice) entry.getKey();
                             if (!scanResults.contains(device)) {
                                 scanResults.add(device);
-                                insertDatabaseDevice(device, (GattDataJson) entry.getValue(), "inactive");
+                                insertDatabaseDevice(device, (GattDataJson) entry.getValue(), "active");
                             }
                         }
                     } else if (msg.arg1 == 7) {

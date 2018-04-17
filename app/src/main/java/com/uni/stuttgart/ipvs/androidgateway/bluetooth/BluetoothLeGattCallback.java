@@ -167,22 +167,6 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         }
     }
 
-    private void writeCharacteristicDescriptor(BluetoothGatt gatt) {
-        if(listCharacteristicNotify.size() != 0){
-            for(BluetoothGattCharacteristic characteristic : listCharacteristicNotify) {
-                characteristic.setValue(new byte[] {0x01});
-                gatt.writeCharacteristic(characteristic);
-            }
-        }
-
-        if(listCharacteristicIndicate.size() != 0) {
-            for(BluetoothGattCharacteristic characteristic : listCharacteristicIndicate) {
-                characteristic.setValue(new byte[] {0x02});
-                gatt.writeCharacteristic(characteristic);
-            }
-        }
-    }
-
     private void refreshDeviceCache(BluetoothGatt gatt) {
         try {
             Method localMethod = gatt.getClass().getMethod("refresh", new Class[0]);
@@ -236,7 +220,6 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
-        while (characteristic.getValue() == null) {sleepThread(50);}
         Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
         mapGatt.put(gatt, characteristic);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, mapGatt));
@@ -253,7 +236,6 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
-        while (characteristic.getValue() == null) {sleepThread(50);}
         Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
         mapGatt.put(gatt, characteristic);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, mapGatt));
@@ -274,8 +256,6 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 10, 0, gatt));
         }
-
-        writeCharacteristicDescriptor(gatt);
     }
 
 }

@@ -45,7 +45,7 @@ import java.util.concurrent.TimeUnit;
 
 public class GatewayActivity extends AppCompatActivity {
 
-    private ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(10);
+    private ScheduledThreadPoolExecutor scheduler;
     private final int PROCESSING_TIME = 60000;
 
     private BluetoothAdapter mBluetoothAdapter;
@@ -86,7 +86,7 @@ public class GatewayActivity extends AppCompatActivity {
                 break;
             case R.id.action_stop:
                 stopServiceGateway();
-                scheduler.shutdown();
+                //scheduler.shutdown();
                 setMenuVisibility();
                 break;
         }
@@ -162,16 +162,29 @@ public class GatewayActivity extends AppCompatActivity {
      */
 
     private void startServiceGateway() {
-        mProcessing = true;
+        /*mProcessing = true;
         scheduler = new ScheduledThreadPoolExecutor(10);
         scheduler.scheduleAtFixedRate(new StartServiceGateway(), 0, PROCESSING_TIME + 100, TimeUnit.MILLISECONDS);
-        scheduler.scheduleWithFixedDelay(new StopServiceGateway(), PROCESSING_TIME, PROCESSING_TIME, TimeUnit.MILLISECONDS);
+        scheduler.scheduleWithFixedDelay(new StopServiceGateway(), PROCESSING_TIME, PROCESSING_TIME, TimeUnit.MILLISECONDS);*/
+
+        mGatewayService = new Intent(context, GatewayController.class);
+        startService(mGatewayService);
+        setCommandLine("\n");
+        setCommandLine("Start Services...");
+        mProcessing = true;
+
+
     }
 
     private void stopServiceGateway() {
-        mProcessing = false;
+       /* mProcessing = false;
         StopServiceGateway stopService = new StopServiceGateway();
-        stopService.run();
+        stopService.run();*/
+
+        stopService(mGatewayService);
+        setCommandLine("\n");
+        setCommandLine("Stop Services...");
+        mProcessing = false;
     }
 
     protected class StartServiceGateway implements Runnable {
@@ -283,7 +296,7 @@ public class GatewayActivity extends AppCompatActivity {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
                 stopServiceGateway();
-                scheduler.shutdown();
+                //scheduler.shutdown();
                 setMenuVisibility();
             } else if (action.equals(GatewayService.START_COMMAND)) {
                 String message = intent.getStringExtra("command");
