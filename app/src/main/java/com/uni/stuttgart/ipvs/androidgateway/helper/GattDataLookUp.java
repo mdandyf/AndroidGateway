@@ -10,7 +10,7 @@ import java.util.UUID;
  * Created by mdand on 2/20/2018.
  */
 
-public class GattLookUp {
+public class GattDataLookUp {
     public static final UUID CCC_DESCRIPTOR = shortUUID("2902");
 
     /** Known GATT Services */

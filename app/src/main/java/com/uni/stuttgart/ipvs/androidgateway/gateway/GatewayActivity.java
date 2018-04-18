@@ -19,6 +19,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -33,6 +34,7 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
 
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
@@ -57,6 +59,8 @@ public class GatewayActivity extends AppCompatActivity {
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
+
+    private BroadcastReceiverHelper mBReceiver = new BroadcastReceiverHelper();
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -167,7 +171,9 @@ public class GatewayActivity extends AppCompatActivity {
     }
 
     private void stopServiceGateway() {
-        stopService(mGatewayService);
+        if(mGatewayService != null) {
+            stopService(mGatewayService);
+        }
         setCommandLine("\n");
         setCommandLine("Stop Services...");
         mProcessing = false;
@@ -243,6 +249,11 @@ public class GatewayActivity extends AppCompatActivity {
 
         IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
         registerReceiver(mReceiver, filter3);
+
+        IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
+        pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
+        registerReceiver(mBReceiver, pairingRequestFilter);
+
         setCommandLine("Registering Broadcast Listener");
     }
 
@@ -268,7 +279,6 @@ public class GatewayActivity extends AppCompatActivity {
                     startServiceGateway();
                 }
             }
-
         }
 
     };

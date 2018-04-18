@@ -52,7 +52,6 @@ public class GatewayController extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         mIntent = intent;
-        broadcastUpdate("Start new program cycle...");
         bindService(new Intent(this, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
         return super.onStartCommand(intent, flags, startId);
@@ -101,8 +100,9 @@ public class GatewayController extends Service {
             mProcessing = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
-            doScheduleNormal();
+            doScheduleSemaphore();
             //doScheduleRR();
+            //doScheduleEP();
             //doScheduleFEP();
         }
 
@@ -113,41 +113,37 @@ public class GatewayController extends Service {
         }
     };
 
-    // not using any scheduling method (based on waiting for callback connection) (Normal Scheduling)
-    private void doScheduleNormal() {
-        broadcastUpdate("Start Normal Scheduling...");
+    // Scheduling based on waiting for callback connection (Semaphore Scheduling)
+    private void doScheduleSemaphore() {
+        broadcastUpdate("Start Semaphore Scheduling...");
         process = new ProcessPriority(10);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
                 mGatewayService.setProcessing(mProcessing);
-                doGatewayControllerNormal();
+                doGatewayControllerSemaphore();
             }
         };
 
         process.newThread(runnablePeriodic).start();
     }
 
-    // implementation of Normal Scheduling Gateway Controller
-    private void doGatewayControllerNormal() {
-        scheduler = new ScheduledThreadPoolExecutor(10);
-        scheduler.scheduleAtFixedRate(new NormalStartScanning(), 0, PROCESSING_TIME + 10, MILLISECONDS);
-        scheduler.scheduleAtFixedRate(new NormalStopScanning(), SCAN_TIME, PROCESSING_TIME + SCAN_TIME, TimeUnit.MILLISECONDS);
-    }
+    // implementation of Semaphore Scheduling Gateway Controller
+    private void doGatewayControllerSemaphore() {
 
-    private class NormalStartScanning implements Runnable {
-        @Override
-        public void run() {
+        mProcessing = true;
+
+        while (mProcessing) {
             broadcastUpdate("\n");
+            broadcastUpdate("Start new Cycle");
+            mGatewayService.disconnectGatt();
             mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
             mGatewayService.execScanningQueue();
             mScanning = true;
-        }
-    }
 
-    private class NormalStopScanning implements Runnable {
-        @Override
-        public void run() {
+            waitThread(SCAN_TIME);
+
+            // do Normal Scanning Method
             broadcastUpdate("\n");
             mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
             mGatewayService.execScanningQueue();
@@ -156,12 +152,14 @@ public class GatewayController extends Service {
             waitThread(100);
             List<BluetoothDevice> scanResults = mGatewayService.getScanResults();
 
+            // do Semaphore for Connecting method
             for (final BluetoothDevice device : scanResults) {
                 mGatewayService.doConnect(device.getAddress());
                 if (!mProcessing) {
                     return;
                 }
             }
+
         }
     }
 
@@ -201,6 +199,7 @@ public class GatewayController extends Service {
     private class RRStopScanning implements Runnable {
         @Override
         public void run() {
+            // do normal scanning
             broadcastUpdate("\n");
             mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
             mGatewayService.execScanningQueue();
@@ -216,6 +215,7 @@ public class GatewayController extends Service {
                 broadcastUpdate("Maximum connection time is " + maxConnectTime / 1000 + " s");
             }
 
+            // do connecting by Round Robin
             for (final BluetoothDevice device : scanResults) {
                 Runnable runnable = mGatewayService.doConnecting(device.getAddress(), null);
                 processConnecting = new ProcessPriority(10);
@@ -230,6 +230,72 @@ public class GatewayController extends Service {
                 waitThread(100);
                 processConnecting.interruptThread();
             }
+        }
+    }
+
+    //scheduling using Exhaustive Polling (EP)
+    private void doScheduleEP() {
+        broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
+        process = new ProcessPriority(10);
+        runnablePeriodic = new Runnable() {
+            @Override
+            public void run() {
+                mGatewayService.setProcessing(mProcessing);
+                doGatewayControllerEP();
+            }
+        };
+
+        process.newThread(runnablePeriodic).start();
+    }
+
+    // implementation of Scheduling using Exhaustive Polling
+    private void doGatewayControllerEP() {
+        mProcessing = true;
+
+        while (mProcessing) {
+            // do Exhaustive Polling Part
+            broadcastUpdate("\n");
+            mGatewayService.disconnectGatt();
+            boolean isDataExist = bleDeviceDatabase.isDeviceExist();
+            if (isDataExist) {
+                List<String> devices = bleDeviceDatabase.getListActiveDevices();
+                for (String device : devices) {
+                    mGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null);
+                }
+                mGatewayService.execScanningQueue();
+                mScanning = false;
+                waitThread(1000);
+                // do normal scanning only for half of normal scanning time
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                mGatewayService.execScanningQueue();
+                mScanning = true;
+                waitThread(SCAN_TIME - 5000);
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
+                mGatewayService.execScanningQueue();
+                mScanning = false;
+            } else {
+                // do normal scanning
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                mGatewayService.execScanningQueue();
+                mScanning = true;
+                waitThread(SCAN_TIME);
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
+                mGatewayService.execScanningQueue();
+                mScanning = false;
+            }
+
+            List<BluetoothDevice> scanResults = mGatewayService.getScanResults();
+
+            // do Connecting by using Semaphore
+            for (final BluetoothDevice device : scanResults) {
+                mGatewayService.doConnect(device.getAddress());
+                if (!mProcessing) {
+                    return;
+                }
+            }
+
+            if(!mProcessing) {return;}
+
         }
     }
 
@@ -251,26 +317,33 @@ public class GatewayController extends Service {
     // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
     private void doGatewayControllerFEP() {
         scheduler = new ScheduledThreadPoolExecutor(10);
-        scheduler.scheduleAtFixedRate(new FEPStartScanning(), 0, PROCESSING_TIME + 10, MILLISECONDS);
+        scheduler.scheduleAtFixedRate(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
         scheduler.scheduleAtFixedRate(new FEPStopScanning(), SCAN_TIME, PROCESSING_TIME + SCAN_TIME, TimeUnit.MILLISECONDS);
+        scheduler.scheduleAtFixedRate(new FEPDeviceDbRefresh(), 10 * PROCESSING_TIME, 10 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 10 minutes
     }
 
     private class FEPStartScanning implements Runnable {
         @Override
         public void run() {
             broadcastUpdate("\n");
+            // do polling slaves part
             boolean isDataExist = bleDeviceDatabase.isDeviceExist();
             if (isDataExist) {
-                List<String> devices = bleDeviceDatabase.getListDevices();
+                List<String> devices = bleDeviceDatabase.getListActiveDevices();
                 for (String device : devices) {
                     mGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null);
                 }
                 mGatewayService.execScanningQueue();
                 mScanning = false;
+                waitThread(1000);
                 // do normal scanning only for half of normal scanning time
                 mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
                 mGatewayService.execScanningQueue();
                 mScanning = true;
+                waitThread(5000); // if timer fails, force to stop
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
+                mGatewayService.execScanningQueue();
+                mScanning = false;
             } else {
                 // do normal scanning
                 mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
@@ -284,18 +357,22 @@ public class GatewayController extends Service {
         @Override
         public void run() {
             broadcastUpdate("\n");
-            mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
-            mGatewayService.execScanningQueue();
-            mScanning = false;
+            if(mScanning) {
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
+                mGatewayService.execScanningQueue();
+                mScanning = false;
+            }
 
             List<BluetoothDevice> scanResults = mGatewayService.getScanResults();
             List<String> devices = bleDeviceDatabase.getListActiveDevices();
 
             // calculate timer for connection (to obtain Round Robin Scheduling)
-            int remainingTime = PROCESSING_TIME - SCAN_TIME;
+            int remainingTime = PROCESSING_TIME - SCAN_TIME;;
             maxConnectTime = remainingTime / devices.size();
             broadcastUpdate("Number of active devices is " + devices.size());
             broadcastUpdate("Maximum connection time is " + maxConnectTime / 1000 + " s");
+
+            // do Round Robin part for connection
             for (BluetoothDevice device : scanResults) {
                 bleDeviceDatabase.updateDeviceState(device.getAddress(), "inactive");
                 if (devices.contains(device.getAddress())) {
@@ -316,7 +393,16 @@ public class GatewayController extends Service {
         }
     }
 
-    private void doSmartGatewayController(String status) {
+    private class FEPDeviceDbRefresh implements Runnable {
+        @Override
+        public void run() {
+            broadcastUpdate("\n");
+            broadcastUpdate("Refresh all device states...");
+            bleDeviceDatabase.updateAllDevicesState(null, "active");
+        }
+    }
+
+    private void doSmartGatewayController() {
 
     }
 

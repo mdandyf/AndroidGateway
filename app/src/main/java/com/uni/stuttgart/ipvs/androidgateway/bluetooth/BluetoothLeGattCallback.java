@@ -13,6 +13,7 @@ import android.content.Context;
 import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Message;
+import android.os.RemoteException;
 import android.util.Log;
 
 import java.io.BufferedInputStream;
@@ -87,9 +88,13 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         if (characteristic == null) {
             Log.d(TAG, "Characteristic " + characteristicUUID.toString() + " not found");
         } else {
-            mBluetoothGatt.readCharacteristic(characteristic);
+            try {
+                mBluetoothGatt.readCharacteristic(characteristic);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " read");
-            sleepThread(200);
+            sleepThread(100);
         }
     }
 
@@ -105,7 +110,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             } else {
                 mBluetoothGatt.readDescriptor(descriptor);
                 Log.d(TAG, "Descriptor " + descriptorUUID.toString() + " read");
-                sleepThread(200);
+                sleepThread(100);
             }
         }
     }
@@ -118,7 +123,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         } else {
             mBluetoothGatt.writeCharacteristic(characteristic);
             Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " has been written");
-            sleepThread(200);
+            sleepThread(100);
         }
     }
 
@@ -131,12 +136,12 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             BluetoothGattDescriptor descriptor = characteristic.getDescriptor(descriptorUUID);
             if (descriptor != null) {
                 try {
-                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                     mBluetoothGatt.setCharacteristicNotification(characteristic, true);
+                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
                     if(!listCharacteristicNotify.contains(characteristic)) {listCharacteristicNotify.add(characteristic);}
                     Log.d(TAG, "descriptor notify " + descriptorUUID.toString() + " has been written");
-                    sleepThread(200);
+                    sleepThread(100);
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
@@ -154,12 +159,13 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
             if (descriptor != null) {
                 mBluetoothGatt.readDescriptor(descriptor);
                 try {
-                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
                     mBluetoothGatt.writeDescriptor(descriptor);
+                    sleepThread(200);
+                    mBluetoothGatt.setCharacteristicNotification(characteristic, true);
                     if(!listCharacteristicIndicate.contains(characteristic)) {listCharacteristicIndicate.add(characteristic);}
                     Log.d(TAG, "descriptor indicate " + descriptorUUID.toString() + " has been written");
-                    sleepThread(200);
+                    sleepThread(100);
                 } catch(Exception e) {
                     e.printStackTrace();
                 }
@@ -220,9 +226,20 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
-        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
-        mapGatt.put(gatt, characteristic);
-        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, mapGatt));
+        if(BluetoothGatt.GATT_SUCCESS == status)
+        {
+            Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " read with status " + status);
+            Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+            mapGatt.put(gatt, characteristic);
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, mapGatt));
+        } else if(BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION == status ||
+                BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION == status)
+        {
+            Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " read with status " + status);
+            Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+            mapGatt.put(gatt, characteristic);
+            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 10, 0, mapGatt));
+        }
     }
 
     @Override

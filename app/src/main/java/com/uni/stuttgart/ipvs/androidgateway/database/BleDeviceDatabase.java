@@ -1,5 +1,6 @@
 package com.uni.stuttgart.ipvs.androidgateway.database;
 
+import android.bluetooth.BluetoothDevice;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -87,6 +88,22 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         } catch (Exception e) {
             e.printStackTrace();
             status = false;
+        }
+
+        return status;
+    }
+
+    public boolean updateAllDevicesState(List<String> listNearbyDevices, String deviceState) {
+        boolean status = false;
+        if(listNearbyDevices == null) {
+            List<String> listDevices = getListDevices();
+            for(String device : listDevices) {
+                status = updateDeviceState(device, deviceState);
+            }
+        } else {
+            for(String device : listNearbyDevices) {
+                status = updateDeviceState(device, deviceState);
+            }
         }
 
         return status;

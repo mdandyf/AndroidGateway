@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 
+import org.apache.commons.codec.binary.Hex;
 import org.json.JSONArray;
 import org.json.JSONException;
 
@@ -147,7 +148,7 @@ public class GattDataHelper {
         return props;
     }
 
-    public static String decodeCharacteristicValue(BluetoothGattCharacteristic characteristic, BluetoothGatt gatt) {
+    public static String decodeCharacteristicValue(BluetoothGattCharacteristic characteristic) {
         String value = "Unknown";
 
         final byte[] data = characteristic.getValue();
@@ -156,6 +157,9 @@ public class GattDataHelper {
             for (byte byteChar : data)
                 stringBuilder.append(String.format("%02X ", byteChar));
             return "0x " + stringBuilder.toString();
+        } else {
+            //value = String.valueOf(Hex.encodeHex(characteristic.getValue()));
+            //if (value.equals(null)) { value = "Unknown"; }
         }
 
         return value;
