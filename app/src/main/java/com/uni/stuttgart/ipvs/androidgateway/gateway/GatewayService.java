@@ -110,7 +110,7 @@ public class GatewayService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         mIntent = intent;
         context = this;
-        return super.onStartCommand(intent, flags, startId);
+        return START_STICKY;
     }
 
     @Override

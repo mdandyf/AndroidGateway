@@ -2,29 +2,22 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
 import android.app.Service;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.os.Handler;
+import android.os.Binder;
 import android.os.IBinder;
-import android.os.Looper;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
 
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -33,6 +26,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 public class GatewayController extends Service {
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
+    private final IBinder mBinder = new LocalBinder();
     private int maxConnectTime = 0;
 
     private ScheduledThreadPoolExecutor scheduler;
@@ -44,6 +38,7 @@ public class GatewayController extends Service {
     private boolean mScanning = false;
     private ProcessPriority process;
     private ProcessPriority processConnecting;
+    private int cycleCounter;
 
     private Runnable runnablePeriodic = null;
 
@@ -51,15 +46,27 @@ public class GatewayController extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        cycleCounter = 0;
         mIntent = intent;
         bindService(new Intent(this, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
-        return super.onStartCommand(intent, flags, startId);
+        return START_STICKY;
+    }
+
+    /**
+     * Class used for the client Binder.
+     */
+    public class LocalBinder extends Binder {
+        GatewayController getService() {
+            // Return this instance of Service so clients can call public methods
+            return GatewayController.this;
+        }
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
+        cycleCounter = 0;
         if (scheduler != null) {
             scheduler.shutdown();
         }
@@ -81,6 +88,9 @@ public class GatewayController extends Service {
         return null;
     }
 
+    @Override
+    public boolean onUnbind(Intent intent) { return false; }
+
     /**
      * Gateway Controller Section
      */
@@ -100,10 +110,10 @@ public class GatewayController extends Service {
             mProcessing = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
-            doScheduleSemaphore();
+            //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            //doScheduleFEP();
+            doScheduleFEP();
         }
 
         @Override
@@ -116,7 +126,7 @@ public class GatewayController extends Service {
     // Scheduling based on waiting for callback connection (Semaphore Scheduling)
     private void doScheduleSemaphore() {
         broadcastUpdate("Start Semaphore Scheduling...");
-        process = new ProcessPriority(10);
+        process = new ProcessPriority(3);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
@@ -135,7 +145,9 @@ public class GatewayController extends Service {
 
         while (mProcessing) {
             broadcastUpdate("\n");
-            broadcastUpdate("Start new Cycle");
+            broadcastUpdate("Start new cycle...");
+            cycleCounter++;
+            broadcastUpdate("Cycle number " + cycleCounter);
             mGatewayService.disconnectGatt();
             mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
             mGatewayService.execScanningQueue();
@@ -166,7 +178,7 @@ public class GatewayController extends Service {
     // scheduling using Round Robin Method
     private void doScheduleRR() {
         broadcastUpdate("Start Round Robin Scheduling...");
-        process = new ProcessPriority(10);
+        process = new ProcessPriority(3);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
@@ -190,6 +202,9 @@ public class GatewayController extends Service {
         @Override
         public void run() {
             broadcastUpdate("\n");
+            broadcastUpdate("Start new cycle...");
+            cycleCounter++;
+            broadcastUpdate("Cycle number " + cycleCounter);
             mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
             mGatewayService.execScanningQueue();
             mScanning = true;
@@ -236,7 +251,7 @@ public class GatewayController extends Service {
     //scheduling using Exhaustive Polling (EP)
     private void doScheduleEP() {
         broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
-        process = new ProcessPriority(10);
+        process = new ProcessPriority(3);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
@@ -251,10 +266,12 @@ public class GatewayController extends Service {
     // implementation of Scheduling using Exhaustive Polling
     private void doGatewayControllerEP() {
         mProcessing = true;
-
         while (mProcessing) {
             // do Exhaustive Polling Part
             broadcastUpdate("\n");
+            broadcastUpdate("Start new cycle");
+            cycleCounter++;
+            broadcastUpdate("Cycle number " + cycleCounter);
             mGatewayService.disconnectGatt();
             boolean isDataExist = bleDeviceDatabase.isDeviceExist();
             if (isDataExist) {
@@ -302,7 +319,7 @@ public class GatewayController extends Service {
     // scheduling using Fair Exhaustive Polling (FEP)
     private void doScheduleFEP() {
         broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
-        process = new ProcessPriority(10);
+        process = new ProcessPriority(1);
         runnablePeriodic = new Runnable() {
             @Override
             public void run() {
@@ -326,6 +343,9 @@ public class GatewayController extends Service {
         @Override
         public void run() {
             broadcastUpdate("\n");
+            broadcastUpdate("Start new cycle");
+            cycleCounter++;
+            broadcastUpdate("Cycle number " + cycleCounter);
             // do polling slaves part
             boolean isDataExist = bleDeviceDatabase.isDeviceExist();
             if (isDataExist) {

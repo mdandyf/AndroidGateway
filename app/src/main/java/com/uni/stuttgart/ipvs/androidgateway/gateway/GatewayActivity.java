@@ -55,6 +55,8 @@ public class GatewayActivity extends AppCompatActivity {
 
     private boolean mProcessing = false;
     private Context context;
+    private GatewayController mService;
+    private boolean mBound;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
@@ -125,8 +127,17 @@ public class GatewayActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopServiceGateway();
+        if(mConnection != null) {
+            unbindService(mConnection);
+        }
         unregisterReceiver(mReceiver);
         finish();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        bindService(new Intent(this, GatewayController.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -143,6 +154,7 @@ public class GatewayActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        bindService(new Intent(this, GatewayController.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -281,6 +293,23 @@ public class GatewayActivity extends AppCompatActivity {
             }
         }
 
+    };
+
+    protected ServiceConnection mConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName className,
+                                       IBinder service) {
+            // We've bound to LocalService, cast the IBinder and get LocalService instance
+            GatewayController.LocalBinder binder = (GatewayController.LocalBinder) service;
+            mService = binder.getService();
+            mBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            mBound = false;
+        }
     };
 
     /**
