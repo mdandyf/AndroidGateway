@@ -186,7 +186,7 @@ public class GatewayActivity extends AppCompatActivity {
     private void setWakeLock() {
         powerManager = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MyWakeLock");
-        wakeLock.acquire();
+        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
     }
 
     /**

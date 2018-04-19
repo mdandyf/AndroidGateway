@@ -97,15 +97,10 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         boolean status = false;
         if(listNearbyDevices == null) {
             List<String> listDevices = getListDevices();
-            for(String device : listDevices) {
-                status = updateDeviceState(device, deviceState);
-            }
+            for(String device : listDevices) { status = updateDeviceState(device, deviceState); }
         } else {
-            for(String device : listNearbyDevices) {
-                status = updateDeviceState(device, deviceState);
-            }
+            for(String device : listNearbyDevices) { status = updateDeviceState(device, deviceState); }
         }
-
         return status;
     }
 

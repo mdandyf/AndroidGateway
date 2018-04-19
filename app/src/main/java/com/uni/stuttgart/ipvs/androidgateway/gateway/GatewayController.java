@@ -67,16 +67,10 @@ public class GatewayController extends Service {
     public void onDestroy() {
         super.onDestroy();
         cycleCounter = 0;
-        if (scheduler != null) {
-            scheduler.shutdown();
-        }
-        if (processConnecting != null) {
-            processConnecting.interruptThread();
-        }
-        if (process != null) {
-            process.interruptThread();
-        }
-        unbindService(mConnection);
+        if (scheduler != null) { scheduler.shutdown(); }
+        if (processConnecting != null) { processConnecting.interruptThread(); }
+        if (process != null) { process.interruptThread(); }
+        if(mConnection != null) {unbindService(mConnection); }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         mProcessing = false;
         stopService(mIntent);
@@ -355,12 +349,12 @@ public class GatewayController extends Service {
                 }
                 mGatewayService.execScanningQueue();
                 mScanning = false;
-                waitThread(1000);
+                waitThread(10);
                 // do normal scanning only for half of normal scanning time
                 mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
                 mGatewayService.execScanningQueue();
                 mScanning = true;
-                waitThread(5000); // if timer fails, force to stop
+                waitThread(SCAN_TIME/2); // if timer fails, force to stop
                 mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
                 mGatewayService.execScanningQueue();
                 mScanning = false;
@@ -422,9 +416,7 @@ public class GatewayController extends Service {
         }
     }
 
-    private void doSmartGatewayController() {
-
-    }
+    private void doSmartGatewayController() { }
 
     private void waitThread(int time) {
         try {
