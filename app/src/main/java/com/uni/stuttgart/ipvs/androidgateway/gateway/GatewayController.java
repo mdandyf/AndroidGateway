@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
@@ -28,9 +29,8 @@ public class GatewayController extends Service {
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
     private final IBinder mBinder = new LocalBinder();
     private int maxConnectTime = 0;
-
+    private Context context;
     private ScheduledThreadPoolExecutor scheduler;
-
     private Intent mIntent;
     private GatewayService mGatewayService;
     private boolean mBound = false;
@@ -39,8 +39,10 @@ public class GatewayController extends Service {
     private ProcessPriority process;
     private ProcessPriority processConnecting;
     private int cycleCounter;
-
     private Runnable runnablePeriodic = null;
+
+    private PowerManager powerManager;
+    private PowerManager.WakeLock wakeLock;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
 
@@ -48,6 +50,7 @@ public class GatewayController extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         cycleCounter = 0;
         mIntent = intent;
+        context = this;
         bindService(new Intent(this, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
         return START_STICKY;
@@ -63,27 +66,32 @@ public class GatewayController extends Service {
         }
     }
 
+    private void setWakeLock() {
+        powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockController");
+        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
         cycleCounter = 0;
-        if (scheduler != null) { scheduler.shutdown(); }
+        if (scheduler != null && !scheduler.isShutdown()) { scheduler.shutdown(); }
         if (processConnecting != null) { processConnecting.interruptThread(); }
         if (process != null) { process.interruptThread(); }
         if(mConnection != null) {unbindService(mConnection); }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
+        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
         mProcessing = false;
         stopService(mIntent);
         stopSelf();
     }
 
     @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
+    public IBinder onBind(Intent intent) { context = this; setWakeLock(); return null; }
 
     @Override
-    public boolean onUnbind(Intent intent) { return false; }
+    public boolean onUnbind(Intent intent) {return false; }
 
     /**
      * Gateway Controller Section
@@ -275,12 +283,12 @@ public class GatewayController extends Service {
                 }
                 mGatewayService.execScanningQueue();
                 mScanning = false;
-                waitThread(1000);
+                waitThread(100);
                 // do normal scanning only for half of normal scanning time
                 mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
                 mGatewayService.execScanningQueue();
                 mScanning = true;
-                waitThread(SCAN_TIME - 5000);
+                waitThread(SCAN_TIME/2);
                 mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
                 mGatewayService.execScanningQueue();
                 mScanning = false;
@@ -329,7 +337,7 @@ public class GatewayController extends Service {
     private void doGatewayControllerFEP() {
         scheduler = new ScheduledThreadPoolExecutor(10);
         scheduler.scheduleAtFixedRate(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
-        scheduler.scheduleAtFixedRate(new FEPStopScanning(), SCAN_TIME, PROCESSING_TIME + SCAN_TIME, TimeUnit.MILLISECONDS);
+        scheduler.scheduleAtFixedRate(new FEPStopScanning(), SCAN_TIME, PROCESSING_TIME + SCAN_TIME, MILLISECONDS);
         scheduler.scheduleAtFixedRate(new FEPDeviceDbRefresh(), 10 * PROCESSING_TIME, 10 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 10 minutes
     }
 
@@ -400,7 +408,7 @@ public class GatewayController extends Service {
                     }
                     broadcastUpdate("Wait time finished, disconnected...");
                     mGatewayService.doDisconnected(mGatewayService.getCurrentGatt(), "GatewayController");
-                    waitThread(100);
+                    waitThread(10);
                     processConnecting.interruptThread();
                 }
             }

@@ -22,7 +22,8 @@ public class ServicesDatabase extends SQLiteOpenHelper {
     public static final String BLE_ID = "id";
     public static final String BLE_DATA = "mac_address";
     public static final String SERVICE_UUID = "service_uuid";
-    public static final String BLE_TIMESTAMP = "timestamp";
+    public static final String BLE_TIMESTAMP = "create_date";
+    public static final String BLE_MOD_DATE = "modified_date";
 
     public ServicesDatabase(Context context) {
         super(context, DATABASE_NAME, null, 1);
@@ -32,7 +33,7 @@ public class ServicesDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleServicesData " +
-                        "(id integer primary key, mac_address text, service_uuid text, timestamp text)"
+                        "(id integer primary key, mac_address text, service_uuid text, create_date text, modified_date text)"
         );
     }
 
@@ -51,7 +52,8 @@ public class ServicesDatabase extends SQLiteOpenHelper {
             contentValues.put("service_uuid", serviceUUID);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
-            contentValues.put("timestamp", date);
+            contentValues.put("create_date", date);
+            contentValues.put("modified_date", date);
 
             if (isMacExist(data) && isServiceExist(serviceUUID)) {
                 db.update("BleServicesData", contentValues, "mac_address = ? AND service_uuid = ?", new String[]{data, serviceUUID});

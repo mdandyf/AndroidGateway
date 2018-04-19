@@ -133,8 +133,7 @@ public class GatewayActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopServiceGateway();
-        if(mConnection != null) { unbindService(mConnection); }
-        if(wakeLock != null) {wakeLock.release();}
+        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
         if(mReceiver != null) {unregisterReceiver(mReceiver);}
         finish();
     }
@@ -149,7 +148,6 @@ public class GatewayActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         setWakeLock();
-        bindService(new Intent(this, GatewayController.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -167,7 +165,6 @@ public class GatewayActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         setWakeLock();
-        bindService(new Intent(this, GatewayController.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -185,7 +182,7 @@ public class GatewayActivity extends AppCompatActivity {
 
     private void setWakeLock() {
         powerManager = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MyWakeLock");
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockActivity");
         if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
     }
 
@@ -202,9 +199,7 @@ public class GatewayActivity extends AppCompatActivity {
     }
 
     private void stopServiceGateway() {
-        if(mGatewayService != null) {
-            stopService(mGatewayService);
-        }
+        if(mGatewayService != null) {stopService(mGatewayService); }
         setCommandLine("\n");
         setCommandLine("Stop Services...");
         mProcessing = false;
@@ -314,23 +309,6 @@ public class GatewayActivity extends AppCompatActivity {
 
     };
 
-    protected ServiceConnection mConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName className,
-                                       IBinder service) {
-            // We've bound to LocalService, cast the IBinder and get LocalService instance
-            GatewayController.LocalBinder binder = (GatewayController.LocalBinder) service;
-            mService = binder.getService();
-            mBound = true;
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName arg0) {
-            mBound = false;
-        }
-    };
-
     /**
      * Other Routines Section
      */
@@ -339,6 +317,14 @@ public class GatewayActivity extends AppCompatActivity {
         bleDeviceDatabase.deleteAllData();
         bleServicesDatabase.deleteAllData();
         bleCharacteristicDatabase.deleteAllData();
+    }
+
+    private void waitThread(int time) {
+        try {
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     /**

@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Message;
+import android.os.PowerManager;
 import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
@@ -75,6 +76,8 @@ public class GatewayService extends Service {
     private HandlerThread mThread = new HandlerThread("mThreadCallback");
     private Handler mHandlerMessage;
     private boolean mProcessing;
+    private PowerManager powerManager;
+    private PowerManager.WakeLock wakeLock;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
@@ -123,6 +126,7 @@ public class GatewayService extends Service {
     public IBinder onBind(Intent intent) {
         mIntent = intent;
         context = this;
+        setWakeLock();
         return mBinder;
     }
 
@@ -140,6 +144,12 @@ public class GatewayService extends Service {
             // Return this instance of Service so clients can call public methods
             return GatewayService.this;
         }
+    }
+
+    private void setWakeLock() {
+        powerManager = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockService");
+        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
     }
 
     public String getCurrentStatus() {
@@ -389,7 +399,7 @@ public class GatewayService extends Service {
                     if (msg.arg1 == 0) {
                         // read all bluetoothGatt servers
                         mBluetoothGatt = (BluetoothGatt) msg.obj;
-                        listBluetoothGatt.add(mBluetoothGatt);
+                        if(mBluetoothGatt != null && !listBluetoothGatt.contains(mBluetoothGatt)) {listBluetoothGatt.add(mBluetoothGatt);}
                     } else if (msg.arg1 == 1) {
                         // read all bluetoothGatt connected servers
                         BluetoothGatt connectedGatt = ((BluetoothGatt) msg.obj);
@@ -545,6 +555,7 @@ public class GatewayService extends Service {
         mProcessing = false;
         mHandlerMessage.removeCallbacksAndMessages(mHandlerCallback);
         disconnectGatt();
+        if(wakeLock!=null && wakeLock.isHeld()) {wakeLock.release();}
         stopService(mIntent);
         stopSelf();
     }

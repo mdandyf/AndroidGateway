@@ -25,7 +25,8 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
     public static final String CHARACRERISTIC_UUID = "characteristic_uuid";
     public static final String CHARACRERISTIC_PROPERTY = "characteristic_property";
     public static final String CHARACRERISTIC_VALUE = "characteristic_value";
-    public static final String TIMESTAMP = "timestamp";
+    public static final String CREATE_DATE = "create_date";
+    public static final String MODIFIED_DATE = "modified_date";
 
     public CharacteristicsDatabase(Context context) {
         super(context, DATABASE_NAME , null, 1);
@@ -35,7 +36,7 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleCharacteristicsData " +
-                        "(id integer primary key, mac_address text, service_uuid text, characteristic_uuid text, characteristic_property text, characteristic_value text, timestamp text)"
+                        "(id integer primary key, mac_address text, service_uuid text, characteristic_uuid text, characteristic_property text, characteristic_value text, create_date text, modified_date text)"
         );
     }
 
@@ -57,7 +58,8 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
             contentValues.put("characteristic_value", charcteristicValue);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
-            contentValues.put("timestamp", date);
+            contentValues.put("create_date", date);
+            contentValues.put("modified_date", date);
 
             if(isServiceExist(serviceUUID) && isMacAddressExist(macAddress) && isCharacteristicExist(characteristicUUID)) {
                 db.update("BleCharacteristicsData", contentValues, "mac_address = '" + macAddress + "' AND service_uuid = '" + serviceUUID +"' AND characteristic_uuid = '" + characteristicUUID + "'", null);
@@ -144,7 +146,7 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             Date date = null;
             try {
-                date = sdf.parse(res.getString(res.getColumnIndex(TIMESTAMP)));
+                date = sdf.parse(res.getString(res.getColumnIndex(CREATE_DATE)));
                 String characteristicUUID = res.getString(res.getColumnIndex(CHARACRERISTIC_UUID));
                 String serviceUUID = res.getString(res.getColumnIndex(SERVICE_UUID));
                 String characteristicValue = res.getString(res.getColumnIndex(CHARACRERISTIC_VALUE));

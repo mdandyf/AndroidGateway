@@ -28,7 +28,8 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public static final String BLE_NAME = "device_name";
     public static final String BLE_RSSI = "device_rssi";
     public static final String BLE_STATE = "device_state";
-    public static final String BLE_TIMESTAMP = "timestamp";
+    public static final String BLE_CRT_DATE = "create_date";
+    public static final String BLE_MDF_DATE = "modified_date";
 
     public BleDeviceDatabase(Context context) {
         super(context, DATABASE_NAME , null, 1);
@@ -38,7 +39,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleDeviceData " +
-                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, timestamp text)"
+                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, create_date text, modified_date text)"
         );
     }
 
@@ -61,7 +62,8 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
                 contentValues.put("device_state", state);
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
                 String date = sdf.format(new Date());
-                contentValues.put("timestamp", date);
+                contentValues.put("create_date", date);
+                contentValues.put("modified_date", date);
                 db.insert("BleDeviceData", null, contentValues);
                 status = true;
             }
@@ -81,7 +83,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
                 contentValues.put("device_state", state);
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
                 String date = sdf.format(new Date());
-                contentValues.put("timestamp", date);
+                contentValues.put("modified_date", date);
                 db.update("BleDeviceData", contentValues, "mac_address=?", new String[] {key + ""});
                 status = true;
             }
