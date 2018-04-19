@@ -17,6 +17,7 @@ import android.location.LocationManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -57,6 +58,9 @@ public class GatewayActivity extends AppCompatActivity {
     private Context context;
     private GatewayController mService;
     private boolean mBound;
+
+    private PowerManager.WakeLock wakeLock;
+    private PowerManager powerManager;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
@@ -118,6 +122,8 @@ public class GatewayActivity extends AppCompatActivity {
             }
         });
 
+        setWakeLock();
+
         registerBroadcastListener();
         checkingPermission();
         clearDatabase();
@@ -127,16 +133,22 @@ public class GatewayActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopServiceGateway();
-        if(mConnection != null) {
-            unbindService(mConnection);
-        }
-        unregisterReceiver(mReceiver);
+        if(mConnection != null) { unbindService(mConnection); }
+        if(wakeLock != null) {wakeLock.release();}
+        if(mReceiver != null) {unregisterReceiver(mReceiver);}
         finish();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        setWakeLock();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
+        setWakeLock();
         bindService(new Intent(this, GatewayController.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
@@ -154,6 +166,7 @@ public class GatewayActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        setWakeLock();
         bindService(new Intent(this, GatewayController.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
@@ -168,6 +181,12 @@ public class GatewayActivity extends AppCompatActivity {
         startServiceGateway();
 
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void setWakeLock() {
+        powerManager = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MyWakeLock");
+        wakeLock.acquire();
     }
 
     /**
