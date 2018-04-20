@@ -58,12 +58,11 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
             contentValues.put("characteristic_value", charcteristicValue);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
-            contentValues.put("create_date", date);
             contentValues.put("modified_date", date);
-
             if(isServiceExist(serviceUUID) && isMacAddressExist(macAddress) && isCharacteristicExist(characteristicUUID)) {
                 db.update("BleCharacteristicsData", contentValues, "mac_address = '" + macAddress + "' AND service_uuid = '" + serviceUUID +"' AND characteristic_uuid = '" + characteristicUUID + "'", null);
             } else {
+                contentValues.put("create_date", date);
                 db.insert("BleCharacteristicsData", null, contentValues);
             }
 

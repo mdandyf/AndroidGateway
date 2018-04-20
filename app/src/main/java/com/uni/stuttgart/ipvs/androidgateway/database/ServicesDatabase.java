@@ -52,12 +52,12 @@ public class ServicesDatabase extends SQLiteOpenHelper {
             contentValues.put("service_uuid", serviceUUID);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
-            contentValues.put("create_date", date);
             contentValues.put("modified_date", date);
 
             if (isMacExist(data) && isServiceExist(serviceUUID)) {
                 db.update("BleServicesData", contentValues, "mac_address = ? AND service_uuid = ?", new String[]{data, serviceUUID});
             } else {
+                contentValues.put("create_date", date);
                 db.insert("BleServicesData", null, contentValues);
             }
             status = true;

@@ -342,7 +342,7 @@ public class GatewayController extends Service {
     private void doGatewayControllerFEP() {
         scheduler = new ScheduledThreadPoolExecutor(10);
         scheduler.scheduleAtFixedRate(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
-        scheduler.scheduleAtFixedRate(new FEPDeviceDbRefresh(), 10 * PROCESSING_TIME, 10 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 10 minutes
+        scheduler.scheduleAtFixedRate(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 10 minutes
     }
 
     private class FEPStartScanning implements Runnable {
@@ -393,6 +393,10 @@ public class GatewayController extends Service {
         private void connect() {
             List<BluetoothDevice> scanResults = mGatewayService.getScanResults();
             List<String> devices = bleDeviceDatabase.getListActiveDevices();
+
+            if(devices == null) {
+                return;
+            }
 
             // calculate timer for connection (to obtain Round Robin Scheduling)
             int remainingTime = PROCESSING_TIME - SCAN_TIME;;
