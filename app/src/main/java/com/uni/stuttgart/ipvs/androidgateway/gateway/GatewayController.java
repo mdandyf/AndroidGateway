@@ -204,16 +204,20 @@ public class GatewayController extends Service {
     private class RRStartScanning implements Runnable {
         @Override
         public void run() {
-            broadcastUpdate("\n");
-            broadcastUpdate("Start new cycle...");
-            cycleCounter++;
-            broadcastUpdate("Cycle number " + cycleCounter);
-            mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
-            mGatewayService.execScanningQueue();
-            mScanning = true;
-            stop();
-            waitThread(100);
-            connect();
+            try {
+                broadcastUpdate("\n");
+                broadcastUpdate("Start new cycle...");
+                cycleCounter++;
+                broadcastUpdate("Cycle number " + cycleCounter);
+                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                mGatewayService.execScanningQueue();
+                mScanning = true;
+                stop();
+                waitThread(100);
+                connect();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
         private void stop() {
@@ -344,33 +348,37 @@ public class GatewayController extends Service {
     private class FEPStartScanning implements Runnable {
         @Override
         public void run() {
-            broadcastUpdate("\n");
-            broadcastUpdate("Start new cycle");
-            cycleCounter++;
-            broadcastUpdate("Cycle number " + cycleCounter);
-            // do polling slaves part
-            boolean isDataExist = bleDeviceDatabase.isDeviceExist();
-            if (isDataExist) {
-                List<String> devices = bleDeviceDatabase.getListActiveDevices();
-                for (String device : devices) { mGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null); }
-                mGatewayService.execScanningQueue();
-                mScanning = false;
-                // do normal scanning only for half of normal scanning time
-                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
-                mGatewayService.execScanningQueue();
-                mScanning = true;
-                waitThread(SCAN_TIME/2); // if timer fails, force to stop
-            } else {
-                // do normal scanning
-                mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
-                mGatewayService.execScanningQueue();
-                mScanning = true;
-                waitThread(SCAN_TIME); // if timer fails, force to stop
-            }
+            try {
+                broadcastUpdate("\n");
+                broadcastUpdate("Start new cycle");
+                cycleCounter++;
+                broadcastUpdate("Cycle number " + cycleCounter);
+                // do polling slaves part
+                boolean isDataExist = bleDeviceDatabase.isDeviceExist();
+                if (isDataExist) {
+                    List<String> devices = bleDeviceDatabase.getListActiveDevices();
+                    for (String device : devices) { mGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null); }
+                    mGatewayService.execScanningQueue();
+                    mScanning = false;
+                    // do normal scanning only for half of normal scanning time
+                    mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                    mGatewayService.execScanningQueue();
+                    mScanning = true;
+                    waitThread(SCAN_TIME/2); // if timer fails, force to stop
+                } else {
+                    // do normal scanning
+                    mGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                    mGatewayService.execScanningQueue();
+                    mScanning = true;
+                    waitThread(SCAN_TIME); // if timer fails, force to stop
+                }
 
-            stop();
-            waitThread(100);
-            connect();
+                stop();
+                waitThread(100);
+                connect();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
         private void stop() {
