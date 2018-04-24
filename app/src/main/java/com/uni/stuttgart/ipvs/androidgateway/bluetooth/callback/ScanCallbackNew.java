@@ -33,13 +33,15 @@ public class ScanCallbackNew extends ScanCallback {
     private static final String TAG = "Bluetooth ScanCallback";
     private List<BluetoothDevice> listDevices;
     private Map<BluetoothDevice, GattDataJson> mapProperties;
+    private Map<BluetoothDevice, byte[]> mapScanRecord;
     private Handler mHandlerMessage;
     private Context context;
 
-    public ScanCallbackNew(Context context, List<BluetoothDevice> listDevices, Map<BluetoothDevice, GattDataJson> mapProperties) {
+    public ScanCallbackNew(Context context, List<BluetoothDevice> listDevices, Map<BluetoothDevice, GattDataJson> mapProperties, Map<BluetoothDevice, byte[]> mapScanRecord) {
         this.context = context;
         this.listDevices = listDevices;
         this.mapProperties = mapProperties;
+        this.mapScanRecord = mapScanRecord;
     }
     public List<BluetoothDevice> getListDevices() {return listDevices;}
     public Map<BluetoothDevice, GattDataJson> getMapProperties(){return mapProperties;}
@@ -73,8 +75,6 @@ public class ScanCallbackNew extends ScanCallback {
 
     private void addBluetoothDevice(ScanResult result) {
         Log.d(TAG, result.getDevice().getAddress());
-        AdRecordHelper.decodeAdvertisement(result.getScanRecord().getBytes());
-        result.getScanRecord().getAdvertiseFlags();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (!listDevices.contains(result.getDevice())) {
@@ -84,7 +84,9 @@ public class ScanCallbackNew extends ScanCallback {
                     json = new GattDataJson(result.getDevice(), result.getRssi(), result.getTxPower());
                 }
                 mapProperties.put(result.getDevice(), json);
+                mapScanRecord.put(result.getDevice(), result.getScanRecord().getBytes());
                 mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 6, 0, mapProperties));
+                mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 10, 0, mapScanRecord));
             }
         }
     }

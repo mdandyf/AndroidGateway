@@ -41,9 +41,9 @@ public class BluetoothLeScanProcess {
         this.context = context;
         this.mBluetoothAdapter = adapter;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>());
+            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>(), new HashMap<BluetoothDevice, byte[]>());
         } else {
-            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>());
+            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>(), new HashMap<BluetoothDevice, byte[]>());
         }
     }
 
