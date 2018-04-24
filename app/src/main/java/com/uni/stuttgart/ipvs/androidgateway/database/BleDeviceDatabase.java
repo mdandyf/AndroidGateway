@@ -55,15 +55,15 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         try {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues contentValues = new ContentValues();
+            contentValues.put("mac_address", data);
+            contentValues.put("device_name", device_name);
+            contentValues.put("device_rssi", rssi);
+            contentValues.put("device_state", state);
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
+            String date = sdf.format(new Date());
+            contentValues.put("modified_date", date);
             if(!isDeviceExist(data)) {
-                contentValues.put("mac_address", data);
-                contentValues.put("device_name", device_name);
-                contentValues.put("device_rssi", rssi);
-                contentValues.put("device_state", state);
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
-                String date = sdf.format(new Date());
                 contentValues.put("create_date", date);
-                contentValues.put("modified_date", date);
                 db.insert("BleDeviceData", null, contentValues);
                 status = true;
             }
@@ -73,6 +73,31 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         }
         return status;
     }
+
+    public boolean updateData(String data, String device_name, int rssi, String state) {
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            ContentValues contentValues = new ContentValues();
+            contentValues.put("mac_address", data);
+            contentValues.put("device_name", device_name);
+            contentValues.put("device_rssi", rssi);
+            if(state != null) {contentValues.put("device_state", state);}
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
+            String date = sdf.format(new Date());
+            contentValues.put("modified_date", date);
+            if(isDeviceExist(data)) {
+                db.update("BleDeviceData", contentValues, "mac_address = ?", new String[] {data});
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            status = false;
+        }
+        return status;
+    }
+
+
 
     public boolean updateDeviceState(String key, String state) {
         boolean status = false;
@@ -171,6 +196,25 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         return list;
     }
 
+    public Map<String, Integer> getListRssiDevices() {
+        Map<String, Integer> map = new HashMap<>();
+        List<String> deviceMacs = getListDevices();
+        for(String deviceMac : deviceMacs) {
+            int rssi = getDeviceRssi(deviceMac);
+            map.put(deviceMac, rssi);
+        }
+        return map;
+    }
+
+    public int getDeviceRssi(String macAddress) {
+        Cursor cursor = getQuery("SELECT device_rssi from BleDeviceData WHERE mac_address=?", new String[] {macAddress});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                return cursor.getInt(cursor.getColumnIndex(BLE_RSSI));
+            }
+        }
+        return 0;
+    }
 
     private Cursor getQuery(String query, String[] argument) {
         Cursor cursor = null;
@@ -183,5 +227,4 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
 
         return cursor;
     }
-
 }

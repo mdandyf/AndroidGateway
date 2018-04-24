@@ -1,12 +1,15 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -15,7 +18,7 @@ import java.util.Map;
  */
 
 public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
-
+    private static final String TAG = "Bluetooth ScanCallback";
     private List<BluetoothDevice> listDevices;
     private Map<BluetoothDevice, GattDataJson> mapProperties;
     private Handler mHandlerMessage;
@@ -33,6 +36,9 @@ public class ScanCallbackOld implements BluetoothAdapter.LeScanCallback {
 
     @Override
     public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+        Log.d(TAG, device.getAddress());
+        Log.d(TAG, Arrays.toString(scanRecord));
+
         if (!listDevices.contains(device)) {
             listDevices.add(device);
             GattDataJson json = new GattDataJson(device, rssi, scanRecord);

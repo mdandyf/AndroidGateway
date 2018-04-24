@@ -9,8 +9,9 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.ParcelUuid;
-import android.util.Log;
 
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScanCallbackNew;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScanCallbackOld;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 
 import java.util.ArrayList;

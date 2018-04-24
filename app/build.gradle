@@ -30,4 +30,5 @@ dependencies {
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
     implementation 'com.android.support:gridlayout-v7:26.1.0'
     compile "com.google.android.gms:play-services-location:7.5.0"
+    compile 'com.neovisionaries:nv-bluetooth:1.8'
 }

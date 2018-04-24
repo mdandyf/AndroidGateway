@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;

@@ -4,43 +4,29 @@ import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
-import android.location.LocationManager;
 import android.os.Build;
-import android.os.Handler;
-import android.os.IBinder;
 import android.os.PowerManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.location.LocationRequest;
 import com.uni.stuttgart.ipvs.androidgateway.R;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
-
-import java.util.List;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class is used to start and stop services of Gateway and also for UI in Gateway Program

@@ -19,9 +19,9 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.util.Log;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeGatt;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeGattCallback;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
@@ -365,6 +365,8 @@ public class GatewayService extends Service {
                             if (!scanResults.contains(result.getDevice())) {
                                 scanResults.add(result.getDevice());
                                 insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
+                            } else {
+                                updateDatabaseDevice(result.getDevice(), result.getRssi());
                             }
                         }
                     } else if (msg.arg1 == 4) {
@@ -374,6 +376,8 @@ public class GatewayService extends Service {
                                 if (!scanResults.contains(result.getDevice())) {
                                     scanResults.add(result.getDevice());
                                     insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
+                                } else {
+                                    updateDatabaseDevice(result.getDevice(), result.getRssi());
                                 }
                             }
                         }
@@ -384,6 +388,8 @@ public class GatewayService extends Service {
                             if (!scanResults.contains(device)) {
                                 scanResults.add(device);
                                 insertDatabaseDevice(device, (GattDataJson) entry.getValue(), "active");
+                            } else {
+                                updateDatabaseDevice(device, (GattDataJson) entry.getValue());
                             }
                         }
                     } else if (msg.arg1 == 7) {
@@ -508,6 +514,18 @@ public class GatewayService extends Service {
         bleDeviceDatabase.insertData(device.getAddress(), deviceName, rssi, deviceState);
     }
 
+    private void updateDatabaseDevice(BluetoothDevice device, int rssi) {
+        String deviceName = "unknown";
+        if (device.getName() != null) {
+            deviceName = device.getName();
+        }
+        try {
+            bleDeviceDatabase.updateData(device.getAddress(), deviceName, rssi, null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void insertDatabaseDevice(BluetoothDevice device, GattDataJson data, String deviceState) {
         broadcastUpdate("Write device " + device.getAddress() + " to database");
         String deviceName = "unknown";
@@ -523,9 +541,33 @@ public class GatewayService extends Service {
         }
     }
 
-    private void updateDatabaseDeviceState(BluetoothDevice device, String deviceState) {
+    private void updateDatabaseDevice(BluetoothDevice device, GattDataJson data) {
+        String deviceName = "unknown";
+        int deviceRssi = 0;
+        try {
+            deviceRssi = (Integer) data.getJsonAdvertising().get("rssi");
+            if (device.getName() != null) {
+                deviceName = device.getName();
+            }
+            bleDeviceDatabase.updateData(device.getAddress(), deviceName, deviceRssi, null);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void updateDatabaseDeviceState(BluetoothDevice device, String deviceState) {
         try {
             bleDeviceDatabase.updateDeviceState(device.getAddress(), deviceState);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void updateAllDeviceStates(List<String> nearbyDevices) {
+        broadcastUpdate("\n");
+        broadcastUpdate("Refresh all device states...");
+        try {
+            bleDeviceDatabase.updateAllDevicesState(nearbyDevices, "active");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -538,6 +580,17 @@ public class GatewayService extends Service {
     private boolean updateDatabaseCharacteristics(String macAddress, String serviceUUID, String characteristicUUID, String property, String value) {
         return bleCharacteristicDatabase.insertData(macAddress, serviceUUID, characteristicUUID, property, value);
     }
+
+    public boolean checkDevice(String macAddress) {
+        if(macAddress == null) {return bleDeviceDatabase.isDeviceExist();}
+        return bleDeviceDatabase.isDeviceExist(macAddress);
+    }
+
+    public List<String> getListDevices() { return bleDeviceDatabase.getListDevices(); }
+
+    public List<String> getListActiveDevices() { return bleDeviceDatabase.getListActiveDevices(); }
+
+    public Map<String, Integer> getMapDevicesRSSI() {return bleDeviceDatabase.getListRssiDevices();}
 
     /**
      * Some routines section

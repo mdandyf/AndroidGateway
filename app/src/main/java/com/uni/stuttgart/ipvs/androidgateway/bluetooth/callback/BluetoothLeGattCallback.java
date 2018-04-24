@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;

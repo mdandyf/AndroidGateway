@@ -1,14 +1,11 @@
 package com.uni.stuttgart.ipvs.androidgateway.helper;
 
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
-
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeGatt;
 
 public class BroadcastReceiverHelper extends BroadcastReceiver {
 

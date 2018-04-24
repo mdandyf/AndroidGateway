@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.ScanCallback;
@@ -11,10 +11,17 @@ import android.support.annotation.RequiresApi;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.neovisionaries.bluetooth.ble.advertising.ADPayloadParser;
+import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
+import com.neovisionaries.bluetooth.ble.advertising.IBeacon;
+import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Created by mdand on 3/9/2018.
@@ -23,7 +30,7 @@ import java.util.Map;
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class ScanCallbackNew extends ScanCallback {
-
+    private static final String TAG = "Bluetooth ScanCallback";
     private List<BluetoothDevice> listDevices;
     private Map<BluetoothDevice, GattDataJson> mapProperties;
     private Handler mHandlerMessage;
@@ -56,7 +63,7 @@ public class ScanCallbackNew extends ScanCallback {
     @Override
     public void onScanFailed(int errorCode) {
         super.onScanFailed(errorCode);
-        Log.w("Bluetooth ScanCallback", "Scanning failed with errorCode " + errorCode);
+        Log.w(TAG, "Scanning failed with errorCode " + errorCode);
         Toast.makeText(context, String.format("Scanning failed (%d)", errorCode), Toast.LENGTH_SHORT).show();
     }
 
@@ -65,6 +72,10 @@ public class ScanCallbackNew extends ScanCallback {
     }
 
     private void addBluetoothDevice(ScanResult result) {
+        Log.d(TAG, result.getDevice().getAddress());
+        AdRecordHelper.decodeAdvertisement(result.getScanRecord().getBytes());
+        result.getScanRecord().getAdvertiseFlags();
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (!listDevices.contains(result.getDevice())) {
                 listDevices.add(result.getDevice());
