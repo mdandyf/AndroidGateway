@@ -30,6 +30,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public static final String BLE_STATE = "device_state";
     public static final String BLE_CRT_DATE = "create_date";
     public static final String BLE_MDF_DATE = "modified_date";
+    public static final String BLE_ADV_RECORD = "adv_record";
 
     public BleDeviceDatabase(Context context) {
         super(context, DATABASE_NAME , null, 1);
@@ -39,7 +40,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleDeviceData " +
-                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, create_date text, modified_date text)"
+                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, adv_record blob, create_date text, modified_date text)"
         );
     }
 
@@ -74,7 +75,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         return status;
     }
 
-    public boolean updateData(String data, String device_name, int rssi, String state) {
+    public boolean updateData(String data, String device_name, int rssi, String state, byte[] scanRecord) {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
@@ -82,6 +83,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
             contentValues.put("mac_address", data);
             contentValues.put("device_name", device_name);
             contentValues.put("device_rssi", rssi);
+            contentValues.put("adv_record", scanRecord);
             if(state != null) {contentValues.put("device_state", state);}
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
             String date = sdf.format(new Date());
@@ -97,7 +99,26 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         return status;
     }
 
+    public boolean updateDeviceAdvData(String key, byte[] scanRecord) {
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            ContentValues contentValues = new ContentValues();
+            if(isDeviceExist(key)) {
+                contentValues.put("adv_record", scanRecord);
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
+                String date = sdf.format(new Date());
+                contentValues.put("modified_date", date);
+                db.update("BleDeviceData", contentValues, "mac_address=?", new String[] {key + ""});
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            status = false;
+        }
 
+        return status;
+    }
 
     public boolean updateDeviceState(String key, String state) {
         boolean status = false;
@@ -196,16 +217,6 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         return list;
     }
 
-    public Map<String, Integer> getListRssiDevices() {
-        Map<String, Integer> map = new HashMap<>();
-        List<String> deviceMacs = getListDevices();
-        for(String deviceMac : deviceMacs) {
-            int rssi = getDeviceRssi(deviceMac);
-            map.put(deviceMac, rssi);
-        }
-        return map;
-    }
-
     public int getDeviceRssi(String macAddress) {
         Cursor cursor = getQuery("SELECT device_rssi from BleDeviceData WHERE mac_address=?", new String[] {macAddress});
         if (cursor.moveToFirst()) {
@@ -214,6 +225,16 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
             }
         }
         return 0;
+    }
+
+    public byte[] getDeviceScanRecord(String macAddress) {
+        Cursor cursor = getQuery("SELECT adv_record from BleDeviceData WHERE mac_address=?", new String[] {macAddress});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                return cursor.getBlob(cursor.getColumnIndex(BLE_ADV_RECORD));
+            }
+        }
+        return null;
     }
 
     private Cursor getQuery(String query, String[] argument) {

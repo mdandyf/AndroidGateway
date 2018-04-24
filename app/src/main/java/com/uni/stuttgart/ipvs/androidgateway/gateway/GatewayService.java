@@ -53,6 +53,8 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.TERMINATE_COMMAND";
     public static final String START_COMMAND =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_COMMAND";
+    public static final String START_SERVICE_INTERFACE =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.START_SERVICE_INTERFACE";
 
     private Intent mIntent;
     private final IBinder mBinder = new LocalBinder();
@@ -366,7 +368,7 @@ public class GatewayService extends Service {
                                 scanResults.add(result.getDevice());
                                 insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
                             } else {
-                                updateDatabaseDevice(result.getDevice(), result.getRssi());
+                                updateDatabaseDevice(result.getDevice(), result.getRssi(), result.getScanRecord().getBytes());
                             }
                         }
                     } else if (msg.arg1 == 4) {
@@ -377,7 +379,7 @@ public class GatewayService extends Service {
                                     scanResults.add(result.getDevice());
                                     insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
                                 } else {
-                                    updateDatabaseDevice(result.getDevice(), result.getRssi());
+                                    updateDatabaseDevice(result.getDevice(), result.getRssi(), result.getScanRecord().getBytes());
                                 }
                             }
                         }
@@ -389,13 +391,21 @@ public class GatewayService extends Service {
                                 scanResults.add(device);
                                 insertDatabaseDevice(device, (GattDataJson) entry.getValue(), "active");
                             } else {
-                                updateDatabaseDevice(device, (GattDataJson) entry.getValue());
+                                updateDatabaseDevice(device, (GattDataJson) entry.getValue(), null);
                             }
                         }
                     } else if (msg.arg1 == 7) {
                         final BluetoothDevice device = (BluetoothDevice) msg.obj;
                         if (!scanResults.contains(device)) {
                             scanResults.add(device);
+                        }
+                    } else if (msg.arg1 == 10) {
+                        final Map<BluetoothDevice, byte[]> mapScanRecord = ((Map<BluetoothDevice, byte[]>) msg.obj);
+                        for (Map.Entry entry : mapScanRecord.entrySet()) {
+                            BluetoothDevice device = (BluetoothDevice) entry.getKey();
+                            if (scanResults.contains(device)) {
+                                updateDatabaseDeviceAdvRecord(device, (byte[]) entry.getValue());
+                            }
                         }
                     }
 
@@ -514,13 +524,13 @@ public class GatewayService extends Service {
         bleDeviceDatabase.insertData(device.getAddress(), deviceName, rssi, deviceState);
     }
 
-    private void updateDatabaseDevice(BluetoothDevice device, int rssi) {
+    private void updateDatabaseDevice(BluetoothDevice device, int rssi, byte[] scanRecord) {
         String deviceName = "unknown";
         if (device.getName() != null) {
             deviceName = device.getName();
         }
         try {
-            bleDeviceDatabase.updateData(device.getAddress(), deviceName, rssi, null);
+            bleDeviceDatabase.updateData(device.getAddress(), deviceName, rssi, null, scanRecord);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -541,7 +551,7 @@ public class GatewayService extends Service {
         }
     }
 
-    private void updateDatabaseDevice(BluetoothDevice device, GattDataJson data) {
+    private void updateDatabaseDevice(BluetoothDevice device, GattDataJson data, byte[] scanRecord) {
         String deviceName = "unknown";
         int deviceRssi = 0;
         try {
@@ -549,7 +559,7 @@ public class GatewayService extends Service {
             if (device.getName() != null) {
                 deviceName = device.getName();
             }
-            bleDeviceDatabase.updateData(device.getAddress(), deviceName, deviceRssi, null);
+            bleDeviceDatabase.updateData(device.getAddress(), deviceName, deviceRssi, null, scanRecord);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -558,6 +568,14 @@ public class GatewayService extends Service {
     public void updateDatabaseDeviceState(BluetoothDevice device, String deviceState) {
         try {
             bleDeviceDatabase.updateDeviceState(device.getAddress(), deviceState);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void updateDatabaseDeviceAdvRecord(BluetoothDevice device, byte[] scanRecord) {
+        try {
+            bleDeviceDatabase.updateDeviceAdvData(device.getAddress(), scanRecord);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -590,7 +608,9 @@ public class GatewayService extends Service {
 
     public List<String> getListActiveDevices() { return bleDeviceDatabase.getListActiveDevices(); }
 
-    public Map<String, Integer> getMapDevicesRSSI() {return bleDeviceDatabase.getListRssiDevices();}
+    public int getDeviceRSSI(String macAddress) {return bleDeviceDatabase.getDeviceRssi(macAddress);}
+
+    public byte[] getDeviceScanRecord(String macAddress) {return bleDeviceDatabase.getDeviceScanRecord(macAddress);}
 
     /**
      * Some routines section
