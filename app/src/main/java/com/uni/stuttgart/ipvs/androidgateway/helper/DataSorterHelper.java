@@ -7,18 +7,22 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-public class DataSorterHelper {
+public class DataSorterHelper<T> {
 
-    public static Map<String, Integer> sortMapByComparator(Map<String, Integer> unsortMap, final boolean order)
+    private T t;
+
+    public DataSorterHelper() { }
+
+    public Map<T, Integer> sortMapByComparator(Map<T, Integer> unsortMap, final boolean order)
     {
 
-        List<Map.Entry<String, Integer>> list = new LinkedList<Map.Entry<String, Integer>>(unsortMap.entrySet());
+        List<Map.Entry<T, Integer>> list = new LinkedList<Map.Entry<T, Integer>>(unsortMap.entrySet());
 
         // Sorting the list based on values
-        Collections.sort(list, new Comparator<Map.Entry<String, Integer>>()
+        Collections.sort(list, new Comparator<Map.Entry<T, Integer>>()
         {
-            public int compare(Map.Entry<String, Integer> o1,
-                               Map.Entry<String, Integer> o2)
+            public int compare(Map.Entry<T, Integer> o1,
+                               Map.Entry<T, Integer> o2)
             {
                 if (order)
                 {
@@ -32,8 +36,8 @@ public class DataSorterHelper {
         });
 
         // Maintaining insertion order with the help of LinkedList
-        Map<String, Integer> sortedMap = new LinkedHashMap<String, Integer>();
-        for (Map.Entry<String, Integer> entry : list)
+        Map<T, Integer> sortedMap = new LinkedHashMap<T, Integer>();
+        for (Map.Entry<T, Integer> entry : list)
         {
             sortedMap.put(entry.getKey(), entry.getValue());
         }
