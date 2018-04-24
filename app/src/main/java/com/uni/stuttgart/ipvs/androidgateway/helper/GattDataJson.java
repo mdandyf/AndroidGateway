@@ -115,11 +115,11 @@ public class GattDataJson extends JsonParser {
                         JSONObject characteristicsJSON = new JSONObject();
                         characteristicsArray.put(characteristicsJSON);
 
-                        characteristicsJSON.put("serviceName", GattLookUp.serviceNameLookup(service.getUuid()));
+                        characteristicsJSON.put("serviceName", GattDataLookUp.serviceNameLookup(service.getUuid()));
                         characteristicsJSON.put("serviceUUID", uuidToString(service.getUuid()));
-                        characteristicsJSON.put("characteristicName", GattLookUp.characteristicNameLookup(characteristic.getUuid()));
+                        characteristicsJSON.put("characteristicName", GattDataLookUp.characteristicNameLookup(characteristic.getUuid()));
                         characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
-                        characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic, gatt));
+                        characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic));
 
                         characteristicsJSON.put("properties", GattDataHelper.decodeProperties(characteristic));
                         characteristicsJSON.put("propertiesValue", characteristic.getProperties());
@@ -132,7 +132,7 @@ public class GattDataJson extends JsonParser {
 
                         for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
                             JSONObject descriptorJSON = new JSONObject();
-                            descriptorJSON.put("descriptorName", GattLookUp.descriptorNameLookup(descriptor.getUuid()));
+                            descriptorJSON.put("descriptorName", GattDataLookUp.descriptorNameLookup(descriptor.getUuid()));
                             descriptorJSON.put("descriptorUuid", uuidToString(descriptor.getUuid()));
                             descriptorJSON.put("descriptorValue", descriptor.getValue());
 
@@ -167,11 +167,11 @@ public class GattDataJson extends JsonParser {
                         JSONObject characteristicsJSON = new JSONObject();
                         arrayCharacteristics.put(characteristicsJSON);
 
-                        characteristicsJSON.put("serviceName", GattLookUp.serviceNameLookup(characteristic.getService().getUuid()));
+                        characteristicsJSON.put("serviceName", GattDataLookUp.serviceNameLookup(characteristic.getService().getUuid()));
                         characteristicsJSON.put("serviceUUID", uuidToString(characteristic.getService().getUuid()));
-                        characteristicsJSON.put("characteristicName", GattLookUp.characteristicNameLookup(characteristic.getUuid()));
+                        characteristicsJSON.put("characteristicName", GattDataLookUp.characteristicNameLookup(characteristic.getUuid()));
                         characteristicsJSON.put("characteristicUUID", uuidToString(characteristic.getUuid()));
-                        characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic, gatt));
+                        characteristicsJSON.put("characteristicValue", GattDataHelper.decodeCharacteristicValue(characteristic));
 
                         characteristicsJSON.put("properties", GattDataHelper.decodeProperties(characteristic));
                         characteristicsJSON.put("propertiesValue", characteristic.getProperties());
@@ -184,7 +184,7 @@ public class GattDataJson extends JsonParser {
 
                         for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
                             JSONObject descriptorJSON = new JSONObject();
-                            descriptorJSON.put("descriptorName", GattLookUp.descriptorNameLookup(descriptor.getUuid()));
+                            descriptorJSON.put("descriptorName", GattDataLookUp.descriptorNameLookup(descriptor.getUuid()));
                             descriptorJSON.put("descriptorUuid", uuidToString(descriptor.getUuid()));
                             descriptorJSON.put("descriptorValue", descriptor.getValue());
 

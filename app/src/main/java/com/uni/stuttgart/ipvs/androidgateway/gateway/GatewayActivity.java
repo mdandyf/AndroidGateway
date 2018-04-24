@@ -4,19 +4,14 @@ import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
-import android.location.LocationManager;
 import android.os.Build;
-import android.os.Handler;
-import android.os.IBinder;
+import android.os.PowerManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.Menu;
@@ -24,29 +19,20 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.location.LocationRequest;
 import com.uni.stuttgart.ipvs.androidgateway.R;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
-
-import java.util.List;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
 
 /**
  * This class is used to start and stop services of Gateway and also for UI in Gateway Program
  */
 
 public class GatewayActivity extends AppCompatActivity {
-
-    private ScheduledThreadPoolExecutor scheduler;
-    private final int PROCESSING_TIME = 60000;
 
     private BluetoothAdapter mBluetoothAdapter;
     private LocationRequest mLocation;
@@ -56,10 +42,17 @@ public class GatewayActivity extends AppCompatActivity {
 
     private boolean mProcessing = false;
     private Context context;
+    private GatewayController mService;
+    private boolean mBound;
+
+    private PowerManager.WakeLock wakeLock;
+    private PowerManager powerManager;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
+
+    private BroadcastReceiverHelper mBReceiver = new BroadcastReceiverHelper();
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -115,6 +108,8 @@ public class GatewayActivity extends AppCompatActivity {
             }
         });
 
+        setWakeLock();
+
         registerBroadcastListener();
         checkingPermission();
         clearDatabase();
@@ -124,8 +119,21 @@ public class GatewayActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         stopServiceGateway();
-        unregisterReceiver(mReceiver);
+        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
+        if(mReceiver != null) {unregisterReceiver(mReceiver);}
         finish();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        setWakeLock();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        setWakeLock();
     }
 
     @Override
@@ -142,6 +150,7 @@ public class GatewayActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        setWakeLock();
     }
 
     @Override
@@ -157,57 +166,29 @@ public class GatewayActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
     }
 
+    private void setWakeLock() {
+        powerManager = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockActivity");
+        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
+    }
+
     /**
-     * Start and Stop Service Gateway Section
+     * Start and Stop Gateway Controller Section
      */
 
     private void startServiceGateway() {
-        /*mProcessing = true;
-        scheduler = new ScheduledThreadPoolExecutor(10);
-        scheduler.scheduleAtFixedRate(new StartServiceGateway(), 0, PROCESSING_TIME + 100, TimeUnit.MILLISECONDS);
-        scheduler.scheduleWithFixedDelay(new StopServiceGateway(), PROCESSING_TIME, PROCESSING_TIME, TimeUnit.MILLISECONDS);*/
-
         mGatewayService = new Intent(context, GatewayController.class);
         startService(mGatewayService);
         setCommandLine("\n");
         setCommandLine("Start Services...");
         mProcessing = true;
-
-
     }
 
     private void stopServiceGateway() {
-       /* mProcessing = false;
-        StopServiceGateway stopService = new StopServiceGateway();
-        stopService.run();*/
-
-        stopService(mGatewayService);
+        if(mGatewayService != null) {stopService(mGatewayService); }
         setCommandLine("\n");
         setCommandLine("Stop Services...");
         mProcessing = false;
-    }
-
-    protected class StartServiceGateway implements Runnable {
-        @Override
-        public void run() {
-            mGatewayService = new Intent(context, GatewayController.class);
-            startService(mGatewayService);
-            setCommandLine("\n");
-            setCommandLine("Start Services...");
-            mProcessing = true;
-        }
-    }
-
-    protected class StopServiceGateway implements Runnable {
-        @Override
-        public void run() {
-            if(mGatewayService != null) {
-                stopService(mGatewayService);
-                setCommandLine("\n");
-                setCommandLine("Stop Services...");
-                mProcessing = false;
-            }
-        }
     }
 
     private void setMenuVisibility() {
@@ -280,6 +261,11 @@ public class GatewayActivity extends AppCompatActivity {
 
         IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
         registerReceiver(mReceiver, filter3);
+
+        IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
+        pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
+        registerReceiver(mBReceiver, pairingRequestFilter);
+
         setCommandLine("Registering Broadcast Listener");
     }
 
@@ -305,7 +291,6 @@ public class GatewayActivity extends AppCompatActivity {
                     startServiceGateway();
                 }
             }
-
         }
 
     };
@@ -318,6 +303,14 @@ public class GatewayActivity extends AppCompatActivity {
         bleDeviceDatabase.deleteAllData();
         bleServicesDatabase.deleteAllData();
         bleCharacteristicDatabase.deleteAllData();
+    }
+
+    private void waitThread(int time) {
+        try {
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     /**

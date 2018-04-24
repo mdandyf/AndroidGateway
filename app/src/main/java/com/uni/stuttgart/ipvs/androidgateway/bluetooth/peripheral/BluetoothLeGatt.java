@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
+package com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -19,6 +19,7 @@ public class BluetoothLeGatt {
     public static int REGISTER_NOTIFY = 101;
     public static int REGISTER_INDICATE = 102;
     public static int READ_DESCRIPTOR = 103;
+    public static int READ_ENCRYPTED = 103;
     public static int WRITE = 200;
     public static int WRITE_DESCRIPTOR = 201;
 
