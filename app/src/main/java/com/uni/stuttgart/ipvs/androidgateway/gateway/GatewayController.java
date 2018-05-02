@@ -120,10 +120,10 @@ public class GatewayController extends Service {
             mProcessing = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
-            //doScheduleSemaphore();
+            doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            doScheduleFEP();
+            //doScheduleFEP();
             //doScheduleFP();
         }
 

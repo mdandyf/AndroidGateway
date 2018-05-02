@@ -83,8 +83,13 @@ public class ServiceInterfaceActivity extends FragmentActivity {
                     bundle = new Bundle();
                     bundle.putCharSequence("MACAddress", device);
                     bundle.putBinder("GatewayService", iBinder);
-                    addTabView(device, device, Container.class, bundle);
-                    Log.d("Service Interface", "Viewing Device " + device);
+                    if(!listTagTabView.contains(device)) {
+                        Log.d("Service Interface", "Viewing Device " + device);
+                        listTagTabView.add(device);
+                        mTabHost.addTab(mTabHost.newTabSpec(device).setIndicator(device, null), Container.class, null);
+                        Toast.makeText(context, "Started TabHost 1", Toast.LENGTH_LONG).show();
+                        setScreenTabView();
+                    }
                 }
             }
         }
@@ -113,15 +118,6 @@ public class ServiceInterfaceActivity extends FragmentActivity {
         @Override
         public void onServiceDisconnected(ComponentName arg0) { isBound = false; }
     };
-
-    public void addTabView(String tag, String indicator, Class<?> fragmentContainerClass, Bundle args) {
-        if(!listTagTabView.contains(tag)) {
-            listTagTabView.add(tag);
-            mTabHost.addTab(mTabHost.newTabSpec(tag).setIndicator(indicator), fragmentContainerClass, args);
-            Toast.makeText(context, "Started TabHost 1", Toast.LENGTH_LONG).show();
-            //setScreenTabView();
-        }
-    }
 
     private void setScreenTabView() {
         for (int i = 0; i < mTabHost.getTabWidget().getChildCount(); i++) {
