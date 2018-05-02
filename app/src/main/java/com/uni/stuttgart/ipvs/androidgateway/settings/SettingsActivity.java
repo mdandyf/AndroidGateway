@@ -19,7 +19,7 @@ import android.preference.RingtonePreference;
 import android.text.TextUtils;
 import android.view.MenuItem;
 
-import com.uni.stuttgart.ipvs.androidgateway.MainActivity;
+import com.uni.stuttgart.ipvs.androidgateway.MainTabActivity;
 import com.uni.stuttgart.ipvs.androidgateway.R;
 
 import java.util.List;
@@ -187,7 +187,7 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
         public boolean onOptionsItemSelected(MenuItem item) {
             int id = item.getItemId();
             if (id == android.R.id.home) {
-                startActivity(new Intent(getActivity(), MainActivity.class));
+                startActivity(new Intent(getActivity(), MainTabActivity.class));
                 return true;
             }
             return super.onOptionsItemSelected(item);
@@ -209,7 +209,7 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
         public boolean onOptionsItemSelected(MenuItem item) {
             int id = item.getItemId();
             if (id == android.R.id.home) {
-                startActivity(new Intent(getActivity(), MainActivity.class));
+                startActivity(new Intent(getActivity(), MainTabActivity.class));
                 return true;
             }
             return super.onOptionsItemSelected(item);
@@ -241,7 +241,7 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
         public boolean onOptionsItemSelected(MenuItem item) {
             int id = item.getItemId();
             if (id == android.R.id.home) {
-                startActivity(new Intent(getActivity(), MainActivity.class));
+                startActivity(new Intent(getActivity(), MainTabActivity.class));
                 return true;
             }
             return super.onOptionsItemSelected(item);
@@ -271,7 +271,7 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
         public boolean onOptionsItemSelected(MenuItem item) {
             int id = item.getItemId();
             if (id == android.R.id.home) {
-                startActivity(new Intent(getActivity(), MainActivity.class));
+                startActivity(new Intent(getActivity(), MainTabActivity.class));
                 return true;
             }
             return super.onOptionsItemSelected(item);

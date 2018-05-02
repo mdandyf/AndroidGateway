@@ -2,13 +2,11 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -20,9 +18,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
-import android.widget.Spinner;
 import android.widget.Toast;
 
 import com.google.android.gms.location.LocationRequest;
@@ -31,9 +27,6 @@ import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
-
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * This class is used to start and stop services of Gateway and also for UI in Gateway Program
@@ -269,9 +262,6 @@ public class GatewayActivity extends AppCompatActivity {
         IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
         registerReceiver(mReceiver, filter3);
 
-        IntentFilter filter4 = new IntentFilter(GatewayService.START_SERVICE_INTERFACE);
-        registerReceiver(mReceiver, filter4);
-
         IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
         pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
         registerReceiver(mBReceiver, pairingRequestFilter);
@@ -292,18 +282,15 @@ public class GatewayActivity extends AppCompatActivity {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
                 stopServiceGateway();
-                //scheduler.shutdown();
                 setMenuVisibility();
             } else if (action.equals(GatewayService.START_COMMAND)) {
-                String message = intent.getStringExtra("command");
-                Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-                if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
-                    startServiceGateway();
+                if(!mProcessing) {
+                    String message = intent.getStringExtra("command");
+                    Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+                    if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
+                        startServiceGateway();
+                    }
                 }
-            } else if(action.equals(GatewayService.START_SERVICE_INTERFACE)) {
-                String message = intent.getStringExtra("command");
-                Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-                setOpenDialog();
             }
         }
 
@@ -319,14 +306,6 @@ public class GatewayActivity extends AppCompatActivity {
         bleCharacteristicDatabase.deleteAllData();
     }
 
-    private void waitThread(int time) {
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
     /**
      * View Related Routine Section
      */
@@ -339,51 +318,6 @@ public class GatewayActivity extends AppCompatActivity {
                 textArea.append(info);
             }
         });
-    }
-
-    private void setOpenDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        View mView = getLayoutInflater().inflate(R.layout.action_dialog_service_interface, null);
-        builder.setTitle("Active Devices");
-        final Spinner mSpinner = (Spinner) mView.findViewById(R.id.spinner);
-        String[] stringArray = bleDeviceDatabase.getListActiveDevices().toArray(new String[0]);
-        ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(context,
-                android.R.layout.simple_spinner_item, stringArray);
-
-        arrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        mSpinner.setAdapter(arrayAdapter);
-
-        builder.setPositiveButton("Launch Interface", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(final DialogInterface dialogInterface, int i) {
-                if (!mSpinner.getSelectedItem().toString().equalsIgnoreCase("Choose a device")) {
-                    Toast.makeText(context, "Loading " + mSpinner.getSelectedItem().toString() + " Interface...",
-                            Toast.LENGTH_SHORT).show() ;
-
-                    dialogInterface.dismiss();
-                }
-            }
-        });
-
-        builder.setNegativeButton("Dismiss", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialogInterface, int i) {
-                dialogInterface.dismiss();
-            }
-        });
-
-        builder.setView(mView);
-        final AlertDialog dialog = builder.create();
-        dialog.show();
-        final Timer t = new Timer();
-
-        t.schedule(new TimerTask() {
-            public void run() {
-                dialog.dismiss(); // when the task active then close the dialog
-                t.cancel(); // also just top the timer thread, otherwise, you may receive a crash report
-            }
-        }, 8000); // after 2 second (or 2000 miliseconds), the task will be active.
-
     }
 
 
