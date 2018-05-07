@@ -22,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayController;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.service.fragment.BatteryFragment;
@@ -30,6 +31,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class ServiceInterface extends ListFragment {
 
@@ -40,6 +44,7 @@ public class ServiceInterface extends ListFragment {
     private ListView listView;
 
     private IGatewayService iGatewayService;
+    private ScheduledThreadPoolExecutor scheduler;
 
     @Override
     public void onAttach(Context context) {
@@ -59,16 +64,29 @@ public class ServiceInterface extends ListFragment {
         View v = inflater.inflate(R.layout.fragment_service, container, false);
         listView = (ListView) v.findViewById(android.R.id.list);
 
-        dataAdapter = new ArrayList<Map<String, String>>();
-        adapter = new SimpleAdapter(context, dataAdapter,
-                android.R.layout.simple_list_item_2,
-                new String[] {"Device Name", "Device Address"},
-                new int[] {android.R.id.text1,
-                        android.R.id.text2});
-        listView.setAdapter(adapter);
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                dataAdapter = new ArrayList<Map<String, String>>();
+                adapter = new SimpleAdapter(context, dataAdapter,
+                        android.R.layout.simple_list_item_2,
+                        new String[] {"Device Name", "Device Address"},
+                        new int[] {android.R.id.text1,
+                                android.R.id.text2});
+                listView.setAdapter(adapter);
+            }
+        });
+
+
 
 
         return v;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (scheduler != null && !scheduler.isShutdown()) { scheduler.shutdown(); }
     }
 
     @Override
@@ -98,7 +116,8 @@ public class ServiceInterface extends ListFragment {
                                        IBinder service) {
             iGatewayService = IGatewayService.Stub.asInterface(service);
             mBound = true;
-            initialize();
+            scheduler = new ScheduledThreadPoolExecutor(10);
+            scheduler.scheduleAtFixedRate(new ServiceInterfaceRun(), 10, 5 * 1000, MILLISECONDS); // check dbase for new device every 5 seconds
         }
 
         @Override
@@ -107,31 +126,41 @@ public class ServiceInterface extends ListFragment {
         }
     };
 
-    private void initialize() {
 
-        // populate result from database
-        try {
-            List<String> activeDevices = iGatewayService.getListActiveDevices();
-            List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
-            for(BluetoothDevice device : scanResults) {
-                for(String macAddress: activeDevices) {
-                    if(device.getAddress().equals(macAddress)) {
-                        // put data into adapter
-                        Map<String, String> data = new HashMap<>();
-                        data.put("Device Name", "Unknown");
-                        if(device.getName() != null) {
-                            data.put("Device Name", device.getName());
+    protected class ServiceInterfaceRun implements Runnable {
+
+        @Override
+        public void run() {
+            // populate result from database
+            try {
+                List<String> activeDevices = iGatewayService.getListActiveDevices();
+                List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                for(final BluetoothDevice device : scanResults) {
+                    for(String macAddress: activeDevices) {
+                        if(device.getAddress().equals(macAddress)) {
+                            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
+                            if(userChoice != null) {
+                                if(userChoice.equals("Yes")) {
+                                    // put data into adapter
+                                    getActivity().runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            Map<String, String> data = new HashMap<>();
+                                            data.put("Device Name", "Unknown");
+                                            if(device.getName() != null) { data.put("Device Name", device.getName()); }
+                                            data.put("Device Address", device.getAddress());
+                                            if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
+                                        }
+                                    });
+                                }
+                            }
                         }
-                        data.put("Device Address", device.getAddress());
-                        dataAdapter.add(data);
-                        adapter.notifyDataSetChanged();
                     }
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (RemoteException e) {
-            e.printStackTrace();
         }
-
     }
 
     private void replaceFragment(int containerView, android.support.v4.app.Fragment classFragment, String tag) {
