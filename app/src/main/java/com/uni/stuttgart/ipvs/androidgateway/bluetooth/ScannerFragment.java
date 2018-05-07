@@ -13,7 +13,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -167,7 +166,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
-        inflater.inflate(R.menu.menu_bluetooth, menu);
+        inflater.inflate(R.menu.menu_scanner, menu);
         menuBar = menu;
         setMenuVisibility();
     }
