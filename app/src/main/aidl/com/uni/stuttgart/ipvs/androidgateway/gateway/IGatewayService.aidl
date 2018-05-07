@@ -7,6 +7,7 @@ import BluetoothDevice;
 import List;
 import ParcelUuid;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
 //import Runnable;
 
 interface IGatewayService {
@@ -22,6 +23,10 @@ interface IGatewayService {
 
     String getCurrentStatus();
 
+    void setMessageHandler(in PMessageHandler messageHandler);
+
+    PMessageHandler getMessageHandler();
+
     void setProcessing(boolean mProcessing);
 
     List<BluetoothDevice> getScanResults();
@@ -33,6 +38,10 @@ interface IGatewayService {
     void execScanningQueue();
 
     void doConnect(in String macAddress);
+
+    void doConnecting(in String macAddress);
+
+    void doConnected(in PBluetoothGatt gatt);
 
     void doDisconnected(in PBluetoothGatt gatt, in String type);
 
@@ -58,8 +67,8 @@ interface IGatewayService {
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 
-    void disconnect();
+    List<ParcelUuid> getCharacteristicUUIDs(String macAddress);
 
-    void disconnectGatt();
+    void disconnectSpecificGatt(in String macAddress);
 
 }
