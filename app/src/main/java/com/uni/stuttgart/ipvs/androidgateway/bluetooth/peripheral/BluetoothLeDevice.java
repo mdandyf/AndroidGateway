@@ -14,8 +14,6 @@ public class BluetoothLeDevice {
     private int rssi;
     private int type;
     private UUID serviceUUID;
-    private BluetoothGatt bluetoothGatt;
-    private int timer;
 
     public static int SCANNING = 300;
     public static int STOP_SCANNING = 301;
@@ -75,15 +73,5 @@ public class BluetoothLeDevice {
     public void setServiceUUID(UUID serviceUUID) {
         this.serviceUUID = serviceUUID;
     }
-
-    public BluetoothGatt getBluetoothGatt() {
-        return bluetoothGatt;
-    }
-
-    public void setBluetoothGatt(BluetoothGatt bluetoothGatt) {this.bluetoothGatt = bluetoothGatt;}
-
-    public int getTimer() {return timer;}
-
-    public void setTimer(int timer) {this.timer = timer;}
 
 }

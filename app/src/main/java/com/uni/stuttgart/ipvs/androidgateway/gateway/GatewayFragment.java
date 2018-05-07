@@ -11,14 +11,19 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.os.PowerManager;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
+import android.view.LayoutInflater;
 import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import com.google.android.gms.location.LocationRequest;
@@ -28,40 +33,81 @@ import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
 
-/**
- * This class is used to start and stop services of Gateway and also for UI in Gateway Program
- */
-
-public class GatewayActivity extends AppCompatActivity {
-
+public class GatewayFragment extends Fragment {
     private BluetoothAdapter mBluetoothAdapter;
     private LocationRequest mLocation;
     private Intent mGatewayService;
     private EditText textArea;
     private Menu menuBar;
+    private Context context;
 
     private boolean mProcessing = false;
-    private Context context;
     private GatewayController mService;
     private boolean mBound;
 
     private PowerManager.WakeLock wakeLock;
     private PowerManager powerManager;
 
-    private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
-    private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
-    private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
+    private BleDeviceDatabase bleDeviceDatabase;
+    private ServicesDatabase bleServicesDatabase;
+    private CharacteristicsDatabase bleCharacteristicDatabase;
 
     private BroadcastReceiverHelper mBReceiver = new BroadcastReceiverHelper();
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_gateway, menu);
-        menuBar = menu;
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        this.context = context;
+    }
 
+    @Override
+    public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_gateway, container, false);
+        setHasOptionsMenu(true);
+
+        mLocation = LocationRequest.create();
+        textArea = (EditText) view.findViewById(R.id.textArea);
+        textArea.setFocusable(false);
+        textArea.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+                switch (event.getAction() & MotionEvent.ACTION_MASK) {
+                    case MotionEvent.ACTION_UP:
+                        v.getParent().requestDisallowInterceptTouchEvent(false);
+                        break;
+                }
+                return false;
+            }
+        });
+
+        powerManager = (PowerManager) getActivity().getSystemService(Context.POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockGateway");
+
+        setWakeLock();
+        checkingPermission();
+        registerBroadcastListener();
+        clearDatabase();
+
+        // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
+        // fire an intent to display a dialog asking the user to grant permission to enable it.
+        if (!mBluetoothAdapter.isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, 1);
+        } else {
+            startServiceGateway();
+        }
+
+        return view;
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        // Inflate the menu; this adds items to the action bar if it is present.
+        inflater.inflate(R.menu.menu_gateway, menu);
+        menuBar = menu;
         setMenuVisibility();
-        return true;
     }
 
     @Override
@@ -86,78 +132,44 @@ public class GatewayActivity extends AppCompatActivity {
         return true;
     }
 
-
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_gateway);
-        context = this;
-        mLocation = LocationRequest.create();
-        textArea = (EditText) findViewById(R.id.textArea);
-        textArea.setFocusable(false);
-        textArea.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                v.getParent().requestDisallowInterceptTouchEvent(true);
-                switch (event.getAction() & MotionEvent.ACTION_MASK) {
-                    case MotionEvent.ACTION_UP:
-                        v.getParent().requestDisallowInterceptTouchEvent(false);
-                        break;
-                }
-                return false;
-            }
-        });
-
-        setWakeLock();
-
-        registerBroadcastListener();
-        checkingPermission();
-        clearDatabase();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        stopServiceGateway();
-        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
-        if(mReceiver != null) {unregisterReceiver(mReceiver);}
-        finish();
-    }
-
-    @Override
-    protected void onStart() {
+    public void onStart() {
         super.onStart();
         setWakeLock();
     }
 
     @Override
-    protected void onStop() {
+    public void onStop() {
         super.onStop();
         setWakeLock();
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
-        // fire an intent to display a dialog asking the user to grant permission to enable it.
-        if (!mBluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, 1);
-        }
+    public void onDestroy() {
+        super.onDestroy();
+        stopServiceGateway();
+        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
+        if(mReceiver != null) {getActivity().unregisterReceiver(mReceiver);}
+        getActivity().finish();
     }
 
     @Override
-    protected void onPause() {
+    public void onResume() {
+        super.onResume();
+        setWakeLock();
+    }
+
+    @Override
+    public void onPause() {
         super.onPause();
         setWakeLock();
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
         // User chose not to enable Bluetooth.
         if (requestCode == 1 && resultCode == Activity.RESULT_CANCELED) {
-            finish();
+            getActivity().finish();
             return;
         }
 
@@ -167,8 +179,6 @@ public class GatewayActivity extends AppCompatActivity {
     }
 
     private void setWakeLock() {
-        powerManager = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockActivity");
         if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
     }
 
@@ -178,21 +188,21 @@ public class GatewayActivity extends AppCompatActivity {
 
     private void startServiceGateway() {
         mGatewayService = new Intent(context, GatewayController.class);
-        startService(mGatewayService);
+        getActivity().startService(mGatewayService);
         setCommandLine("\n");
         setCommandLine("Start Services...");
         mProcessing = true;
     }
 
     private void stopServiceGateway() {
-        if(mGatewayService != null) {stopService(mGatewayService); }
+        if(mGatewayService != null) {getActivity().stopService(mGatewayService); }
         setCommandLine("\n");
         setCommandLine("Stop Services...");
         mProcessing = false;
     }
 
     private void setMenuVisibility() {
-        runOnUiThread(new Runnable() {
+        getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 if (mProcessing) {
@@ -212,36 +222,36 @@ public class GatewayActivity extends AppCompatActivity {
         // Use this check to determine whether BLE is supported on the device.  Then you can
         // selectively disable BLE-related features.
         setCommandLine("Start checking permissions...");
-        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            Toast.makeText(this, "Ble is not supported", Toast.LENGTH_SHORT).show();
-            finish();
+        if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            Toast.makeText(context, "Ble is not supported", Toast.LENGTH_SHORT).show();
+            getActivity().finish();
         }
 
         // Initializes a Bluetooth adapter.  For API level 18 and above, get a reference to
         // BluetoothAdapter through BluetoothManager.
         final BluetoothManager bluetoothManager =
-                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+                (BluetoothManager) getActivity().getSystemService(Context.BLUETOOTH_SERVICE);
         mBluetoothAdapter = bluetoothManager.getAdapter();
 
         // Checks if Bluetooth is supported on the device.
         if (bluetoothManager.getAdapter() == null) {
-            Toast.makeText(this, "Bluetooth is not supported", Toast.LENGTH_SHORT).show();
-            finish();
+            Toast.makeText(context, "Bluetooth is not supported", Toast.LENGTH_SHORT).show();
+            getActivity().finish();
         }
 
         // check if location is enabled
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             /** force user to turn on location service */
-            if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Please turn on Location Permission!", Toast.LENGTH_LONG).show();
-                finish();
+            if (getActivity().checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(context, "Please turn on Location Permission!", Toast.LENGTH_LONG).show();
+                getActivity().finish();
             }
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Please turn on Storage Permission!", Toast.LENGTH_LONG).show();
-                finish();
+            if (getActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(context, "Please turn on Storage Permission!", Toast.LENGTH_LONG).show();
+                getActivity().finish();
             }
         }
 
@@ -254,19 +264,19 @@ public class GatewayActivity extends AppCompatActivity {
 
     private void registerBroadcastListener() {
         IntentFilter filter1 = new IntentFilter(GatewayService.MESSAGE_COMMAND);
-        registerReceiver(mReceiver, filter1);
+        getActivity().registerReceiver(mReceiver, filter1);
 
         IntentFilter filter2 = new IntentFilter(GatewayService.TERMINATE_COMMAND);
-        registerReceiver(mReceiver, filter2);
+        getActivity().registerReceiver(mReceiver, filter2);
 
         IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
-        registerReceiver(mReceiver, filter3);
+        getActivity().registerReceiver(mReceiver, filter3);
 
         IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
         pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
-        registerReceiver(mBReceiver, pairingRequestFilter);
+        getActivity().registerReceiver(mBReceiver, pairingRequestFilter);
 
-        setCommandLine("Registering Broadcast Listener");
+        setCommandLine("Start Broadcast Listener...");
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -280,13 +290,13 @@ public class GatewayActivity extends AppCompatActivity {
                 setCommandLine(message);
             } else if (action.equals(GatewayService.TERMINATE_COMMAND)) {
                 String message = intent.getStringExtra("command");
-                Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
                 stopServiceGateway();
                 setMenuVisibility();
             } else if (action.equals(GatewayService.START_COMMAND)) {
                 if(!mProcessing) {
                     String message = intent.getStringExtra("command");
-                    Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
                     if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
                         startServiceGateway();
                     }
@@ -301,6 +311,10 @@ public class GatewayActivity extends AppCompatActivity {
      */
 
     private void clearDatabase() {
+        bleDeviceDatabase = new BleDeviceDatabase(context);
+        bleServicesDatabase = new ServicesDatabase(context);
+        bleCharacteristicDatabase = new CharacteristicsDatabase(context);
+        
         bleDeviceDatabase.deleteAllData();
         bleServicesDatabase.deleteAllData();
         bleCharacteristicDatabase.deleteAllData();
@@ -311,7 +325,7 @@ public class GatewayActivity extends AppCompatActivity {
      */
 
     private void setCommandLine(final String info) {
-        runOnUiThread(new Runnable() {
+        getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 textArea.append("\n");

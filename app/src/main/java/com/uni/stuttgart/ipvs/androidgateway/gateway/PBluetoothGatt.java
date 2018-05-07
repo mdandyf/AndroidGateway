@@ -10,8 +10,6 @@ public final class PBluetoothGatt implements Parcelable {
 
     public BluetoothGatt gatt;
 
-    public ParcelUuid pUUID;
-
     public PBluetoothGatt() {}
 
     private PBluetoothGatt(Parcel in) { readToParcel(in); }
