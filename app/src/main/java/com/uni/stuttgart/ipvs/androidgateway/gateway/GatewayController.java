@@ -56,7 +56,7 @@ public class GatewayController extends Service {
         cycleCounter = 0;
         mIntent = intent;
         context = this;
-        bindService(new Intent(this, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
+        bindService(new Intent(context, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
         return START_STICKY;
     }
@@ -120,10 +120,10 @@ public class GatewayController extends Service {
             mProcessing = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             broadcastUpdate("\n");
-            doScheduleSemaphore();
+            //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            //doScheduleFEP();
+            doScheduleFEP();
             //doScheduleFP();
         }
 
@@ -173,7 +173,6 @@ public class GatewayController extends Service {
             cycleCounter++;
             broadcastUpdate("Cycle number " + cycleCounter);
             try {
-                iGatewayService.disconnectGatt();
                 iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
                 iGatewayService.execScanningQueue();
                 mScanning = true;
@@ -320,7 +319,6 @@ public class GatewayController extends Service {
                 broadcastUpdate("Start new cycle");
                 cycleCounter++;
                 broadcastUpdate("Cycle number " + cycleCounter);
-                iGatewayService.disconnectGatt();
                 boolean isDataExist = iGatewayService.checkDevice(null);
                 if (isDataExist) {
                     List<String> devices = iGatewayService.getListActiveDevices();

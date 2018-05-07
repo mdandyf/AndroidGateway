@@ -1,51 +1,49 @@
 package com.uni.stuttgart.ipvs.androidgateway;
 
-import android.app.TabActivity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.support.v4.app.FragmentTabHost;
+import android.support.v7.app.AppCompatActivity;
 import android.widget.TabHost;
 import android.widget.Toast;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.ScannerActivity;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayActivity;
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.ScannerFragment;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayFragment;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
-import com.uni.stuttgart.ipvs.androidgateway.service.ServiceInterfaceActivity;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Created by mdand on 3/25/2018.
  */
 
-public class MainTabActivity extends TabActivity {
+public class MainActivity extends AppCompatActivity {
 
     private TabHost tabHost;
     private TabHost.TabSpec spec;
-    private List<String> listTabName;
-    private int serviceCounter;
+    private FragmentTabHost mTabHost;
     private boolean isServiceStarted;
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_maintab);
+        setContentView(R.layout.activity_main);
 
-        tabHost = (TabHost) findViewById(android.R.id.tabhost); // initiate TabHost
-        listTabName = new ArrayList<>();
+        mTabHost = (FragmentTabHost) findViewById(android.R.id.tabhost);
+        mTabHost.setup(this, getSupportFragmentManager(), android.R.id.tabcontent);
         isServiceStarted = false;
 
-        addTabActivity("Gateway", "GATEWAY", GatewayActivity.class);
-        addTabActivity("Scanner", "SCANNER", ScannerActivity.class);
+        addTab("Gateway", "GATEWAY", GatewayFragment.class, null);
+        addTab("Scanner", "SCANNER", ScannerFragment.class, null);
+        addTab("Services", "SERVICES", com.uni.stuttgart.ipvs.androidgateway.service.ServiceInterface.class, null);
 
         //set tab which one you want to open first time
-        tabHost.setCurrentTab(0);
 
-        broadcastCommand("Start Services", GatewayService.START_COMMAND);
-        tabHost.setOnTabChangedListener(new TabHost.OnTabChangeListener() {
+        mTabHost.setCurrentTab(0);
+
+        mTabHost.setOnTabChangedListener(new TabHost.OnTabChangeListener() {
             @Override
             public void onTabChanged(String tabId) {
                 // display the name of the tab whenever a tab is changed
@@ -65,7 +63,6 @@ public class MainTabActivity extends TabActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(mReceiver);
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -76,7 +73,7 @@ public class MainTabActivity extends TabActivity {
             if(action.equals(GatewayService.START_SERVICE_INTERFACE)) {
                 String message = intent.getStringExtra("message");
                 if(!isServiceStarted) {
-                    addTabActivity("Services", "SERVICES", ServiceInterfaceActivity.class);
+                    addTab("Services", "SERVICES", com.uni.stuttgart.ipvs.androidgateway.service.ServiceInterface.class, null);
                     isServiceStarted = true;
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
                     unregisterReceiver(mReceiver);
@@ -87,13 +84,10 @@ public class MainTabActivity extends TabActivity {
 
 
 
-    private void addTabActivity(String tag, String indicator, Class<?> activityClass) {
-        listTabName.add(tag);
-        spec = tabHost.newTabSpec(tag);
-        spec.setIndicator(indicator);
-        Intent intent = new Intent(this, activityClass);
-        spec.setContent(intent);
-        tabHost.addTab(spec);
+    private void addTab(String tag, String indicator, Class<?> fragmentClass, Drawable icon) {
+        mTabHost.addTab(
+                mTabHost.newTabSpec(tag).setIndicator(indicator, icon),
+                fragmentClass, null);
     }
 
     private void broadcastCommand(String message, String action) {

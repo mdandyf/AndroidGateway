@@ -156,8 +156,23 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public String getCurrentStatus() {
+        public String getCurrentStatus() throws RemoteException {
             return status;
+        }
+
+        @Override
+        public void setMessageHandler(PMessageHandler messageHandler) throws RemoteException {
+            Handler handler = messageHandler.getHandlerMessage();
+            if (handler != null) {
+                mHandlerMessage = handler;
+            }
+        }
+
+        @Override
+        public PMessageHandler getMessageHandler() throws RemoteException {
+            PMessageHandler parcelMessageHandler = new PMessageHandler();
+            parcelMessageHandler.setHandlerMessage(mHandlerMessage);
+            return parcelMessageHandler;
         }
 
         @Override
@@ -251,11 +266,37 @@ public class GatewayService extends Service {
                 BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
                 gattCallback.setHandlerMessage(mHandlerMessage);
                 mBluetoothGatt = gattCallback.connect();
+                Log.d(TAG, "connect to " + mBluetoothGatt.getDevice().getAddress() + " on " + mBinder.getPid());
                 try {
                     lock.wait();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
+            }
+        }
+
+        @Override
+        public void doConnecting(String macAddress) throws RemoteException {
+            status = "Connecting";
+            final BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
+            synchronized (device) {
+                BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
+                gattCallback.setHandlerMessage(mHandlerMessage);
+                mBluetoothGatt = gattCallback.connect();
+                Log.d(TAG, "connect to " + mBluetoothGatt.getDevice().getAddress() + " on " + mBinder.getPid());
+            }
+        }
+
+        @Override
+        public void doConnected(PBluetoothGatt gatt) {
+            synchronized (lock) {
+                status = "Connected";
+                mBluetoothGatt = gatt.getGatt();
+                broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
+                broadcastUpdate("discovering services...");
+                status = "Discovering";
+                mBluetoothGatt.discoverServices();
+                lock.notifyAll();
             }
         }
 
@@ -268,9 +309,15 @@ public class GatewayService extends Service {
                     broadcastUpdate("Disconnected from " + mBluetoothGatt.getDevice().getAddress());
                     lock.notifyAll();
                 } else {
-                    mBluetoothGatt.disconnect();
+                    try {
+                        mBluetoothGatt.disconnect();
+                        mBluetoothGatt.close();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
+
         }
 
         @Override
@@ -385,37 +432,20 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void disconnect() throws RemoteException {
-            mProcessing = false;
-            mHandlerMessage.removeCallbacksAndMessages(mHandlerCallback);
-            disconnectGatt();
-            if (wakeLock != null && wakeLock.isHeld()) {
-                wakeLock.release();
-            }
-            stopService(mIntent);
-            stopSelf();
+        public List<ParcelUuid> getCharacteristicUUIDs(String macAddress) throws RemoteException {
+            return null;
         }
 
         @Override
-        public void disconnectGatt() {
+        public void disconnectSpecificGatt(String macAddress) throws RemoteException {
             for (BluetoothGatt gatt : listBluetoothGatt) {
-                gatt.disconnect();
-                gatt.close();
+                if (gatt.getDevice().getAddress().equals(macAddress)) {
+                    gatt.disconnect();
+                    gatt.close();
+                }
             }
         }
     };
-
-    private void doConnected(BluetoothGatt gatt) {
-        synchronized (lock) {
-            status = "Connected";
-            mBluetoothGatt = gatt;
-            broadcastUpdate("connected to " + gatt.getDevice().getAddress());
-            broadcastUpdate("discovering services...");
-            status = "Discovering";
-            gatt.discoverServices();
-            lock.notifyAll();
-        }
-    }
 
     private synchronized void getServiceCharacteristic(BluetoothGatt gatt) {
         for (BluetoothGattService service : gatt.getServices()) {
@@ -531,7 +561,9 @@ public class GatewayService extends Service {
                         // read all bluetoothGatt connected servers
                         BluetoothGatt connectedGatt = ((BluetoothGatt) msg.obj);
                         dataJson = new GattDataJson(connectedGatt.getDevice(), connectedGatt);
-                        doConnected(connectedGatt);
+                        PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
+                        parcelBluetoothGatt.setGatt(connectedGatt);
+                        mBinder.doConnected(parcelBluetoothGatt);
                     } else if (msg.arg1 == 2) {
                         // read all bluetoothGatt disconnected servers
                         BluetoothGatt disconnectedGatt = ((BluetoothGatt) msg.obj);
@@ -709,7 +741,7 @@ public class GatewayService extends Service {
         }
     }
 
-    public void disconnect() {
+    private void disconnect() {
         mProcessing = false;
         mHandlerMessage.removeCallbacksAndMessages(mHandlerCallback);
         disconnectGatt();
@@ -720,7 +752,7 @@ public class GatewayService extends Service {
         stopSelf();
     }
 
-    public void disconnectGatt() {
+    private void disconnectGatt() {
         for (BluetoothGatt gatt : listBluetoothGatt) {
             gatt.disconnect();
             gatt.close();
