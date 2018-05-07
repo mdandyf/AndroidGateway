@@ -31,6 +31,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public static final String BLE_CRT_DATE = "create_date";
     public static final String BLE_MDF_DATE = "modified_date";
     public static final String BLE_ADV_RECORD = "adv_record";
+    public static final String BLE_USER_CHOICE = "user_choice";
 
     public BleDeviceDatabase(Context context) {
         super(context, DATABASE_NAME , null, 1);
@@ -40,7 +41,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleDeviceData " +
-                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, adv_record blob, create_date text, modified_date text)"
+                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, adv_record blob, user_choice text, create_date text, modified_date text)"
         );
     }
 
@@ -120,6 +121,27 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         return status;
     }
 
+    public boolean updateDeviceUserChoice(String key, String user_choice) {
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            ContentValues contentValues = new ContentValues();
+            if(isDeviceExist(key)) {
+                contentValues.put("user_choice", user_choice);
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
+                String date = sdf.format(new Date());
+                contentValues.put("modified_date", date);
+                db.update("BleDeviceData", contentValues, "mac_address=?", new String[] {key + ""});
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            status = false;
+        }
+
+        return status;
+    }
+
     public boolean updateDeviceState(String key, String state) {
         boolean status = false;
         try {
@@ -137,7 +159,6 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
             e.printStackTrace();
             status = false;
         }
-
         return status;
     }
 
@@ -232,6 +253,16 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         if (cursor.moveToFirst()) {
             while (!cursor.isAfterLast()) {
                 return cursor.getBlob(cursor.getColumnIndex(BLE_ADV_RECORD));
+            }
+        }
+        return null;
+    }
+
+    public String getDeviceUsrChoice(String macAddress) {
+        Cursor cursor = getQuery("SELECT user_choice from BleDeviceData WHERE mac_address=?", new String[] {macAddress});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                return cursor.getString(cursor.getColumnIndex(BLE_USER_CHOICE));
             }
         }
         return null;

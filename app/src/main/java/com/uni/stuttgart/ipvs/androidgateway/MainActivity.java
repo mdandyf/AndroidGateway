@@ -1,12 +1,17 @@
 package com.uni.stuttgart.ipvs.androidgateway;
 
+import android.annotation.SuppressLint;
+import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentTabHost;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.TabHost;
 import android.widget.Toast;
@@ -25,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     private TabHost.TabSpec spec;
     private FragmentTabHost mTabHost;
     private boolean isServiceStarted;
+    String oldTab = "Gateway";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,11 +53,6 @@ public class MainActivity extends AppCompatActivity {
             public void onTabChanged(String tabId) {
                 // display the name of the tab whenever a tab is changed
                 Toast.makeText(getApplicationContext(), tabId, Toast.LENGTH_SHORT).show();
-                if (tabId == "Gateway") {
-                    broadcastCommand("Start Services", GatewayService.START_COMMAND);
-                } else if(tabId == "Scanner") {
-                    broadcastCommand("Stop Services", GatewayService.TERMINATE_COMMAND);
-                }
             }
         });
 
@@ -60,27 +61,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-    }
+    protected void onDestroy() { super.onDestroy(); }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
 
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if(action.equals(GatewayService.START_SERVICE_INTERFACE)) {
+            if (action.equals(GatewayService.START_SERVICE_INTERFACE)) {
                 String message = intent.getStringExtra("message");
-                if(!isServiceStarted) {
-                    addTab("Services", "SERVICES", com.uni.stuttgart.ipvs.androidgateway.service.ServiceInterface.class, null);
-                    isServiceStarted = true;
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-                    unregisterReceiver(mReceiver);
-                }
+                addTab("Services", "SERVICES", com.uni.stuttgart.ipvs.androidgateway.service.ServiceInterface.class, null);
+                isServiceStarted = true;
+                unregisterReceiver(mReceiver);
             }
         }
     };
-
 
 
     private void addTab(String tag, String indicator, Class<?> fragmentClass, Drawable icon) {

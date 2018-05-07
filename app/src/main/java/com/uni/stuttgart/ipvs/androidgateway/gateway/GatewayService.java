@@ -59,6 +59,8 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_COMMAND";
     public static final String START_SERVICE_INTERFACE =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_SERVICE_INTERFACE";
+    public static final String USER_CHOICE_SERVICE =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.USER_CHOICE_SERVICE";
 
     private Intent mIntent;
 
@@ -388,6 +390,15 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void updateDatabaseDeviceUsrChoice(String macAddress, String userChoice) throws RemoteException {
+            try {
+                bleDeviceDatabase.updateDeviceUserChoice(macAddress, userChoice);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
         public void updateAllDeviceStates(List<String> nearbyDevices) throws RemoteException {
             broadcastUpdate("\n");
             broadcastUpdate("Refresh all device states...");
@@ -424,6 +435,11 @@ public class GatewayService extends Service {
         @Override
         public byte[] getDeviceScanRecord(String macAddress) throws RemoteException {
             return bleDeviceDatabase.getDeviceScanRecord(macAddress);
+        }
+
+        @Override
+        public String getDeviceUsrChoice(String macAddress) throws RemoteException {
+            return bleDeviceDatabase.getDeviceUsrChoice(macAddress);
         }
 
         @Override
@@ -723,6 +739,23 @@ public class GatewayService extends Service {
     /**
      * Some routines section
      */
+
+    private BluetoothDevice getDevice(String macAddress) {
+        if(scanResults != null && scanResults.size() > 0) {
+            List<BluetoothDevice> devices = null;
+            try {
+                devices = mBinder.getScanResults();
+                for(BluetoothDevice device : devices) {
+                    if (device.getAddress().equals(macAddress)) {
+                        return device;
+                    }
+                }
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+        return null;
+    }
 
     private void setWakeLock() {
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);

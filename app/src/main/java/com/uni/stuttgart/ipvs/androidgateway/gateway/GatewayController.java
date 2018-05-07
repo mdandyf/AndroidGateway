@@ -38,7 +38,6 @@ public class GatewayController extends Service {
     private Context context;
     private ScheduledThreadPoolExecutor scheduler;
     private Intent mIntent;
-    //private GatewayService mGatewayService;
     private IGatewayService iGatewayService;
     private boolean mBound = false;
     private boolean mProcessing = false;
@@ -58,23 +57,11 @@ public class GatewayController extends Service {
         context = this;
         bindService(new Intent(context, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
-        return START_STICKY;
-    }
 
-    /**
-     * Class used for the client Binder.
-     */
-    public class LocalBinder extends Binder {
-        GatewayController getService() {
-            // Return this instance of Service so clients can call public methods
-            return GatewayController.this;
-        }
-    }
-
-    private void setWakeLock() {
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockController");
-        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
+
+        return START_STICKY;
     }
 
     @Override
@@ -93,28 +80,39 @@ public class GatewayController extends Service {
         stopSelf();
     }
 
+    /**
+     * Gateway Controller Binding Section
+     */
+
+
     @Override
-    public IBinder onBind(Intent intent) { context = this; setWakeLock(); return null; }
+    public IBinder onBind(Intent intent) { context = this; setWakeLock(); return mBinder; }
 
     @Override
     public boolean onUnbind(Intent intent) {return false; }
 
     /**
-     * Gateway Controller Section
+     * Class used for the client for binding to GatewayController.
+     */
+    public class LocalBinder extends Binder {
+        GatewayController getService() {
+            // Return this instance of Service so clients can call public methods
+            return GatewayController.this;
+        }
+    }
+
+    /**
+     * Gateway Controller Main Program Section
      */
 
     /**
-     * Defines callbacks for service binding, passed to bindService()
+     * Defines callbacks for service binding via AIDL for IGatewayService
      */
     protected ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName className,
                                        IBinder service) {
-            // We've bound to LocalService, cast the IBinder and get LocalService instance
-            /*GatewayService.LocalBinder binder = (GatewayService.LocalBinder) service;
-            iGatewayService = binder.getService();*/
-
             iGatewayService = IGatewayService.Stub.asInterface(service);
             mBound = true;
             mProcessing = true;
@@ -407,7 +405,6 @@ public class GatewayController extends Service {
                 // do polling slaves part
                 boolean isDataExist = iGatewayService.checkDevice(null);
                 if (isDataExist) {
-                    broadcastServiceInterface("Start Service Interface");
                     List<String> devices = iGatewayService.getListActiveDevices();
                     for (String device : devices) { iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null); }
                     iGatewayService.execScanningQueue();
@@ -474,6 +471,7 @@ public class GatewayController extends Service {
                 if (devices.contains(device.getAddress())) {
                     processConnecting = new ProcessPriority(10);
                     processConnecting.newThread(doConnecting(device.getAddress())).start();
+                    processUserChoiceAlert(device.getAddress(), device.getName());
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
                     if (!mProcessing) {
@@ -599,6 +597,7 @@ public class GatewayController extends Service {
                     BluetoothDevice device = (BluetoothDevice) entry.getKey();
                     processConnecting = new ProcessPriority(10);
                     processConnecting.newThread(doConnecting(device.getAddress())).start();
+                    processUserChoiceAlert(device.getAddress(), device.getName());
                     // set timer to xx seconds
                     if((Integer) entry.getValue() == 1) {
                         waitThread(maxConnectTime);
@@ -718,6 +717,36 @@ public class GatewayController extends Service {
      * Start Method Routine
      */
 
+    public void updateDeviceUserChoice(String macAddress, String userChoice) {
+        if(mBound) {
+            try {
+                iGatewayService.updateDatabaseDeviceUsrChoice(macAddress, userChoice);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if(userChoice.equals("Yes")) {processStartServiceInterface();}
+    }
+
+    private void processStartServiceInterface() {
+        broadcastServiceInterface("Start Service Interface");
+    }
+
+    private void processUserChoiceAlert(String macAddress, String deviceName) {
+        try {
+            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
+            if(deviceName == null) {deviceName = "Unknown";};
+            if(userChoice == null || userChoice == "") broadcastAlertDialog("Start Service Interface of Device " + macAddress + "-" + deviceName, macAddress);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void setWakeLock() {
+        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
+    }
+
     private Runnable doConnecting(final String macAddress) {
         return new Runnable() {
             @Override
@@ -751,6 +780,15 @@ public class GatewayController extends Service {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
             intent.putExtra("message", message);
+            sendBroadcast(intent);
+        }
+    }
+
+    private void broadcastAlertDialog(String message, String macAddress) {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.USER_CHOICE_SERVICE);
+            intent.putExtra("message", message);
+            intent.putExtra("macAddress", macAddress);
             sendBroadcast(intent);
         }
     }

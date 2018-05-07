@@ -53,6 +53,8 @@ interface IGatewayService {
 
     void updateDatabaseDeviceAdvRecord(in BluetoothDevice device, in byte[] scanRecord);
 
+    void updateDatabaseDeviceUsrChoice(in String macAddress, in String userChoice);
+
     void updateAllDeviceStates(in List<String> nearbyDevices);
 
     boolean checkDevice(in String macAddress);
@@ -64,6 +66,8 @@ interface IGatewayService {
     int getDeviceRSSI(in String macAddress);
 
     byte[] getDeviceScanRecord(in String macAddress);
+
+    String getDeviceUsrChoice(in String macAddress);
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 

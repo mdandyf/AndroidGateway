@@ -6,15 +6,22 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v7.app.AlertDialog;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -36,7 +43,7 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
 public class GatewayFragment extends Fragment {
     private BluetoothAdapter mBluetoothAdapter;
     private LocationRequest mLocation;
-    private Intent mGatewayService;
+    private Intent mIntentGatewayService;
     private EditText textArea;
     private Menu menuBar;
     private Context context;
@@ -95,7 +102,7 @@ public class GatewayFragment extends Fragment {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, 1);
         } else {
-            startServiceGateway();
+            startGatewayService();
         }
 
         return view;
@@ -120,12 +127,11 @@ public class GatewayFragment extends Fragment {
         //noinspection SimplifiableIfStatement
         switch (id) {
             case R.id.action_start:
-                startServiceGateway();
+                startGatewayService();
                 setMenuVisibility();
                 break;
             case R.id.action_stop:
-                stopServiceGateway();
-                //scheduler.shutdown();
+                stopGatewayService();
                 setMenuVisibility();
                 break;
         }
@@ -136,21 +142,6 @@ public class GatewayFragment extends Fragment {
     public void onStart() {
         super.onStart();
         setWakeLock();
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        setWakeLock();
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        stopServiceGateway();
-        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
-        if(mReceiver != null) {getActivity().unregisterReceiver(mReceiver);}
-        getActivity().finish();
     }
 
     @Override
@@ -166,6 +157,21 @@ public class GatewayFragment extends Fragment {
     }
 
     @Override
+    public void onStop() {
+        super.onStop();
+        setWakeLock();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        stopGatewayService();
+        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
+        if(mReceiver != null) {getActivity().unregisterReceiver(mReceiver);}
+        getActivity().finish();
+    }
+
+    @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         // User chose not to enable Bluetooth.
         if (requestCode == 1 && resultCode == Activity.RESULT_CANCELED) {
@@ -173,29 +179,47 @@ public class GatewayFragment extends Fragment {
             return;
         }
 
-        startServiceGateway();
+        startGatewayService();
 
         super.onActivityResult(requestCode, resultCode, data);
     }
 
-    private void setWakeLock() {
-        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
-    }
+    /**
+     * Binding to GatewayController
+     */
+    protected ServiceConnection mConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName className,
+                                       IBinder service) {
+            GatewayController.LocalBinder binder = (GatewayController.LocalBinder) service;
+            mService = binder.getService();
+            mBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            mBound = false;
+        }
+    };
+
 
     /**
      * Start and Stop Gateway Controller Section
      */
 
-    private void startServiceGateway() {
-        mGatewayService = new Intent(context, GatewayController.class);
-        getActivity().startService(mGatewayService);
+    private void startGatewayService() {
+        mIntentGatewayService = new Intent(context, GatewayController.class);
+        getActivity().startService(mIntentGatewayService);
         setCommandLine("\n");
         setCommandLine("Start Services...");
+        getActivity().bindService(mIntentGatewayService, mConnection, Context.BIND_AUTO_CREATE);
         mProcessing = true;
     }
 
-    private void stopServiceGateway() {
-        if(mGatewayService != null) {getActivity().stopService(mGatewayService); }
+    private void stopGatewayService() {
+        if(mConnection != null) {getActivity().unbindService(mConnection);}
+        if(mIntentGatewayService != null) {getActivity().stopService(mIntentGatewayService); }
         setCommandLine("\n");
         setCommandLine("Stop Services...");
         mProcessing = false;
@@ -272,6 +296,9 @@ public class GatewayFragment extends Fragment {
         IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
         getActivity().registerReceiver(mReceiver, filter3);
 
+        IntentFilter filter4 = new IntentFilter(GatewayService.USER_CHOICE_SERVICE);
+        getActivity().registerReceiver(mReceiver, filter4);
+
         IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
         pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
         getActivity().registerReceiver(mBReceiver, pairingRequestFilter);
@@ -291,16 +318,18 @@ public class GatewayFragment extends Fragment {
             } else if (action.equals(GatewayService.TERMINATE_COMMAND)) {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-                stopServiceGateway();
+                stopGatewayService();
                 setMenuVisibility();
             } else if (action.equals(GatewayService.START_COMMAND)) {
                 if(!mProcessing) {
                     String message = intent.getStringExtra("command");
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-                    if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
-                        startServiceGateway();
-                    }
+                    if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) { startGatewayService(); }
                 }
+            } else if(action.equals(GatewayService.USER_CHOICE_SERVICE)) {
+                String message = intent.getStringExtra("message");
+                String macAddress = intent.getStringExtra("macAddress");
+                alertDialog("Service Interface", message, "Yes", "No", macAddress);
             }
         }
 
@@ -309,6 +338,10 @@ public class GatewayFragment extends Fragment {
     /**
      * Other Routines Section
      */
+
+    private void setWakeLock() {
+        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
+    }
 
     private void clearDatabase() {
         bleDeviceDatabase = new BleDeviceDatabase(context);
@@ -323,6 +356,42 @@ public class GatewayFragment extends Fragment {
     /**
      * View Related Routine Section
      */
+
+    private void alertDialog(String title, String message, String positive, String negative, final String args) {
+        final boolean[] hasAnswered = {false};
+        final AlertDialog.Builder dialog = new AlertDialog.Builder(context);
+        dialog.setTitle(title)
+                .setIcon(R.drawable.ic_info_black_24dp)
+                .setMessage(message)
+                .setNegativeButton(negative, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialoginterface, int i) {
+                        // update No to database
+                        mService.updateDeviceUserChoice(args, "No");
+                        hasAnswered[0] = true;
+                    }
+                })
+                .setPositiveButton(positive, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialoginterface, int i) {
+                        //update Yes to database
+                        mService.updateDeviceUserChoice(args, "Yes");
+                        hasAnswered[0] = true;
+                    }
+                });
+
+        final AlertDialog ad = dialog.show();
+
+        //if no answer within 5 seconds, then it is no
+        Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if(!hasAnswered[0]) {
+                    mService.updateDeviceUserChoice(args, "No");
+                    ad.dismiss();
+                }
+            }
+        }, 5 * 1000);
+    }
 
     private void setCommandLine(final String info) {
         getActivity().runOnUiThread(new Runnable() {
