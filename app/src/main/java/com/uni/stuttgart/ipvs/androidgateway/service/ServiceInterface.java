@@ -82,7 +82,7 @@ public class ServiceInterface extends ListFragment {
         // here select which fragment that will be used
         try {
             List<ParcelUuid> listServicesUUID = iGatewayService.getServiceUUIDs(deviceAddress);
-            changeFragment(new BatteryFragment(), R.id.main_frame, "Battery");
+            replaceFragment(R.id.main_frame, new BatteryFragment(), "Battery");
         } catch (RemoteException e) {
             e.printStackTrace();
         }
@@ -118,7 +118,10 @@ public class ServiceInterface extends ListFragment {
                     if(device.getAddress().equals(macAddress)) {
                         // put data into adapter
                         Map<String, String> data = new HashMap<>();
-                        data.put("Device Name", device.getName());
+                        data.put("Device Name", "Unknown");
+                        if(device.getName() != null) {
+                            data.put("Device Name", device.getName());
+                        }
                         data.put("Device Address", device.getAddress());
                         dataAdapter.add(data);
                         adapter.notifyDataSetChanged();
@@ -131,10 +134,10 @@ public class ServiceInterface extends ListFragment {
 
     }
 
-    private void changeFragment(android.support.v4.app.Fragment classFragment, int containerView, String tag) {
+    private void replaceFragment(int containerView, android.support.v4.app.Fragment classFragment, String tag) {
         getActivity().getSupportFragmentManager().beginTransaction()
                 .replace(containerView, classFragment, tag)
-                .addToBackStack(null)
-                .commit();
+                .addToBackStack(tag)
+                .commitAllowingStateLoss();
     }
 }

@@ -121,7 +121,7 @@ public class ServicesDatabase extends SQLiteOpenHelper {
 
     public List<ParcelUuid> getServiceUUIDs(String macAddress) {
         List<ParcelUuid> listUUIDs = new ArrayList<>();
-        Cursor cursor = getQuery("SELECT mac_address from BleServicesData WHERE mac_address=?", new String[]{macAddress + ""});
+        Cursor cursor = getQuery("SELECT service_uuid from BleServicesData WHERE mac_address=?", new String[]{macAddress + ""});
         if (cursor.moveToFirst()) {
             while (!cursor.isAfterLast()) {
                 String uuid = cursor.getString(cursor.getColumnIndex(SERVICE_UUID));
