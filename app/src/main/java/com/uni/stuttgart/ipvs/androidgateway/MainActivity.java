@@ -37,7 +37,6 @@ public class MainActivity extends AppCompatActivity {
 
         addTab("Gateway", "GATEWAY", GatewayFragment.class, null);
         addTab("Scanner", "SCANNER", ScannerFragment.class, null);
-        addTab("Services", "SERVICES", com.uni.stuttgart.ipvs.androidgateway.service.ServiceInterface.class, null);
 
         //set tab which one you want to open first time
 
