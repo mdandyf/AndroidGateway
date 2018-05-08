@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by mdand on 3/17/2018.
@@ -73,6 +74,15 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         mBluetoothGatt = mDevice.connectGatt(context, true, mGattCallback);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 0, 0, mBluetoothGatt));
         refreshDeviceCache(mBluetoothGatt);
+    }
+
+    public BluetoothGatt connect(BluetoothAdapter mBluetoothAdapter, String macAddress, Handler handler) {
+        mDevice = mBluetoothAdapter.getRemoteDevice(macAddress);
+        mBluetoothGatt = mDevice.connectGatt(context, true, mGattCallback);
+        handler.sendMessage(Message.obtain(handler, 1, 0, 0, mBluetoothGatt));
+        mHandlerMessage = handler;
+        refreshDeviceCache(mBluetoothGatt);
+        return mBluetoothGatt;
     }
 
     public void disconnect() {
@@ -229,14 +239,14 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
         if(BluetoothGatt.GATT_SUCCESS == status)
         {
             Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " read with status " + status);
-            Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+            Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new ConcurrentHashMap<>();
             mapGatt.put(gatt, characteristic);
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 5, 0, mapGatt));
         } else if(BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION == status ||
                 BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION == status)
         {
             Log.d(TAG, "Characteristic " + characteristic.getUuid().toString() + " read with status " + status);
-            Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+            Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new ConcurrentHashMap<>();
             mapGatt.put(gatt, characteristic);
             mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 10, 0, mapGatt));
         }
@@ -245,7 +255,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicWrite(gatt, characteristic, status);
-        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new ConcurrentHashMap<>();
         mapGatt.put(gatt, characteristic);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 6, 0, mapGatt));
     }
@@ -253,7 +263,7 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
-        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new HashMap<>();
+        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = new ConcurrentHashMap<>();
         mapGatt.put(gatt, characteristic);
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 7, 0, mapGatt));
     }

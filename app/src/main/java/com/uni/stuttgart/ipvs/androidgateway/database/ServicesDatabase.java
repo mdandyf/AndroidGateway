@@ -5,12 +5,16 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.os.ParcelUuid;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Created by mdand on 3/23/2018.
@@ -115,27 +119,29 @@ public class ServicesDatabase extends SQLiteOpenHelper {
         return status;
     }
 
-    public Map<Integer, Map<String, Date>> getAllData() {
-        Map<Integer, Map<String, Date>> mapResult = new HashMap<>();
-        Map<String, Date> mapData = new HashMap<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor res = db.rawQuery("select * from BleServicesData", null);
-        res.moveToFirst();
-
-        while (res.isAfterLast() == false) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
-            Date date = null;
-            try {
-                date = sdf.parse(res.getString(res.getColumnIndex(BLE_TIMESTAMP)));
-                String data = res.getString(res.getColumnIndex(BLE_DATA));
-                String action = res.getString(res.getColumnIndex(SERVICE_UUID));
-                int key = res.getInt(res.getColumnIndex(BLE_ID));
-                mapData.put(data, date);
-                mapResult.put(key, mapData);
-            } catch (ParseException e) {
-                e.printStackTrace();
+    public List<ParcelUuid> getServiceUUIDs(String macAddress) {
+        List<ParcelUuid> listUUIDs = new ArrayList<>();
+        Cursor cursor = getQuery("SELECT service_uuid from BleServicesData WHERE mac_address=?", new String[]{macAddress + ""});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                String uuid = cursor.getString(cursor.getColumnIndex(SERVICE_UUID));
+                listUUIDs.add(ParcelUuid.fromString(uuid));
+                cursor.moveToNext();
             }
         }
-        return mapResult;
+        cursor.close();
+        return listUUIDs;
+    }
+
+    private Cursor getQuery(String query, String[] argument) {
+        Cursor cursor = null;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery(query, argument);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return cursor;
     }
 }

@@ -134,29 +134,5 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
         return status;
     }
 
-    public Map<Integer, Map<String, Date>>  getAllData() {
-        Map<Integer, Map<String, Date>> mapResult = new HashMap<>();
-        Map<String, Date> mapData = new HashMap<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor res =  db.rawQuery( "select * from BleCharacteristicsData", null );
-        res.moveToFirst();
 
-        while(res.isAfterLast() == false){
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
-            Date date = null;
-            try {
-                date = sdf.parse(res.getString(res.getColumnIndex(CREATE_DATE)));
-                String characteristicUUID = res.getString(res.getColumnIndex(CHARACRERISTIC_UUID));
-                String serviceUUID = res.getString(res.getColumnIndex(SERVICE_UUID));
-                String characteristicValue = res.getString(res.getColumnIndex(CHARACRERISTIC_VALUE));
-                String characteristicProperty = res.getString(res.getColumnIndex(CHARACRERISTIC_PROPERTY));
-                int key = res.getInt(res.getColumnIndex(ID));
-                mapData.put(characteristicUUID, date);
-                mapResult.put(key, mapData);
-            } catch (ParseException e) {
-                e.printStackTrace();
-            }
-        }
-        return mapResult;
-    }
 }
