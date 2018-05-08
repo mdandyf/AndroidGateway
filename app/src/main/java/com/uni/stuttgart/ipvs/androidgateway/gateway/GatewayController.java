@@ -39,9 +39,13 @@ public class GatewayController extends Service {
     private ScheduledThreadPoolExecutor scheduler;
     private Intent mIntent;
     private IGatewayService iGatewayService;
+    private GatewayPowerEstimator mServicePE;
+
     private boolean mBound = false;
+    private boolean mBoundPE = false;
     private boolean mProcessing = false;
     private boolean mScanning = false;
+
     private ProcessPriority process;
     private ProcessPriority processConnecting;
     private int cycleCounter;
@@ -55,8 +59,12 @@ public class GatewayController extends Service {
         cycleCounter = 0;
         mIntent = intent;
         context = this;
+
         bindService(new Intent(context, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
+
+        bindService(new Intent(context, GatewayPowerEstimator.class), mConnectionPE, Context.BIND_AUTO_CREATE);
+        broadcastUpdate("Bind GatewayController to PowerEstimator...");
 
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockController");
@@ -72,6 +80,7 @@ public class GatewayController extends Service {
         if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
         if (processConnecting != null) { processConnecting.interruptThread(); }
         if (process != null) { process.interruptThread(); }
+        if(mConnectionPE != null && mBoundPE) {unbindService(mConnectionPE); }
         if(mConnection != null) {unbindService(mConnection); }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
@@ -121,14 +130,30 @@ public class GatewayController extends Service {
             //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            doScheduleFEP();
-            //doScheduleFP();
+            //doScheduleFEP();
+            doScheduleFP();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
             mBound = false;
             try { iGatewayService.setProcessing(mProcessing); } catch (RemoteException e) { e.printStackTrace(); }
+        }
+    };
+
+    protected ServiceConnection mConnectionPE = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName className,
+                                       IBinder service) {
+            GatewayPowerEstimator.LocalBinder binder = (GatewayPowerEstimator.LocalBinder) service;
+            mServicePE = binder.getService();
+            mBoundPE = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            mBoundPE = false;
         }
     };
 
@@ -635,35 +660,36 @@ public class GatewayController extends Service {
                 for(Map.Entry entry : mapDevicesRssi.entrySet()) {
                     for(BluetoothDevice device : devices) {
                         if(device.getAddress().equals((String) entry.getKey())) {
-                            if((Integer) entry.getValue() >= -90) { // only rssi bigger than -90 dBm that will be prioritized (give 1)
+                            if((Integer) entry.getValue() >= -80) { // only rssi bigger than -90 dBm that will be prioritized (give 1)
                                 mapPriority.put(device, 1);
                             } else {
-                                mapPriority.put(device, 3);
+                                mapPriority.put(device, 2);
                             }
                         }
                     }
                 }
 
-                // check for priority in case of manufacturer data
+                // check for priority in case of user choice
                 for(Map.Entry entry : mapPriority.entrySet()) {
                     if((Integer) entry.getValue() >= 2) {
                         BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                        byte[] scanRecord = iGatewayService.getDeviceScanRecord(device.getAddress());
-                        Map<String, Object> mapAdvertisement = AdRecordHelper.parseAdvertisement(AdRecordHelper.decodeAdvertisement(scanRecord));
-                        if(mapAdvertisement.containsKey("Manufacturer")) {
-
+                        String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
+                        if(userChoice != null) {
+                            if(userChoice.equals("Yes")) {
+                                mapPriority.remove(device);
+                                mapPriority.put(device, 1);
+                            } else if(userChoice.equals("No")) {
+                                mapPriority.remove(device);
+                                mapPriority.put(device, 3);
+                            }
                         }
                     }
                 }
-                // check for priority in case of services available
+                // check for priority in case of power estimator
                 for(Map.Entry entry : mapPriority.entrySet()) {
                     if((Integer) entry.getValue() >= 2) {
                         BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                        byte[] scanRecord = iGatewayService.getDeviceScanRecord(device.getAddress());
-                        Map<String, Object> mapAdvertisement = AdRecordHelper.parseAdvertisement(AdRecordHelper.decodeAdvertisement(scanRecord));
-                        if(mapAdvertisement.containsKey("UUIDs")) {
 
-                        }
                     }
                 }
 
