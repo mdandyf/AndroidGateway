@@ -10,14 +10,16 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class GatewayPowerEstimator extends Service {
+public class PowerEstimator extends Service {
     private IBinder iBinder;
     private final IBinder mBinder = new LocalBinder();
 
     private ScheduledThreadPoolExecutor scheduler;
+    private ScheduledFuture<?> future;
 
     private BatteryManager batteryManager;
 
@@ -51,8 +53,8 @@ public class GatewayPowerEstimator extends Service {
         registerReceiver(this.BatteryInfo, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
 
         // start scheduler to measure battery properties
-        scheduler = new ScheduledThreadPoolExecutor(10);
-        scheduler.scheduleAtFixedRate(new ReadPowerData(), 0, 500, TimeUnit.MILLISECONDS);
+        scheduler = new ScheduledThreadPoolExecutor(5);
+        future = scheduler.scheduleAtFixedRate(new ReadPowerData(), 0, 500, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -61,6 +63,9 @@ public class GatewayPowerEstimator extends Service {
 
         // stop the battery change listener
         unregisterReceiver(this.BatteryInfo);
+        // stop the scheduler
+        future.cancel(true);
+        scheduler.shutdownNow();
     }
 
     @Override
@@ -73,9 +78,9 @@ public class GatewayPowerEstimator extends Service {
      * Class used for the client for binding to GatewayController.
      */
     public class LocalBinder extends Binder {
-        GatewayPowerEstimator getService() {
+        PowerEstimator getService() {
             // Return this instance of Service so clients can call public methods
-            return GatewayPowerEstimator.this;
+            return PowerEstimator.this;
         }
     }
 

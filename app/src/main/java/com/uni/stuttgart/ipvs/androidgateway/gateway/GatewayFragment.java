@@ -17,6 +17,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.support.annotation.Nullable;
@@ -43,12 +44,12 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
 public class GatewayFragment extends Fragment {
     private BluetoothAdapter mBluetoothAdapter;
     private LocationRequest mLocation;
-    private Intent mIntentGatewayService;
     private EditText textArea;
     private Menu menuBar;
     private Context context;
 
     private boolean mProcessing = false;
+    private Intent mIntentGatewayController;
     private GatewayController mService;
     private boolean mBound;
 
@@ -168,6 +169,7 @@ public class GatewayFragment extends Fragment {
         stopGatewayService();
         if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
         if(mReceiver != null) {getActivity().unregisterReceiver(mReceiver);}
+        if(mBReceiver != null) {getActivity().unregisterReceiver(mBReceiver);}
         getActivity().finish();
     }
 
@@ -209,17 +211,17 @@ public class GatewayFragment extends Fragment {
      */
 
     private void startGatewayService() {
-        mIntentGatewayService = new Intent(context, GatewayController.class);
-        getActivity().startService(mIntentGatewayService);
+        mIntentGatewayController = new Intent(context, GatewayController.class);
+        getActivity().startService(mIntentGatewayController);
         setCommandLine("\n");
         setCommandLine("Start Services...");
-        getActivity().bindService(mIntentGatewayService, mConnection, Context.BIND_AUTO_CREATE);
+        getActivity().bindService(mIntentGatewayController, mConnection, Context.BIND_AUTO_CREATE);
         mProcessing = true;
     }
 
     private void stopGatewayService() {
-        if(mConnection != null) {getActivity().unbindService(mConnection);}
-        if(mIntentGatewayService != null) {getActivity().stopService(mIntentGatewayService); }
+        if(mConnection != null && mProcessing) {getActivity().unbindService(mConnection);}
+        if(mIntentGatewayController != null) {getActivity().stopService(mIntentGatewayController); }
         setCommandLine("\n");
         setCommandLine("Stop Services...");
         mProcessing = false;
@@ -357,40 +359,46 @@ public class GatewayFragment extends Fragment {
      * View Related Routine Section
      */
 
-    private void alertDialog(String title, String message, String positive, String negative, final String args) {
-        final boolean[] hasAnswered = {false};
-        final AlertDialog.Builder dialog = new AlertDialog.Builder(context);
-        dialog.setTitle(title)
-                .setIcon(R.drawable.ic_info_black_24dp)
-                .setMessage(message)
-                .setNegativeButton(negative, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialoginterface, int i) {
-                        // update No to database
-                        mService.updateDeviceUserChoice(args, "No");
-                        hasAnswered[0] = true;
-                    }
-                })
-                .setPositiveButton(positive, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialoginterface, int i) {
-                        //update Yes to database
-                        mService.updateDeviceUserChoice(args, "Yes");
-                        hasAnswered[0] = true;
-                    }
-                });
-
-        final AlertDialog ad = dialog.show();
-
-        //if no answer within 5 seconds, then it is no
-        Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
+    private void alertDialog(final String title, final String message, final String positive, final String negative, final String args) {
+        getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if(!hasAnswered[0]) {
-                    mService.updateDeviceUserChoice(args, "No");
-                    ad.dismiss();
-                }
+
+                final boolean[] hasAnswered = {false};
+                final AlertDialog.Builder dialog = new AlertDialog.Builder(context);
+                dialog.setTitle(title)
+                        .setIcon(R.drawable.ic_info_black_24dp)
+                        .setMessage(message)
+                        .setNegativeButton(negative, new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialoginterface, int i) {
+                                // update No to database
+                                mService.updateDeviceUserChoice(args, "No");
+                                hasAnswered[0] = true;
+                            }
+                        })
+                        .setPositiveButton(positive, new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialoginterface, int i) {
+                                //update Yes to database
+                                mService.updateDeviceUserChoice(args, "Yes");
+                                hasAnswered[0] = true;
+                            }
+                        });
+
+                final AlertDialog ad = dialog.show();
+
+                //if no answer within 5 seconds, then it is no
+                Handler handler = new Handler();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if(!hasAnswered[0]) {
+                            mService.updateDeviceUserChoice(args, "No");
+                            ad.dismiss();
+                        }
+                    }
+                }, 5 * 1000);
             }
-        }, 5 * 1000);
+        });
     }
 
     private void setCommandLine(final String info) {

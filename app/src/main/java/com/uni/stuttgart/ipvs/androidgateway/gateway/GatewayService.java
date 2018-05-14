@@ -63,11 +63,12 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.USER_CHOICE_SERVICE";
 
     private Intent mIntent;
-
     private Context context;
+
     private ConcurrentLinkedQueue queueScanning;
     private ConcurrentLinkedQueue queueConnecting;
     private ConcurrentLinkedQueue queueCharacteristic;
+
     private BluetoothLeDevice bleDevice;
     private BluetoothLeGatt bleGatt;
     private Object lock;
@@ -83,6 +84,7 @@ public class GatewayService extends Service {
     private HandlerThread mThread = new HandlerThread("mThreadCallback");
     private Handler mHandlerMessage;
     private boolean mProcessing;
+    private boolean mScanning;
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
 
@@ -183,6 +185,11 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public boolean getScanState() throws RemoteException {
+            return mScanning;
+        }
+
+        @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
             return scanResults;
         }
@@ -213,6 +220,7 @@ public class GatewayService extends Service {
                         int type = bleDevice.getType();
                         if (type == BluetoothLeDevice.SCANNING) {
                             //step scan new BLE devices
+                            mScanning = true;
                             new Thread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -226,7 +234,8 @@ public class GatewayService extends Service {
                             // step scan for known BLE devices
                             Log.d(TAG, "Start scanning for known BLE device ");
                             if (bleDevice.getMacAddress() != null) {
-                                // scan using specific macAddress
+                                // find specific macAddress
+                                mScanning = false;
                                 broadcastUpdate("Searching device " + bleDevice.getMacAddress());
                                 BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(bleDevice.getMacAddress());
                                 if (device == null) {
@@ -240,6 +249,7 @@ public class GatewayService extends Service {
                                 }
                             } else if (bleDevice.getServiceUUID() != null) {
                                 // scan using specific service
+                                mScanning = true;
                                 UUID[] listBle = new UUID[1];
                                 listBle[0] = bleDevice.getServiceUUID();
                                 mBluetoothLeScanProcess.findLeDevice(listBle, true);
@@ -248,10 +258,16 @@ public class GatewayService extends Service {
                                 mBluetoothLeScanProcess.findLeDevice(listBle, false);
                             }
                         } else if (type == BluetoothLeDevice.STOP_SCANNING) {
+                            mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Stop scanning...");
                             broadcastUpdate("Stop scanning bluetooth...");
                             broadcastUpdate("Found " + mBluetoothLeScanProcess.getScanResult().size() + " device(s)");
+                        } else if(type == BluetoothLeDevice.STOP_SCAN) {
+                            mScanning = false;
+                            mBluetoothLeScanProcess.scanLeDevice(false);
+                            Log.d(TAG, "Stop scanning...");
+                            broadcastUpdate("Stop scanning...");
                         }
                     }
                 }
@@ -305,9 +321,9 @@ public class GatewayService extends Service {
         @Override
         public void doDisconnected(PBluetoothGatt gatt, String type) throws RemoteException {
             mBluetoothGatt = gatt.getGatt();
+            status = "Disconnected";
             synchronized (lock) {
                 if (type.equals("GatewayService")) {
-                    status = "Disconnected";
                     broadcastUpdate("Disconnected from " + mBluetoothGatt.getDevice().getAddress());
                     lock.notifyAll();
                 } else {
@@ -399,6 +415,15 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void updateDatabaseDevicePowerUsage(String macAddress, long powerUsage) throws RemoteException {
+            try {
+                bleDeviceDatabase.updateDevicePowerUsage(macAddress, powerUsage);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
         public void updateAllDeviceStates(List<String> nearbyDevices) throws RemoteException {
             broadcastUpdate("\n");
             broadcastUpdate("Refresh all device states...");
@@ -440,6 +465,16 @@ public class GatewayService extends Service {
         @Override
         public String getDeviceUsrChoice(String macAddress) throws RemoteException {
             return bleDeviceDatabase.getDeviceUsrChoice(macAddress);
+        }
+
+        @Override
+        public String getDeviceState(String macAddress) throws RemoteException {
+            return bleDeviceDatabase.getDeviceState(macAddress);
+        }
+
+        @Override
+        public long getDevicePowerUsage(String macAddress) throws RemoteException {
+            return bleDeviceDatabase.getDevicePowerUsage(macAddress);
         }
 
         @Override
@@ -776,6 +811,7 @@ public class GatewayService extends Service {
 
     private void disconnect() {
         mProcessing = false;
+        mScanning = false;
         mHandlerMessage.removeCallbacksAndMessages(mHandlerCallback);
         disconnectGatt();
         if (wakeLock != null && wakeLock.isHeld()) {
