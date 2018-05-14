@@ -29,6 +29,8 @@ interface IGatewayService {
 
     void setProcessing(boolean mProcessing);
 
+    boolean getScanState();
+
     List<BluetoothDevice> getScanResults();
 
     PBluetoothGatt getCurrentGatt();
@@ -55,6 +57,8 @@ interface IGatewayService {
 
     void updateDatabaseDeviceUsrChoice(in String macAddress, in String userChoice);
 
+    void updateDatabaseDevicePowerUsage(in String macAddress, in long powerUsage);
+
     void updateAllDeviceStates(in List<String> nearbyDevices);
 
     boolean checkDevice(in String macAddress);
@@ -68,6 +72,10 @@ interface IGatewayService {
     byte[] getDeviceScanRecord(in String macAddress);
 
     String getDeviceUsrChoice(in String macAddress);
+
+    String getDeviceState(in String macAddress);
+
+    long getDevicePowerUsage(in String macAddress);
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 
