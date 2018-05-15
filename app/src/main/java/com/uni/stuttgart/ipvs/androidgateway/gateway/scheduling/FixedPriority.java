@@ -10,11 +10,9 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDev
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,9 +38,11 @@ public class FixedPriority extends AsyncTask<Void, Void, Void> {
     private boolean mScanning;
     private Context context;
     private boolean mProcessing;
+    private boolean mPower;
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
     private long powerUsage = 0;
+    private int connectCounter = 0;
 
     private ProcessPriority processConnecting;
     private ProcessPriority processPowerMeasurement;
@@ -77,7 +77,7 @@ public class FixedPriority extends AsyncTask<Void, Void, Void> {
     }
 
     private void cancelled() {
-        mProcessing = false;
+        mProcessing = false;mPower = false;
         future.cancel(true);future2.cancel(true);
         scheduler.shutdownNow();scheduler2.shutdownNow();
         scheduler = null;scheduler2 = null;
@@ -172,6 +172,7 @@ public class FixedPriority extends AsyncTask<Void, Void, Void> {
 
                     processPowerMeasurement = new ProcessPriority(10);
                     processPowerMeasurement.newThread(doMeasurePower()).start();
+                    mPower = true;
 
                     processUserChoiceAlert(device.getAddress(), device.getName());
 
@@ -184,6 +185,7 @@ public class FixedPriority extends AsyncTask<Void, Void, Void> {
 
                     processConnecting.interruptThread();
                     processPowerMeasurement.interruptThread();
+                    mPower = false;
 
                     iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
                 }
@@ -194,133 +196,72 @@ public class FixedPriority extends AsyncTask<Void, Void, Void> {
 
         private void connectFP() {
             try {
-                Map<BluetoothDevice, Integer> mapRankedDevices = doRankDevice(iGatewayService.getScanResults());
-                if(mapRankedDevices.size() <0 ) {return;}
+                connectCounter = 0;
+                Map<BluetoothDevice, String> mapRankedDevices = doRankDevice(iGatewayService.getScanResults());
+                for(Map.Entry entry : mapRankedDevices.entrySet()) {
+                    if(entry.getValue().equals("Yes")) {
+                        connectCounter++;
+                    }
+                }
+
+
+                if(connectCounter <=0 ) {broadcastUpdate("No Device enabled to connect");return;}
 
                 // calculate timer for connection (to obtain Round Robin Scheduling)
-                int remainingTime = PROCESSING_TIME - SCAN_TIME;;
-                maxConnectTime = remainingTime / mapRankedDevices.size();
+                int remainingTime = PROCESSING_TIME - SCAN_TIME;
+
+                maxConnectTime = remainingTime / connectCounter;
                 broadcastUpdate("\n");
-                broadcastUpdate("Connecting to " + mapRankedDevices.size() + " device(s)");
+                broadcastUpdate("Connecting to " + connectCounter + " device(s)");
                 broadcastUpdate("Maximum connection time is " + maxConnectTime / 1000 + " s");
 
+                // only devices allowed to be connected to connect
                 for(Map.Entry entry : mapRankedDevices.entrySet()) {
                     BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                    iGatewayService.updateDatabaseDeviceState(device, "inactive");
+                    if(entry.getValue().equals("Yes")) {
+                        iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
-                    processConnecting = new ProcessPriority(10);
-                    processConnecting.newThread(doConnecting(device.getAddress())).start();
-                    processUserChoiceAlert(device.getAddress(), device.getName());
-                    // set timer to xx seconds
-                    if((Integer) entry.getValue() == 1) {
+                        processConnecting = new ProcessPriority(10);
+                        processConnecting.newThread(doConnecting(device.getAddress())).start();
+                        processUserChoiceAlert(device.getAddress(), device.getName());
+
+                        // set timer to xx seconds
                         waitThread(maxConnectTime);
-                    } else {
-                        waitThread(maxConnectTime/2); // only half of normal connection will be used to connect
+                        if (!mProcessing) { return; }
+                        broadcastUpdate("Wait time finished, disconnected...");
+                        iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
+                        waitThread(10);
+                        processConnecting.interruptThread();
                     }
-                    if (!mProcessing) { return; }
-                    broadcastUpdate("Wait time finished, disconnected...");
-                    iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
-                    waitThread(10);
-                    processConnecting.interruptThread();
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
 
-        // implementation of Ranking Devices based on Fixed Priority Algorithm
-        private Map<BluetoothDevice, Integer> doRankDevice(List<BluetoothDevice> devices) {
+        // implementation of Ranking Devices based on AHP
+        private Map<BluetoothDevice, String> doRankDevice(List<BluetoothDevice> devices) {
             try {
                 broadcastUpdate("\n");
                 broadcastUpdate("Start ranking device...");
 
-                Map<BluetoothDevice, Integer> rankedDevices = new HashMap<>();
-                Map<BluetoothDevice, Integer> mapPriority = new HashMap<>();
-                DataSorterHelper<String> sortString = new DataSorterHelper<>();
-                DataSorterHelper<BluetoothDevice> sortDevice = new DataSorterHelper<>();
-
-                // check for priority in case of power estimator
-                Map<BluetoothDevice, Long> mapPowerUsage = new HashMap<>();
-                for(BluetoothDevice device : devices) { powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());if(powerUsage > 0) {mapPowerUsage.put(device, powerUsage);} }
-
-                if(mapPowerUsage.size() > 0) {
-                    // sort device based on lower energy usage
-                    broadcastUpdate("Sort devices based on power usage...");
-                    mapPowerUsage = sortDevice.sortMapByComparatorLong(mapPowerUsage, true);
-                    devices = new ArrayList<>();
-                    for(Map.Entry entry : mapPowerUsage.entrySet()) {
-                        devices.add((BluetoothDevice) entry.getKey());
-                    }
-                }
-
-
-                Map<String, Integer> mapDevicesRssi = new HashMap<>();
-                for(BluetoothDevice device : devices) {mapDevicesRssi.put(device.getAddress(), iGatewayService.getDeviceRSSI(device.getAddress()));}
-                mapDevicesRssi = sortString.sortMapByComparator(mapDevicesRssi, true); // sort based on RSSI in ascending (true)
-
-                // check for priority in case of RSSI
-                broadcastUpdate("Rank devices based on RSSI...");
-                for(Map.Entry entry : mapDevicesRssi.entrySet()) {
-                    for(BluetoothDevice device : devices) {
-                        if(device.getAddress().equals((String) entry.getKey())) {
-                            if((Integer) entry.getValue() >= -80) { // only rssi bigger than -90 dBm that will be prioritized (give 1)
-                                mapPriority.put(device, 1);
-                            } else {
-                                mapPriority.put(device, 2);
-                            }
-                        }
-                    }
-                }
-
-                // check for priority in case of active device
-                broadcastUpdate("Rank devices based on state...");
+                Map<BluetoothDevice, String> rankedDevices = new ConcurrentHashMap<>();
+                Map<BluetoothDevice, Object[]> mapParameters = new ConcurrentHashMap<>();
                 for(BluetoothDevice device : devices) {
-                    int priority = mapPriority.get(device);
-                    if(priority >= 2) {
-                        String deviceState = iGatewayService.getDeviceState(device.getAddress());
-                        if(deviceState.equals("active")) {
-                            mapPriority.remove(device);
-                            mapPriority.put(device, 1);
-                        } else if(deviceState.equals("inactive")) {
-                            mapPriority.remove(device);
-                            mapPriority.put(device, 3);
-                        }
-                    }
+                    int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
+                    String deviceState = iGatewayService.getDeviceState(device.getAddress());
+                    String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
+                    long powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());
+
+                    Object[] parameters = new Object[4];
+                    parameters[0] = rssi; parameters[1] = deviceState; parameters[2] = userChoice; parameters[3] = powerUsage;
+                    mapParameters.put(device, parameters);
                 }
 
-                // check for priority in case of user choice
-                broadcastUpdate("Rank devices based on user choice...");
-                for(BluetoothDevice device : devices) {
-                    int priority = mapPriority.get(device);
-                    if(priority >= 2) {
-                        String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
-                        if(userChoice.equals("Yes")) {
-                            mapPriority.remove(device);
-                            mapPriority.put(device, 1);
-                        } else {
-                            mapPriority.remove(device);
-                            mapPriority.put(device, 3);
-                        }
-                    }
-                }
-
-                mapPriority = sortDevice.sortMapByComparator(mapPriority, true);
-
-                for(Map.Entry entry : mapPriority.entrySet()) {
-                    switch((Integer) entry.getValue()) {
-                        case 1:
-                            // Higher priority (With full time connection)
-                            rankedDevices.put((BluetoothDevice) entry.getKey(), (Integer) entry.getValue());
-                            break;
-                        case 2:
-                            // Medium priority (Not full time connection)
-                            rankedDevices.put((BluetoothDevice) entry.getKey(), (Integer) entry.getValue());
-                            break;
-                        case 3:
-                            // Lower priority (Not added)
-                            break;
-                    }
-                }
+                AHP ahp = new AHP(mapParameters);
+                AsyncTask<Void, Void, Map<BluetoothDevice, String>> rankingTask = ahp.execute();
+                rankedDevices = rankingTask.get();
+                broadcastUpdate("Ranking Device Finish...");
                 return rankedDevices;
             }catch (Exception e) {
                 e.printStackTrace();
@@ -356,8 +297,8 @@ public class FixedPriority extends AsyncTask<Void, Void, Void> {
                     broadcastUpdate("Power Executor Calculation Failed...");
                     return;
                 }
-                boolean process = true;
-                while (process) {
+
+                while (mPower) {
                     int voltage = mServicePE.getVoltageNow();
                     long current = mServicePE.getCurrentNow();
 
@@ -370,7 +311,7 @@ public class FixedPriority extends AsyncTask<Void, Void, Void> {
                     }
 
                     powerUsage = powerUsage + (voltage * current * (10^(-9)));
-                    process = false;
+                    if(isCancelled()) {break;}
                 }
             }
         };

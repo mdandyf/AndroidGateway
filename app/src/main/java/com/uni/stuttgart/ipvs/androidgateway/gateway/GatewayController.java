@@ -149,8 +149,8 @@ public class GatewayController extends Service {
             //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            doScheduleFEP();
-            //doScheduleFP();
+            //doScheduleFEP();
+            doScheduleFP();
         }
 
         @Override
