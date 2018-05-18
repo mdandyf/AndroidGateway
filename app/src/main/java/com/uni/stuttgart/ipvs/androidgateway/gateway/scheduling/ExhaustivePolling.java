@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 // implementation of Scheduling using Exhaustive Polling
-public class ExhaustivePolling extends AsyncTask<Void, Void, Void> {
+public class ExhaustivePolling implements Runnable {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
@@ -37,27 +37,13 @@ public class ExhaustivePolling extends AsyncTask<Void, Void, Void> {
     private ProcessPriority processConnecting;
     private ProcessPriority processPowerMeasurement;
 
-    public ExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService, PowerEstimator mServicePE, boolean mBoundPE) {
+    public ExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
-        this.mServicePE = mServicePE;
-        this.mBoundPE = mBoundPE;
     }
-
-    @Override
-    protected void onCancelled(Void aVoid) {
-        super.onCancelled(aVoid);
-        cancelled();
-    }
-
-    @Override
-    protected void onCancelled() {
-        super.onCancelled();
-        cancelled();
-    }
-
-    private void cancelled() {
+    
+    public void cancelled() {
         mProcessing = false;
         if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
         if (scheduler != null) { scheduler.shutdownNow(); scheduler = null;}
@@ -66,7 +52,7 @@ public class ExhaustivePolling extends AsyncTask<Void, Void, Void> {
     }
 
     @Override
-    protected Void doInBackground(Void... voids) {
+    public void run() {
         mProcessing = true;
         try {
             while (mProcessing) {
@@ -105,21 +91,20 @@ public class ExhaustivePolling extends AsyncTask<Void, Void, Void> {
                     mScanning = iGatewayService.getScanState();
                 }
 
-                if(isCancelled()) {this.cancel(true);return null;}
+                if(!mProcessing) {return;}
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
 
                 // do Connecting by using Semaphore
                 for (final BluetoothDevice device : scanResults) {
                     iGatewayService.doConnect(device.getAddress());
                     processUserChoiceAlert(device.getAddress(), device.getName());
-                    if (isCancelled()) { this.cancel(true);return null; }
+                    if (!mProcessing) { return; }
                 }
 
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return null;
     }
 
     private Runnable doMeasurePower() {

@@ -180,6 +180,13 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public PHandlerThread getHandlerThread() throws RemoteException {
+            PHandlerThread handlerThread = new PHandlerThread();
+            handlerThread.setHandlerThread(mThread);
+            return handlerThread;
+        }
+
+        @Override
         public void setProcessing(boolean processing) throws RemoteException {
             mProcessing = processing;
         }
@@ -221,15 +228,10 @@ public class GatewayService extends Service {
                         if (type == BluetoothLeDevice.SCANNING) {
                             //step scan new BLE devices
                             mScanning = true;
-                            new Thread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    broadcastUpdate("Scanning bluetooth...");
-                                    Log.d(TAG, "Start scanning");
-                                    mBluetoothLeScanProcess.scanLeDevice(true);
-                                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                                }
-                            }).start();
+                            broadcastUpdate("Scanning bluetooth...");
+                            Log.d(TAG, "Start scanning");
+                            mBluetoothLeScanProcess.scanLeDevice(true);
+                            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
                         } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
                             // step scan for known BLE devices
                             Log.d(TAG, "Start scanning for known BLE device ");
@@ -385,6 +387,24 @@ public class GatewayService extends Service {
                 }
 
             }
+        }
+
+        @Override
+        public BluetoothDevice getDevice(String macAddress) throws RemoteException {
+            if(scanResults != null && scanResults.size() > 0) {
+                List<BluetoothDevice> devices = null;
+                try {
+                    devices = mBinder.getScanResults();
+                    for(BluetoothDevice device : devices) {
+                        if (device.getAddress().equals(macAddress)) {
+                            return device;
+                        }
+                    }
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+            return null;
         }
 
         @Override
@@ -591,10 +611,12 @@ public class GatewayService extends Service {
                         }
                     } else if (msg.arg1 == 10) {
                         final Map<BluetoothDevice, byte[]> mapScanRecord = ((Map<BluetoothDevice, byte[]>) msg.obj);
-                        for (Map.Entry entry : mapScanRecord.entrySet()) {
-                            BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                            if (scanResults.contains(device)) {
-                                mBinder.updateDatabaseDeviceAdvRecord(device, (byte[]) entry.getValue());
+                        if(mapScanRecord.size() > 0) {
+                            for (Map.Entry entry : mapScanRecord.entrySet()) {
+                                BluetoothDevice device = (BluetoothDevice) entry.getKey();
+                                if (scanResults.contains(device)) {
+                                    mBinder.updateDatabaseDeviceAdvRecord(device, (byte[]) entry.getValue());
+                                }
                             }
                         }
                     }
@@ -648,7 +670,6 @@ public class GatewayService extends Service {
                         readData(msg);
                     }
                 }
-
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -698,6 +719,7 @@ public class GatewayService extends Service {
                 if (databaseService && databaseCharacteristic) {
                     try {
                         mBinder.updateDatabaseDeviceState(mBluetoothGatt.getDevice(), "active");
+                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 12, 0));
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
@@ -774,23 +796,6 @@ public class GatewayService extends Service {
     /**
      * Some routines section
      */
-
-    private BluetoothDevice getDevice(String macAddress) {
-        if(scanResults != null && scanResults.size() > 0) {
-            List<BluetoothDevice> devices = null;
-            try {
-                devices = mBinder.getScanResults();
-                for(BluetoothDevice device : devices) {
-                    if (device.getAddress().equals(macAddress)) {
-                        return device;
-                    }
-                }
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        }
-        return null;
-    }
 
     private void setWakeLock() {
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);

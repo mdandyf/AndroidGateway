@@ -52,6 +52,7 @@ public class GatewayFragment extends Fragment {
     private Intent mIntentGatewayController;
     private GatewayController mService;
     private boolean mBound;
+    private int screenCounter;
 
     private PowerManager.WakeLock wakeLock;
     private PowerManager powerManager;
@@ -91,6 +92,7 @@ public class GatewayFragment extends Fragment {
 
         powerManager = (PowerManager) getActivity().getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockGateway");
+        screenCounter = 0;
 
         setWakeLock();
         checkingPermission();
@@ -402,11 +404,20 @@ public class GatewayFragment extends Fragment {
     }
 
     private void setCommandLine(final String info) {
+        screenCounter++;
         getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                textArea.append("\n");
-                textArea.append(info);
+                if(screenCounter < 100) {
+                    textArea.append("\n");
+                    textArea.append(info);
+                } else {
+                    screenCounter = 0;
+                    textArea.getText().clear();
+                    textArea.setText("");
+                    textArea.append("\n");
+                    textArea.append(info);
+                }
             }
         });
     }

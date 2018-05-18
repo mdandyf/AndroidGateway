@@ -20,7 +20,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // Implementation of Round Robin Scheduling Gateway Controller
-public class RoundRobin extends AsyncTask<Void, Void, Void> {
+public class RoundRobin implements Runnable {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
@@ -42,34 +42,13 @@ public class RoundRobin extends AsyncTask<Void, Void, Void> {
     private ProcessPriority processConnecting;
     private ProcessPriority processPowerMeasurement;
 
-    public RoundRobin(Context context, boolean mProcessing, IGatewayService iGatewayService, PowerEstimator mServicePE, boolean mBoundPE) {
+    public RoundRobin(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
-        this.mServicePE = mServicePE;
-        this.mBoundPE = mBoundPE;
     }
 
-    @Override
-    protected Void doInBackground(Void... voids) {
-        scheduler = new ScheduledThreadPoolExecutor(10);
-        future = scheduler.scheduleAtFixedRate(new RRStartScanning(), 0, PROCESSING_TIME + 10, MILLISECONDS);
-        return null;
-    }
-
-    @Override
-    protected void onCancelled(Void aVoid) {
-        super.onCancelled(aVoid);
-        cancelled();
-    }
-
-    @Override
-    protected void onCancelled() {
-        super.onCancelled();
-        cancelled();
-    }
-
-    private void cancelled() {
+    public void cancelled() {
         mProcessing = false;
         future.cancel(true);
         scheduler.shutdownNow();
@@ -77,6 +56,12 @@ public class RoundRobin extends AsyncTask<Void, Void, Void> {
         if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
         if (processConnecting != null) { processConnecting.interruptThread(); }
         if (processPowerMeasurement != null) { processPowerMeasurement.interruptThread(); }
+    }
+
+    @Override
+    public void run() {
+        scheduler = new ScheduledThreadPoolExecutor(10);
+        future = scheduler.scheduleAtFixedRate(new RRStartScanning(), 0, PROCESSING_TIME + 10, MILLISECONDS);
     }
 
     private class RRStartScanning implements Runnable {
@@ -94,7 +79,7 @@ public class RoundRobin extends AsyncTask<Void, Void, Void> {
                 stop();
                 waitThread(100);
 
-                if(isCancelled()) {future.cancel(false);return;}
+                if(!mProcessing) {future.cancel(false);return;}
                 connect();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -113,7 +98,7 @@ public class RoundRobin extends AsyncTask<Void, Void, Void> {
                 }
             }
 
-            if(isCancelled()) {future.cancel(false);return;}
+            if(!mProcessing) {future.cancel(false);return;}
         }
 
         private void connect() {
@@ -127,7 +112,7 @@ public class RoundRobin extends AsyncTask<Void, Void, Void> {
                     broadcastUpdate("Maximum connection time is " + maxConnectTime / 1000 + " s");
                 } else {return;}
 
-                if(isCancelled()) {future.cancel(false);return;}
+                if(!mProcessing) {future.cancel(false);return;}
 
                 // do connecting by Round Robin
                 for (final BluetoothDevice device : scanResults) {
@@ -136,7 +121,7 @@ public class RoundRobin extends AsyncTask<Void, Void, Void> {
                     processUserChoiceAlert(device.getAddress(), device.getName());
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if(isCancelled()) {future.cancel(false);return;}
+                    if(!mProcessing) {future.cancel(false);return;}
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(100);

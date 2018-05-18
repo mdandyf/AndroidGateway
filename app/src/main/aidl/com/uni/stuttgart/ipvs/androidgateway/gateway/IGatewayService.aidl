@@ -8,6 +8,7 @@ import List;
 import ParcelUuid;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PHandlerThread;
 //import Runnable;
 
 interface IGatewayService {
@@ -26,6 +27,8 @@ interface IGatewayService {
     void setMessageHandler(in PMessageHandler messageHandler);
 
     PMessageHandler getMessageHandler();
+
+    PHandlerThread getHandlerThread();
 
     void setProcessing(boolean mProcessing);
 
@@ -50,6 +53,8 @@ interface IGatewayService {
     void addQueueCharacteristic(in PBluetoothGatt gatt, in ParcelUuid serviceUUID, in ParcelUuid characteristicUUID, in ParcelUuid descriptorUUID, in byte[] data, in int typeCommand);
 
     void execCharacteristicQueue();
+
+    BluetoothDevice getDevice(String macAddress);
 
     void updateDatabaseDeviceState(in BluetoothDevice device, in String deviceState);
 

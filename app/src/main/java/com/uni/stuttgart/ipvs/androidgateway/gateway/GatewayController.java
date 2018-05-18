@@ -39,14 +39,16 @@ public class GatewayController extends Service {
     private Context context;
     private Intent mIntent;
     private IGatewayService iGatewayService;
-    private PowerEstimator mServicePE;
 
     private boolean mBound = false;
-    private boolean mBoundPE = false;
     private boolean mProcessing = false;
 
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
+
+    private ProcessPriority process;
+    private Runnable runnablePeriodic;
+    private Thread threadPeriodic;
 
     private AsyncTask<Void, Void, Void> schedulingTask;
 
@@ -62,9 +64,6 @@ public class GatewayController extends Service {
 
         bindService(new Intent(context, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
         broadcastUpdate("Bind GatewayController to GatewayService...");
-
-        bindService(new Intent(context, PowerEstimator.class), mConnectionPE, Context.BIND_AUTO_CREATE);
-        broadcastUpdate("Bind GatewayController to PowerEstimator...");
 
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockController");
@@ -94,8 +93,7 @@ public class GatewayController extends Service {
     public boolean onUnbind(Intent intent) {
         try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue(); } catch (RemoteException e) { e.printStackTrace(); }
         try { iGatewayService.setProcessing(false); } catch (RemoteException e) { e.printStackTrace(); }
-        if(schedulingTask != null) {schedulingTask.cancel(true);}
-        if(mConnectionPE != null && mBoundPE) {unbindService(mConnectionPE); }
+        if(process != null) {process.interruptThread();}
         broadcastUpdate("Unbind GatewayController to PowerEstimator...");
         if(mConnection != null) {unbindService(mConnection); }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
@@ -128,24 +126,6 @@ public class GatewayController extends Service {
             mBound = true;
             mProcessing = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName arg0) {
-            mBound = false;
-        }
-    };
-
-    protected ServiceConnection mConnectionPE = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName className,
-                                       IBinder service) {
-            PowerEstimator.LocalBinder binder = (PowerEstimator.LocalBinder) service;
-            mServicePE = binder.getService();
-            mBoundPE = true;
-            broadcastUpdate("GatewayController & PowerEstimator have bound...");
-            broadcastUpdate("\n");
             //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
@@ -155,7 +135,7 @@ public class GatewayController extends Service {
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
-            mBoundPE = false;
+            mBound = false;
         }
     };
 
@@ -171,7 +151,14 @@ public class GatewayController extends Service {
     // Scheduling based on waiting for callback connection (Semaphore Scheduling)
     private void doScheduleSemaphore() {
         broadcastUpdate("Start Semaphore Scheduling...");
-        try { iGatewayService.setProcessing(mProcessing);schedulingTask = new Semaphore(context, mProcessing, iGatewayService, mServicePE, mBoundPE).execute(); } catch (Exception e) { e.printStackTrace(); }
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            process = new ProcessPriority(10);
+            runnablePeriodic = new Semaphore(context, mProcessing, iGatewayService);
+            threadPeriodic = process.newThread(runnablePeriodic);
+            threadPeriodic.setName("Semaphore");
+            threadPeriodic.start();
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     /*                                                                                                                               *
@@ -182,7 +169,14 @@ public class GatewayController extends Service {
     // scheduling using Round Robin Method
     private void doScheduleRR() {
         broadcastUpdate("Start Round Robin Scheduling...");
-        try { iGatewayService.setProcessing(mProcessing);schedulingTask = new RoundRobin(context, mProcessing, iGatewayService, mServicePE, mBoundPE).execute(); } catch (Exception e) { e.printStackTrace(); }
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            process = new ProcessPriority(10);
+            runnablePeriodic = new RoundRobin(context, mProcessing, iGatewayService);
+            threadPeriodic = process.newThread(runnablePeriodic);
+            threadPeriodic.setName("Round Robin");
+            threadPeriodic.start();
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     /*                                                                                                                               *
@@ -193,7 +187,14 @@ public class GatewayController extends Service {
     //scheduling using Exhaustive Polling (EP)
     private void doScheduleEP() {
         broadcastUpdate("Start Exhaustive Polling Scheduling...");
-        try { iGatewayService.setProcessing(mProcessing);schedulingTask = new ExhaustivePolling(context, mProcessing, iGatewayService, mServicePE, mBoundPE).execute(); } catch (Exception e) { e.printStackTrace(); }
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            process = new ProcessPriority(10);
+            runnablePeriodic = new ExhaustivePolling(context, mProcessing, iGatewayService);
+            threadPeriodic = process.newThread(runnablePeriodic);
+            threadPeriodic.setName("Exhaustive Polling");
+            threadPeriodic.start();
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     /*                                                                                                                               *
@@ -204,7 +205,14 @@ public class GatewayController extends Service {
     // scheduling using Fair Exhaustive Polling (FEP)
     private void doScheduleFEP() {
         broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
-        try { iGatewayService.setProcessing(mProcessing);schedulingTask = new FairExhaustivePolling(context, mProcessing, iGatewayService, mServicePE, mBoundPE).execute(); } catch (Exception e) { e.printStackTrace(); }
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            process = new ProcessPriority(10);
+            runnablePeriodic = new FairExhaustivePolling(context, mProcessing, iGatewayService);
+            threadPeriodic = process.newThread(runnablePeriodic);
+            threadPeriodic.setName("Fair Exhaustive Polling");
+            threadPeriodic.start();
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     /*                                                                                                                               *
@@ -215,7 +223,14 @@ public class GatewayController extends Service {
     // scheduling based on Fixed Priority
     private void doScheduleFP() {
         broadcastUpdate("Start Fixed Priority Scheduling...");
-        try { iGatewayService.setProcessing(mProcessing);schedulingTask = new FixedPriority(context, mProcessing, iGatewayService, mServicePE, mBoundPE).execute(); } catch (Exception e) { e.printStackTrace(); }
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            process = new ProcessPriority(10);
+            runnablePeriodic = new FixedPriority(context, mProcessing, iGatewayService);
+            threadPeriodic = process.newThread(runnablePeriodic);
+            threadPeriodic.start();
+            threadPeriodic.setName("Fixed Priority");
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     /**

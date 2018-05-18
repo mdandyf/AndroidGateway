@@ -19,7 +19,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
-public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
+public class FairExhaustivePolling implements Runnable {
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
 
@@ -43,36 +43,13 @@ public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
     private ProcessPriority processConnecting;
     private ProcessPriority processPowerMeasurement;
 
-    public FairExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService, PowerEstimator mServicePE, boolean mBoundPE) {
+    public FairExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
-        this.mServicePE = mServicePE;
-        this.mBoundPE = mBoundPE;
     }
 
-    @Override
-    protected Void doInBackground(Void... voids) {
-        scheduler = new ScheduledThreadPoolExecutor(5);
-        future = scheduler.scheduleAtFixedRate(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
-        scheduler2 = new ScheduledThreadPoolExecutor(5);
-        future2 = scheduler2.scheduleAtFixedRate(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 5 minutes
-        return null;
-    }
-
-    @Override
-    protected void onCancelled(Void aVoid) {
-        super.onCancelled(aVoid);
-        cancelled();
-    }
-
-    @Override
-    protected void onCancelled() {
-        super.onCancelled();
-        cancelled();
-    }
-
-    private void cancelled() {
+    public void cancel() {
         mProcessing = false;
         future.cancel(true);future2.cancel(true);
         scheduler.shutdownNow();scheduler2.shutdownNow();
@@ -80,6 +57,14 @@ public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
         if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
         if (processConnecting != null) { processConnecting.interruptThread(); }
         if (processPowerMeasurement != null) { processPowerMeasurement.interruptThread(); }
+    }
+
+    @Override
+    public void run() {
+        scheduler = new ScheduledThreadPoolExecutor(5);
+        future = scheduler.scheduleAtFixedRate(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
+        scheduler2 = new ScheduledThreadPoolExecutor(5);
+        future2 = scheduler2.scheduleAtFixedRate(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 5 minutes
     }
 
     private class FEPStartScanning implements Runnable {
@@ -130,7 +115,7 @@ public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
                 }
             }
 
-            if (isCancelled()) { future.cancel(true); return; }
+            if (!mProcessing) { future.cancel(true); return; }
         }
 
         private void connect() {
@@ -143,7 +128,7 @@ public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
                 e.printStackTrace();
             }
 
-            if (isCancelled()) { future.cancel(true); return; }
+            if (!mProcessing) { future.cancel(true); return; }
             if(devices == null || devices.size() <= 0) { return; }
 
             // calculate timer for connection (to obtain Round Robin Scheduling)
@@ -165,7 +150,7 @@ public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
                     processUserChoiceAlert(device.getAddress(), device.getName());
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if (isCancelled()) { future.cancel(true); return; }
+                    if (!mProcessing) { future.cancel(true); return; }
                     broadcastUpdate("Wait time finished, disconnected...");
                     try {
                         iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
@@ -182,7 +167,7 @@ public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
     private class FEPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-            if (isCancelled()) { future2.cancel(true); return; }
+            if (!mProcessing) { future2.cancel(true); return; }
             broadcastUpdate("Update all device states...");
             try {
                 iGatewayService.updateAllDeviceStates(null);
@@ -234,7 +219,7 @@ public class FairExhaustivePolling extends AsyncTask<Void, Void, Void> {
     }
 
     private void waitThread(int time) {
-        if (!isCancelled()) {
+        if (!!mProcessing) {
             try {
                 Thread.sleep(time);
             } catch (InterruptedException e) {

@@ -16,7 +16,7 @@ import java.util.List;
 
 // implementation of Semaphore Scheduling Gateway Controller
 
-public class Semaphore extends AsyncTask<Void, Void, Void> {
+public class Semaphore implements Runnable {
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
 
@@ -33,31 +33,20 @@ public class Semaphore extends AsyncTask<Void, Void, Void> {
 
     private ProcessPriority processPowerMeasurement;
 
-    public Semaphore(Context context, boolean mProcessing, IGatewayService iGatewayService, PowerEstimator mServicePE, boolean mBoundPE) {
+    public Semaphore(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
-        this.mServicePE = mServicePE;
-        this.mBoundPE = mBoundPE;
     }
-
-    @Override
-    protected void onCancelled(Void aVoid) {
-        super.onCancelled(aVoid);
-        mProcessing = false;
-        if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
-    }
-
-    @Override
-    protected void onCancelled() {
-        super.onCancelled();
+    
+    public void cancelled() {
         mProcessing = false;
         if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
         if (processPowerMeasurement != null) { processPowerMeasurement.interruptThread(); }
     }
 
     @Override
-    protected Void doInBackground(Void... voids) {
+    public void run() {
         mProcessing = true;
 
         while (mProcessing) {
@@ -78,7 +67,7 @@ public class Semaphore extends AsyncTask<Void, Void, Void> {
                 iGatewayService.execScanningQueue();
                 mScanning = iGatewayService.getScanState();
 
-                if (isCancelled()) { this.cancel(true); return null; }
+                if (!mProcessing) { return; }
 
                 waitThread(100);
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
@@ -90,7 +79,7 @@ public class Semaphore extends AsyncTask<Void, Void, Void> {
 
                     iGatewayService.doConnect(device.getAddress());
                     processUserChoiceAlert(device.getAddress(), device.getName());
-                    if (isCancelled()) { this.cancel(true); return null; }
+                    if (!mProcessing) { return; }
 
                     processPowerMeasurement.interruptThread();
                     iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
@@ -99,9 +88,8 @@ public class Semaphore extends AsyncTask<Void, Void, Void> {
                 e.printStackTrace();
             }
         }
-        return null;
     }
-
+    
     private Runnable doMeasurePower() {
         return new Runnable() {
             @Override

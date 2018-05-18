@@ -33,6 +33,12 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, String>> {
     private double[] deviceStateMatrix;
     private double[] powerUsageMatrix;
 
+    /**
+     * =======================================================================================================================
+     * Preparation Section
+     * =======================================================================================================================
+     */
+
     public AHP(Map<BluetoothDevice, Object[]> mapInput) {
         this.mapInput = mapInput;
 
@@ -78,9 +84,15 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, String>> {
         this.powerUsageMatrix = matrix3x3SubWeight;
     }
 
+    /**
+     * =======================================================================================================================
+     * Calculate Number of Percentage of a device to be connected
+     * =======================================================================================================================
+     */
+
     @Override
     protected Map<BluetoothDevice, String> doInBackground(Void... voids) {
-
+        // Looping to all available devices
         if(mapInput != null && mapInput.size() > 0) {
             for(Map.Entry entry : mapInput.entrySet()) {
                 BluetoothDevice device = (BluetoothDevice) entry.getKey();
@@ -123,15 +135,16 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, String>> {
                 }
 
                 //calculate percentage PowerUsage
-                if(powerUsage < (-1 * 10^17)) {
+                if(powerUsage > (5 * 10^16)) {
                     devicePercentage = devicePercentage + powerUsageMatrix[0];
-                } else if(powerUsage < (-1 * 10^18)) {
+                } else if(powerUsage < (5 * 10^16)) {
                     devicePercentage = devicePercentage + powerUsageMatrix[1];
-                } else {
+                } else if(powerUsage < (1 * 10^16)) {
                     devicePercentage = devicePercentage + powerUsageMatrix[2];
                 }
 
-                if(devicePercentage > 0.5) {
+                // if sum of all percentages is more than 40%, then connect the device
+                if(devicePercentage > 0.4) {
                     mapOutput.put(device, "Yes");
                 } else {
                     mapOutput.put(device, "No");
