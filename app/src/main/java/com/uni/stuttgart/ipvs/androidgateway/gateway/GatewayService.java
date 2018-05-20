@@ -61,6 +61,10 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_SERVICE_INTERFACE";
     public static final String USER_CHOICE_SERVICE =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.USER_CHOICE_SERVICE";
+    public static final String DISCONNECT_COMMAND =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.DISCONNECT_COMMAND";
+    public static final String FINISH_READ =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.FINISH_READ";
 
     private Intent mIntent;
     private Context context;
@@ -71,6 +75,7 @@ public class GatewayService extends Service {
 
     private BluetoothLeDevice bleDevice;
     private BluetoothLeGatt bleGatt;
+    private GatewayCallback gatewayCallback;
     private Object lock;
 
     private BluetoothAdapter mBluetoothAdapter;
@@ -99,7 +104,9 @@ public class GatewayService extends Service {
         super.onCreate();
 
         mThread.start();
-        mHandlerMessage = new Handler(mThread.getLooper(), mHandlerCallback);
+        gatewayCallback = new GatewayCallback(context, mProcessing, mBinder);
+        mHandlerMessage = new Handler(mThread.getLooper(), gatewayCallback);
+        gatewayCallback.setmHandlerMessage(mHandlerMessage);
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
@@ -197,8 +204,19 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void setScanResult(List<BluetoothDevice> scanResult) throws RemoteException {
+            scanResults = scanResult;
+        }
+
+        @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
             return scanResults;
+        }
+
+        @Override
+        public void setCurrentGatt(PBluetoothGatt gatt) throws RemoteException {
+            PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
+            mBluetoothGatt = parcelBluetoothGatt.getGatt();
         }
 
         @Override
@@ -206,6 +224,16 @@ public class GatewayService extends Service {
             PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
             parcelBluetoothGatt.setGatt(mBluetoothGatt);
             return parcelBluetoothGatt;
+        }
+
+        @Override
+        public void setListGatt(List<PBluetoothGatt> listGatt) throws RemoteException {
+            if (listGatt.size() > 0) {
+                listBluetoothGatt = new ArrayList<>();
+                for (PBluetoothGatt parcelBluetoothGatt : listGatt) {
+                    listBluetoothGatt.add(parcelBluetoothGatt.getGatt());
+                }
+            }
         }
 
         @Override
@@ -265,7 +293,7 @@ public class GatewayService extends Service {
                             Log.d(TAG, "Stop scanning...");
                             broadcastUpdate("Stop scanning bluetooth...");
                             broadcastUpdate("Found " + mBluetoothLeScanProcess.getScanResult().size() + " device(s)");
-                        } else if(type == BluetoothLeDevice.STOP_SCAN) {
+                        } else if (type == BluetoothLeDevice.STOP_SCAN) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Stop scanning...");
@@ -310,13 +338,17 @@ public class GatewayService extends Service {
         @Override
         public void doConnected(PBluetoothGatt gatt) {
             synchronized (lock) {
-                status = "Connected";
-                mBluetoothGatt = gatt.getGatt();
-                broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
-                broadcastUpdate("discovering services...");
-                status = "Discovering";
-                mBluetoothGatt.discoverServices();
-                lock.notifyAll();
+                try {
+                    status = "Connected";
+                    mBluetoothGatt = gatt.getGatt();
+                    mBinder.broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
+                    mBinder.broadcastUpdate("discovering services...");
+                    status = "Discovering";
+                    mBluetoothGatt.discoverServices();
+                    lock.notifyAll();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -391,11 +423,11 @@ public class GatewayService extends Service {
 
         @Override
         public BluetoothDevice getDevice(String macAddress) throws RemoteException {
-            if(scanResults != null && scanResults.size() > 0) {
+            if (scanResults != null && scanResults.size() > 0) {
                 List<BluetoothDevice> devices = null;
                 try {
                     devices = mBinder.getScanResults();
-                    for(BluetoothDevice device : devices) {
+                    for (BluetoothDevice device : devices) {
                         if (device.getAddress().equals(macAddress)) {
                             return device;
                         }
@@ -405,6 +437,39 @@ public class GatewayService extends Service {
                 }
             }
             return null;
+        }
+
+        @Override
+        public void insertDatabaseDevice(BluetoothDevice device, int rssi, String deviceState) throws RemoteException {
+            broadcastUpdate("Write device " + device.getAddress() + " to database");
+            String deviceName = "unknown";
+            if (device.getName() != null) {
+                deviceName = device.getName();
+            }
+            bleDeviceDatabase.insertData(device.getAddress(), deviceName, rssi, deviceState);
+        }
+
+        @Override
+        public void updateDatabaseDevice(BluetoothDevice device, int rssi, byte[] scanRecord) throws RemoteException {
+            String deviceName = "unknown";
+            if (device.getName() != null) {
+                deviceName = device.getName();
+            }
+            try {
+                bleDeviceDatabase.updateData(device.getAddress(), deviceName, rssi, null, scanRecord);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public boolean updateDatabaseService(String macAddress, String serviceUUID) throws RemoteException {
+            return bleServicesDatabase.insertData(macAddress, serviceUUID);
+        }
+
+        @Override
+        public boolean updateDatabaseCharacteristics(String macAddress, String serviceUUID, String characteristicUUID, String property, String value) throws RemoteException {
+            return bleCharacteristicDatabase.insertData(macAddress, serviceUUID, characteristicUUID, property, value);
         }
 
         @Override
@@ -516,282 +581,16 @@ public class GatewayService extends Service {
                 }
             }
         }
-    };
-
-    private synchronized void getServiceCharacteristic(BluetoothGatt gatt) {
-        for (BluetoothGattService service : gatt.getServices()) {
-            for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
-                JSONArray properties = GattDataHelper.decodeProperties(characteristic);
-                for (int i = 0; i < properties.length(); i++) {
-                    try {
-                        String property = properties.getString(i);
-                        ParcelUuid uuidService = new ParcelUuid(service.getUuid());
-                        ParcelUuid uuidCharacteristic = new ParcelUuid(characteristic.getUuid());
-                        PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
-                        parcelBluetoothGatt.setGatt(gatt);
-                        if (property.equals("Read")) {
-                            mBinder.addQueueCharacteristic(parcelBluetoothGatt, uuidService, uuidCharacteristic, null, null, BluetoothLeGatt.READ);
-                        } else if (property.equals("Write")) {
-                            mBinder.addQueueCharacteristic(parcelBluetoothGatt, uuidService, uuidCharacteristic, null, null, BluetoothLeGatt.WRITE);
-                        } else if (property.equals("Notify")) {
-                            for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
-                                ParcelUuid uuidDescriptor = new ParcelUuid(descriptor.getUuid());
-                                mBinder.addQueueCharacteristic(parcelBluetoothGatt, uuidService, uuidCharacteristic, uuidDescriptor, null, BluetoothLeGatt.REGISTER_NOTIFY);
-                            }
-                        } else if (property.equals("Indicate")) {
-                            for (BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
-                                ParcelUuid uuidDescriptor = new ParcelUuid(descriptor.getUuid());
-                                mBinder.addQueueCharacteristic(parcelBluetoothGatt, uuidService, uuidCharacteristic, uuidDescriptor, null, BluetoothLeGatt.REGISTER_INDICATE);
-                            }
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Handling callback messages
-     */
-    Handler.Callback mHandlerCallback = new Handler.Callback() {
-
-        GattDataJson dataJson;
 
         @Override
-        public boolean handleMessage(Message msg) {
-            try {
-
-                if (msg.what == 0) {
-                    // getting results from scanning
-                    if (msg.arg1 == 0) {
-
-                    } else if (msg.arg1 == 1) {
-
-                    } else if (msg.arg1 == 2) {
-
-                    } else if (msg.arg1 == 3) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            ScanResult result = ((ScanResult) msg.obj);
-                            if (!scanResults.contains(result.getDevice())) {
-                                scanResults.add(result.getDevice());
-                                insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
-                            } else {
-                                updateDatabaseDevice(result.getDevice(), result.getRssi(), result.getScanRecord().getBytes());
-                            }
-                        }
-                    } else if (msg.arg1 == 4) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            List<ScanResult> results = ((List<ScanResult>) msg.obj);
-                            for (ScanResult result : results) {
-                                if (!scanResults.contains(result.getDevice())) {
-                                    scanResults.add(result.getDevice());
-                                    insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
-                                } else {
-                                    updateDatabaseDevice(result.getDevice(), result.getRssi(), result.getScanRecord().getBytes());
-                                }
-                            }
-                        }
-                    } else if (msg.arg1 == 5) {
-                        final Map<BluetoothDevice, GattDataJson> mapDevice = ((Map<BluetoothDevice, GattDataJson>) msg.obj);
-                        for (Map.Entry entry : mapDevice.entrySet()) {
-                            BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                            if (!scanResults.contains(device)) {
-                                scanResults.add(device);
-                                insertDatabaseDevice(device, (GattDataJson) entry.getValue(), "active");
-                            } else {
-                                updateDatabaseDevice(device, (GattDataJson) entry.getValue(), null);
-                            }
-                        }
-                    } else if (msg.arg1 == 7) {
-                        final BluetoothDevice device = (BluetoothDevice) msg.obj;
-                        if (!scanResults.contains(device)) {
-                            scanResults.add(device);
-                        }
-                    } else if (msg.arg1 == 10) {
-                        final Map<BluetoothDevice, byte[]> mapScanRecord = ((Map<BluetoothDevice, byte[]>) msg.obj);
-                        if(mapScanRecord.size() > 0) {
-                            for (Map.Entry entry : mapScanRecord.entrySet()) {
-                                BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                                if (scanResults.contains(device)) {
-                                    mBinder.updateDatabaseDeviceAdvRecord(device, (byte[]) entry.getValue());
-                                }
-                            }
-                        }
-                    }
-
-                } else if (msg.what == 1) {
-
-                    //getting results from connecting
-                    if (msg.arg1 == 0) {
-                        // read all bluetoothGatt servers
-                        mBluetoothGatt = (BluetoothGatt) msg.obj;
-                        if (mBluetoothGatt != null && !listBluetoothGatt.contains(mBluetoothGatt)) {
-                            listBluetoothGatt.add(mBluetoothGatt);
-                        }
-                    } else if (msg.arg1 == 1) {
-                        // read all bluetoothGatt connected servers
-                        BluetoothGatt connectedGatt = ((BluetoothGatt) msg.obj);
-                        dataJson = new GattDataJson(connectedGatt.getDevice(), connectedGatt);
-                        PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
-                        parcelBluetoothGatt.setGatt(connectedGatt);
-                        mBinder.doConnected(parcelBluetoothGatt);
-                    } else if (msg.arg1 == 2) {
-                        // read all bluetoothGatt disconnected servers
-                        BluetoothGatt disconnectedGatt = ((BluetoothGatt) msg.obj);
-                        PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
-                        parcelBluetoothGatt.setGatt(disconnectedGatt);
-                        dataJson = new GattDataJson(disconnectedGatt.getDevice(), disconnectedGatt);
-                        mBinder.doDisconnected(parcelBluetoothGatt, "GatewayService");
-                        disconnectedGatt.close();
-                    } else if (msg.arg1 == 3) {
-                        // read all bluetoothGatt rssi
-                        dataJson.setRssi((int) msg.obj);
-                    } else if (msg.arg1 == 4) {
-                        //discovered services and read all characteristics
-                        broadcastUpdate("\n");
-                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        if (mBluetoothGatt != null) {
-                            getServiceCharacteristic(mBluetoothGatt);
-                            dataJson.setGatt(mBluetoothGatt);
-                            mBinder.execCharacteristicQueue();
-                        }
-                    } else if (msg.arg1 == 5) {
-                        // onReadCharacteristic
-                        status = "Reading";
-                        readData(msg);
-                    } else if (msg.arg1 == 6) {
-                        // onWriteCharacteristic
-                        readData(msg);
-                    } else if (msg.arg1 == 7) {
-                        //onCharacteristicChanged
-                        status = "Reading";
-                        readData(msg);
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+        public void broadcastUpdate(String message) throws RemoteException {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
+                intent.putExtra("command", message);
+                sendBroadcast(intent);
             }
-            return false;
-        }
-
-        private synchronized String readData(Message msg) {
-            broadcastUpdate("\n");
-            boolean databaseService = false;
-            boolean databaseCharacteristic = false;
-            GattDataJson json = null;
-            Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
-            for (Map.Entry entry : mapGatt.entrySet()) {
-                mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                BluetoothGattCharacteristic characteristic = (BluetoothGattCharacteristic) entry.getValue();
-                json = new GattDataJson(mBluetoothGatt.getDevice(), mBluetoothGatt);
-                json.updateJsonData(json.getJsonData(), (BluetoothGattCharacteristic) entry.getValue());
-                String characteristicValue = GattDataHelper.decodeCharacteristicValue(characteristic);
-                JSONArray characteristicProperty = GattDataHelper.decodeProperties(characteristic);
-                String properties = null;
-                for (int i = 0; i < characteristicProperty.length(); i++) {
-                    try {
-                        if (characteristicProperty.get(i) != null && properties != null) {
-                            properties = properties + ", " + (String) characteristicProperty.get(i);
-                        } else if (characteristicProperty.get(i) != null && properties == null) {
-                            properties = (String) characteristicProperty.get(i);
-                        }
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                }
-                broadcastUpdate("Characteristic: " + GattDataLookUp.characteristicNameLookup(characteristic.getUuid()));
-                broadcastUpdate("UUID: " + characteristic.getUuid().toString());
-                broadcastUpdate("Property: " + properties);
-                broadcastUpdate("Value: " + characteristicValue);
-                databaseService = updateDatabaseService(mBluetoothGatt.getDevice().getAddress(), characteristic.getService().getUuid().toString());
-                databaseCharacteristic = updateDatabaseCharacteristics(mBluetoothGatt.getDevice().getAddress(), characteristic.getService().getUuid().toString(), characteristic.getUuid().toString(), properties, characteristicValue);
-
-
-                if (databaseService) {
-                    broadcastUpdate("Services have been written to database");
-                }
-                if (databaseCharacteristic) {
-                    broadcastUpdate("Characteristics have been written to database");
-                }
-
-                if (databaseService && databaseCharacteristic) {
-                    try {
-                        mBinder.updateDatabaseDeviceState(mBluetoothGatt.getDevice(), "active");
-                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 12, 0));
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-
-            return json.getJsonData().toString();
         }
     };
-
-
-    /*
-     * some database routines section
-     */
-
-    private void insertDatabaseDevice(BluetoothDevice device, int rssi, String deviceState) {
-        broadcastUpdate("Write device " + device.getAddress() + " to database");
-        String deviceName = "unknown";
-        if (device.getName() != null) {
-            deviceName = device.getName();
-        }
-        bleDeviceDatabase.insertData(device.getAddress(), deviceName, rssi, deviceState);
-    }
-
-    private void updateDatabaseDevice(BluetoothDevice device, int rssi, byte[] scanRecord) {
-        String deviceName = "unknown";
-        if (device.getName() != null) {
-            deviceName = device.getName();
-        }
-        try {
-            bleDeviceDatabase.updateData(device.getAddress(), deviceName, rssi, null, scanRecord);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void insertDatabaseDevice(BluetoothDevice device, GattDataJson data, String deviceState) {
-        broadcastUpdate("Write device " + device.getAddress() + " to database");
-        String deviceName = "unknown";
-        int deviceRssi = 0;
-        try {
-            deviceRssi = (Integer) data.getJsonAdvertising().get("rssi");
-            if (device.getName() != null) {
-                deviceName = device.getName();
-            }
-            bleDeviceDatabase.insertData(device.getAddress(), deviceName, deviceRssi, deviceState);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void updateDatabaseDevice(BluetoothDevice device, GattDataJson data, byte[] scanRecord) {
-        String deviceName = "unknown";
-        int deviceRssi = 0;
-        try {
-            deviceRssi = (Integer) data.getJsonAdvertising().get("rssi");
-            if (device.getName() != null) {
-                deviceName = device.getName();
-            }
-            bleDeviceDatabase.updateData(device.getAddress(), deviceName, deviceRssi, null, scanRecord);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private boolean updateDatabaseService(String macAddress, String serviceUUID) {
-        return bleServicesDatabase.insertData(macAddress, serviceUUID);
-    }
-
-    private boolean updateDatabaseCharacteristics(String macAddress, String serviceUUID, String characteristicUUID, String property, String value) {
-        return bleCharacteristicDatabase.insertData(macAddress, serviceUUID, characteristicUUID, property, value);
-    }
 
     /**
      * Some routines section
@@ -817,7 +616,6 @@ public class GatewayService extends Service {
     private void disconnect() {
         mProcessing = false;
         mScanning = false;
-        mHandlerMessage.removeCallbacksAndMessages(mHandlerCallback);
         disconnectGatt();
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();

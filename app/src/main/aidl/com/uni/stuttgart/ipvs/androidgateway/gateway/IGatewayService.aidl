@@ -34,9 +34,15 @@ interface IGatewayService {
 
     boolean getScanState();
 
+    void setScanResult(in List<BluetoothDevice> scanResult);
+
     List<BluetoothDevice> getScanResults();
 
+    void setCurrentGatt(in PBluetoothGatt gatt);
+
     PBluetoothGatt getCurrentGatt();
+
+    void setListGatt(in List<PBluetoothGatt> listGatt);
 
     void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID);
 
@@ -55,6 +61,14 @@ interface IGatewayService {
     void execCharacteristicQueue();
 
     BluetoothDevice getDevice(String macAddress);
+
+    void insertDatabaseDevice(in BluetoothDevice device, in int rssi, in String deviceState);
+
+    void updateDatabaseDevice(in BluetoothDevice device, in int rssi, in byte[] scanRecord);
+
+    boolean updateDatabaseService(in String macAddress, in String serviceUUID);
+
+    boolean updateDatabaseCharacteristics(in String macAddress, in String serviceUUID, in String characteristicUUID, in String property, in String value);
 
     void updateDatabaseDeviceState(in BluetoothDevice device, in String deviceState);
 
@@ -87,5 +101,7 @@ interface IGatewayService {
     List<ParcelUuid> getCharacteristicUUIDs(String macAddress);
 
     void disconnectSpecificGatt(in String macAddress);
+
+    void broadcastUpdate(in String message);
 
 }
