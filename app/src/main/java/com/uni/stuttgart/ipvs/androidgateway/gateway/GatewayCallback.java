@@ -7,10 +7,8 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
-import android.content.Intent;
 import android.os.Build;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.Message;
 import android.os.ParcelUuid;
 import android.os.RemoteException;
@@ -152,6 +150,7 @@ public class GatewayCallback implements Handler.Callback {
                     dataJson = new GattDataJson(disconnectedGatt.getDevice(), disconnectedGatt);
                     mBinder.doDisconnected(parcelBluetoothGatt, "GatewayService");
                     disconnectedGatt.close();
+                    mBinder.broadcastCommand("Command disconnected Gatt", GatewayService.DISCONNECT_COMMAND);
                 } else if (msg.arg1 == 3) {
                     // read all bluetoothGatt rssi
                     dataJson.setRssi((int) msg.obj);
@@ -176,6 +175,9 @@ public class GatewayCallback implements Handler.Callback {
                 } else if (msg.arg1 == 7) {
                     //onCharacteristicChanged
                     readData(msg);
+                } else if (msg.arg1 == 12) {
+                    //Finish Reading
+                    mBinder.broadcastCommand("Finish reading data", GatewayService.FINISH_READ);
                 }
             }
         } catch (Exception e) {

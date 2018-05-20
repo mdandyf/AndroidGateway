@@ -341,8 +341,8 @@ public class GatewayService extends Service {
                 try {
                     status = "Connected";
                     mBluetoothGatt = gatt.getGatt();
-                    mBinder.broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
-                    mBinder.broadcastUpdate("discovering services...");
+                    broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
+                    broadcastUpdate("discovering services...");
                     status = "Discovering";
                     mBluetoothGatt.discoverServices();
                     lock.notifyAll();
@@ -590,6 +590,15 @@ public class GatewayService extends Service {
                 sendBroadcast(intent);
             }
         }
+
+        @Override
+        public void broadcastCommand(String message, String action) throws RemoteException {
+            if (mProcessing) {
+                final Intent intent = new Intent(action);
+                intent.putExtra("command", message);
+                sendBroadcast(intent);
+            }
+        }
     };
 
     /**
@@ -628,14 +637,6 @@ public class GatewayService extends Service {
         for (BluetoothGatt gatt : listBluetoothGatt) {
             gatt.disconnect();
             gatt.close();
-        }
-    }
-
-    private void broadcastUpdate(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
-            intent.putExtra("command", message);
-            sendBroadcast(intent);
         }
     }
 

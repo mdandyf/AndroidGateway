@@ -104,4 +104,6 @@ interface IGatewayService {
 
     void broadcastUpdate(in String message);
 
+    void broadcastCommand(in String message, in String action);
+
 }

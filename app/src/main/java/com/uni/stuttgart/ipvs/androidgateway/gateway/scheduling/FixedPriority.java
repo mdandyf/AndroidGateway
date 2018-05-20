@@ -1,21 +1,16 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
 
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.AsyncTask;
-import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Looper;
-import android.os.Message;
 import android.os.RemoteException;
-import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.PHandlerThread;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
@@ -63,11 +58,9 @@ public class FixedPriority implements Runnable {
     @Override
     public void run() {
         try {
+            context.registerReceiver(mReceiver, new IntentFilter(GatewayService.DISCONNECT_COMMAND));
+            context.registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
             powerEstimator = new PowerEstimator(context);
-            PHandlerThread parcelHandlerThread = iGatewayService.getHandlerThread();
-            HandlerThread handlerThread = parcelHandlerThread.getHandlerThread();
-            Handler handler = new Handler(handlerThread.getLooper(), mCallback);
-
             scheduler = new ScheduledThreadPoolExecutor(5);
             future = scheduler.scheduleAtFixedRate(new FPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
             scheduler2 = new ScheduledThreadPoolExecutor(5);
@@ -324,6 +317,28 @@ public class FixedPriority implements Runnable {
         }
     }
 
+    /**
+     * =================================================================================================================================
+     * Broadcast Listener
+     * =================================================================================================================================
+     */
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (action.equals(GatewayService.DISCONNECT_COMMAND)) {
+                String message = intent.getStringExtra("command");
+                if(sleepThread != null && !sleepThread.isInterrupted()) {sleepThread.interrupt();}
+            } else if (action.equals(GatewayService.FINISH_READ)) {
+                String message = intent.getStringExtra("command");
+                if(sleepThread != null && !sleepThread.isInterrupted()) {sleepThread.interrupt();}
+            }
+        }
+
+    };
+
 
     /**
      * =================================================================================================================================
@@ -337,9 +352,7 @@ public class FixedPriority implements Runnable {
             public void run() {
                 try {
                     long currentNow = powerEstimator.getCurrentNow();
-                    if (currentNow < 0) {
-                        currentNow = currentNow * -1;
-                    }
+                    if (currentNow < 0) { currentNow = currentNow * -1; }
                     powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -381,10 +394,7 @@ public class FixedPriority implements Runnable {
     private void processUserChoiceAlert(String macAddress, String deviceName) {
         try {
             String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-            if (deviceName == null) {
-                deviceName = "Unknown";
-            }
-            ;
+            if (deviceName == null) { deviceName = "Unknown"; }
             if (userChoice == null || userChoice == "")
                 broadcastAlertDialog("Start Service Interface of Device " + macAddress + "-" + deviceName, macAddress);
         } catch (RemoteException e) {
@@ -400,28 +410,5 @@ public class FixedPriority implements Runnable {
             context.sendBroadcast(intent);
         }
     }
-
-    /**
-     * =================================================================================================================================
-     * Callback Listener Section
-     * =================================================================================================================================
-     */
-
-    Handler.Callback mCallback = new Handler.Callback() {
-        @Override
-        public boolean handleMessage(Message msg) {
-            if (msg.what == 1) {
-                if (msg.arg1 == 2) {
-                    // listen all bluetoothGatt disconnected servers
-                    if(sleepThread != null) {sleepThread.interrupt();}
-                } else if (msg.arg1 == 12) {
-                    // listen to all finished reading
-                    if(sleepThread != null) {sleepThread.interrupt();}
-                }
-            }
-
-            return false;
-        }
-    };
 
 }
