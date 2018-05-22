@@ -29,6 +29,7 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattC
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
@@ -65,6 +66,8 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.DISCONNECT_COMMAND";
     public static final String FINISH_READ =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.FINISH_READ";
+    public static final String START_NEW_CYCLE =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.START_NEW_CYCLE";
 
     private Intent mIntent;
     private Context context;
@@ -96,6 +99,7 @@ public class GatewayService extends Service {
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
+    private PowerUsageDatabase blePowerUsageDatabase = new PowerUsageDatabase(this);
 
     private String status;
 
@@ -440,6 +444,14 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void initializeDatabase() throws RemoteException {
+            bleDeviceDatabase.deleteAllData();
+            bleServicesDatabase.deleteAllData();
+            bleCharacteristicDatabase.deleteAllData();
+            blePowerUsageDatabase.deleteAllData();
+        }
+
+        @Override
         public void insertDatabaseDevice(BluetoothDevice device, int rssi, String deviceState) throws RemoteException {
             broadcastUpdate("Write device " + device.getAddress() + " to database");
             String deviceName = "unknown";
@@ -560,6 +572,20 @@ public class GatewayService extends Service {
         @Override
         public long getDevicePowerUsage(String macAddress) throws RemoteException {
             return bleDeviceDatabase.getDevicePowerUsage(macAddress);
+        }
+
+        @Override
+        public void insertDatabasePowerUsage(String idCase, double batteryLevel, double batteryLevelUpper, double powerUsage1, double powerUsage2, double powerUsage3) throws RemoteException {
+            blePowerUsageDatabase.insertData(idCase, batteryLevel, batteryLevelUpper, (long) powerUsage1, (long) powerUsage2, (long) powerUsage3);
+        }
+
+        @Override
+        public double[] getPowerUsageConstraints(double batteryLevel) throws RemoteException {
+            double[] powerConstraint = new double[3];
+            powerConstraint[0] = blePowerUsageDatabase.getPowerConstraint1( batteryLevel);
+            powerConstraint[1] = blePowerUsageDatabase.getPowerConstraint2( batteryLevel);
+            powerConstraint[2] = blePowerUsageDatabase.getPowerConstraint3( batteryLevel);
+            return powerConstraint;
         }
 
         @Override

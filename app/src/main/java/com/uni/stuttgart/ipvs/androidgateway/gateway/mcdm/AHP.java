@@ -3,16 +3,17 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm;
 import android.bluetooth.BluetoothDevice;
 import android.os.AsyncTask;
 
+import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.IMatrixComputation;
+import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.MatrixComputation;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, String>> {
+public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
 
     private Map<BluetoothDevice, Object[]> mapInput;
-    private Map<BluetoothDevice, String> mapOutput;
+    private Map<BluetoothDevice, Double> mapOutput;
     private Map<BluetoothDevice, Long> mapPowerUsage;
-
-    private MatrixOperation matrixOperation = new MatrixOperation();
 
     private double[][] matrix3x3;
     private double[][] matrix3x3Standardize;
@@ -38,37 +39,57 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, String>> {
 
     public AHP(Map<BluetoothDevice, Object[]> mapInput) {
         this.mapInput = mapInput;
-        this.matrix3x3 = matrixOperation.setMatrix3x3(1.00, 0.33, 0.20,
-                                                        3.00, 1.00, 0.50,
-                                                            5.00, 2.00, 1.00);
-        this.matrix3x3Standardize = matrixOperation.setMatrix3x3Standardize();
-        this.matrix3x3Weight = matrixOperation.setMatrix3x3Weight();
-        this.matrixAHPWeight = matrixOperation.matrix3x3Weight;
 
-        // set Rssi Matrix
-        this.matrix2x2 = matrixOperation.setMatrix2x2(1.00, 3,
-                                                       0.33, 1.00);
-        this.matrix2x2Standardize = matrixOperation.setMatrix2x2Standardize();
-        this.matrix2x2Weight = matrixOperation.setMatrix2x2Weight();
-        this.matrix2x2SubWeight = matrixOperation.setMatrix2x2SubWeight(matrix2x2Weight, matrixAHPWeight[0]);
-        this.rssiMatrix = matrix2x2SubWeight;
+        // set Matrix AHP Weight
+        MatrixComputation matrixComputeAHP = new MatrixComputation(3,3);
+        double[][] matrix = matrixComputeAHP.getMatrixIdentity();
+        matrix = matrixComputeAHP.changeMatrixValue(matrix, 0, 1, 0.33);
+        matrix = matrixComputeAHP.changeMatrixValue(matrix, 0, 2, 0.20);
+        matrix = matrixComputeAHP.changeMatrixValue(matrix, 1, 0, 3.00);
+        matrix = matrixComputeAHP.changeMatrixValue(matrix, 1, 2, 0.50);
+        matrix = matrixComputeAHP.changeMatrixValue(matrix, 2, 0, 5.00);
+        matrix = matrixComputeAHP.changeMatrixValue(matrix, 2, 1, 2.00);
+        this.matrix3x3 = matrix;
+        this.matrix3x3Standardize = matrixComputeAHP.getMatrixStandardize(matrix3x3);
+        this.matrix3x3Weight = matrixComputeAHP.getMatrixWeight(matrix3x3Standardize);
+        this.matrixAHPWeight = this.matrix3x3Weight;
 
-        // set DeviceState Matrix
-        this.matrix2x2 = matrixOperation.setMatrix2x2(1.00, 3.00,
-                                                      0.33, 1.00);
-        this.matrix2x2Standardize = matrixOperation.setMatrix2x2Standardize();
-        this.matrix2x2Weight = matrixOperation.setMatrix2x2Weight();
-        this.matrix2x2SubWeight = matrixOperation.setMatrix2x2SubWeight(matrix2x2Weight, matrixAHPWeight[1]);
-        this.deviceStateMatrix = matrix2x2SubWeight;
+        // set Rssi Matrix Weight
+        MatrixComputation matrixComputeRssi = new MatrixComputation(2,2);
+        double[][] matrixRssi = matrixComputeRssi.getMatrixIdentity();
+        matrixRssi = matrixComputeRssi.changeMatrixValue(matrixRssi, 0, 1, 2.00);
+        matrixRssi = matrixComputeRssi.changeMatrixValue(matrixRssi, 1, 0, 0.50);
+        this.matrix2x2 = matrixRssi;
+        this.matrix2x2Standardize = matrixComputeRssi.getMatrixStandardize(matrix2x2);
+        this.matrix2x2Weight = matrixComputeRssi.getMatrixWeight(matrix2x2Standardize);
+        this.matrix2x2SubWeight = matrixComputeRssi.getMatrixSubWeight(matrix2x2Weight, matrixAHPWeight[0]);
+        this.rssiMatrix = this.matrix2x2SubWeight;
 
-        //set PowerUsage Matrix
-        this.matrix3x3 = matrixOperation.setMatrix3x3(1.00, 0.33, 0.2,
-                                                      3.00, 1.00, 0.50,
-                                                      5.00, 2.00, 1.00);
-        this.matrix3x3Standardize = matrixOperation.setMatrix3x3Standardize();
-        this.matrix3x3Weight = matrixOperation.setMatrix3x3Weight();
-        this.matrix3x3SubWeight = matrixOperation.setMatrix3x3SubWeight(matrix3x3Weight, matrixAHPWeight[2]);
-        this.powerUsageMatrix = matrix3x3SubWeight;
+        // set DeviceState Matrix Weight
+        MatrixComputation matrixComputeDS = new MatrixComputation(2,2);
+        double[][] matrixDS = matrixComputeDS.getMatrixIdentity();
+        matrixDS = matrixComputeDS.changeMatrixValue(matrixDS, 0, 1, 3.00);
+        matrixDS = matrixComputeDS.changeMatrixValue(matrixDS, 1, 0, 0.33);
+        this.matrix2x2 = matrixDS;
+        this.matrix2x2Standardize = matrixComputeDS.getMatrixStandardize(matrix2x2);
+        this.matrix2x2Weight = matrixComputeDS.getMatrixWeight(matrix2x2Standardize);
+        this.matrix2x2SubWeight = matrixComputeDS.getMatrixSubWeight(matrix2x2Weight, matrixAHPWeight[1]);
+        this.deviceStateMatrix = this.matrix2x2SubWeight;
+
+        //set PowerUsage Matrix Weight
+        MatrixComputation matrixComputePU = new MatrixComputation(3,3);
+        double[][] matrixPU = matrixComputePU.getMatrixIdentity();
+        matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 0, 1, 0.33);
+        matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 0, 2, 0.20);
+        matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 1, 0, 3.00);
+        matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 1, 2, 0.50);
+        matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 2, 0, 5.00);
+        matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 2, 1, 2.00);
+        this.matrix3x3 = matrixPU;
+        this.matrix3x3Standardize = matrixComputePU.getMatrixStandardize(matrix3x3);
+        this.matrix3x3Weight = matrixComputePU.getMatrixWeight(matrix3x3Standardize);
+        this.matrix3x3SubWeight = matrixComputePU.getMatrixSubWeight(matrix3x3Weight, matrixAHPWeight[2]);
+        this.powerUsageMatrix = this.matrix3x3SubWeight;
     }
 
     /**
@@ -78,7 +99,7 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, String>> {
      */
 
     @Override
-    protected Map<BluetoothDevice, String> doInBackground(Void... voids) {
+    protected Map<BluetoothDevice, Double> doInBackground(Void... voids) {
         // Looping to all available devices
         if(mapInput != null && mapInput.size() > 0) {
             for(Map.Entry entry : mapInput.entrySet()) {
@@ -115,20 +136,15 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, String>> {
                 }
 
                 //calculate percentage PowerUsage
-                if(powerUsage > (5 * 10^16)) {
+                if(powerUsage > (1 * 10^15)) {
                     devicePercentage = devicePercentage + powerUsageMatrix[0];
-                } else if(powerUsage < (5 * 10^16)) {
+                } else if((powerUsage >= (1 * 10^14)) && (powerUsage < (1 * 10^15))) {
                     devicePercentage = devicePercentage + powerUsageMatrix[1];
-                } else if(powerUsage < (1 * 10^16)) {
+                } else if(powerUsage < (1 * 10^14)) {
                     devicePercentage = devicePercentage + powerUsageMatrix[2];
                 }
 
-                // if sum of all percentages is more than 40%, then connect the device
-                if(devicePercentage > 0.4) {
-                    mapOutput.put(device, "Yes");
-                } else {
-                    mapOutput.put(device, "No");
-                }
+                mapOutput.put(device, devicePercentage);
             }
         }
         return mapOutput;

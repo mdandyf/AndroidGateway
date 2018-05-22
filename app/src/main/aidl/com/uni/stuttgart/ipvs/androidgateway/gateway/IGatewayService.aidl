@@ -62,6 +62,8 @@ interface IGatewayService {
 
     BluetoothDevice getDevice(String macAddress);
 
+    void initializeDatabase();
+
     void insertDatabaseDevice(in BluetoothDevice device, in int rssi, in String deviceState);
 
     void updateDatabaseDevice(in BluetoothDevice device, in int rssi, in byte[] scanRecord);
@@ -95,6 +97,10 @@ interface IGatewayService {
     String getDeviceState(in String macAddress);
 
     long getDevicePowerUsage(in String macAddress);
+
+    void insertDatabasePowerUsage(in String idCase, in double batteryLevel, in double batteryLevelUpper, in double powerUsage1, in double powerUsage2, in double powerUsage3);
+
+    double[] getPowerUsageConstraints(in double batteryLevel);
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 

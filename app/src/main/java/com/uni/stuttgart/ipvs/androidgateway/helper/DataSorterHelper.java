@@ -77,4 +77,36 @@ public class DataSorterHelper<T> {
         return sortedMap;
     }
 
+    public Map<T, Double> sortMapByComparatorDouble(Map<T, Double> unsortMap, final boolean order)
+    {
+
+        List<Map.Entry<T, Double>> list = new LinkedList<Map.Entry<T, Double>>(unsortMap.entrySet());
+
+        // Sorting the list based on values
+        Collections.sort(list, new Comparator<Map.Entry<T, Double>>()
+        {
+            public int compare(Map.Entry<T, Double> o1,
+                               Map.Entry<T, Double> o2)
+            {
+                if (order)
+                {
+                    return o1.getValue().compareTo(o2.getValue());
+                }
+                else
+                {
+                    return o2.getValue().compareTo(o1.getValue());
+                }
+            }
+        });
+
+        // Maintaining insertion order with the help of LinkedList
+        Map<T, Double> sortedMap = new LinkedHashMap<T, Double>();
+        for (Map.Entry<T, Double> entry : list)
+        {
+            sortedMap.put(entry.getKey(), entry.getValue());
+        }
+
+        return sortedMap;
+    }
+
 }

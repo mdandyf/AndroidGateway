@@ -57,10 +57,6 @@ public class GatewayFragment extends Fragment {
     private PowerManager.WakeLock wakeLock;
     private PowerManager powerManager;
 
-    private BleDeviceDatabase bleDeviceDatabase;
-    private ServicesDatabase bleServicesDatabase;
-    private CharacteristicsDatabase bleCharacteristicDatabase;
-
     private BroadcastReceiverHelper mBReceiver = new BroadcastReceiverHelper();
 
     @Override
@@ -97,7 +93,6 @@ public class GatewayFragment extends Fragment {
         setWakeLock();
         checkingPermission();
         registerBroadcastListener();
-        clearDatabase();
 
         // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
         // fire an intent to display a dialog asking the user to grant permission to enable it.
@@ -215,8 +210,8 @@ public class GatewayFragment extends Fragment {
     private void startGatewayService() {
         mIntentGatewayController = new Intent(context, GatewayController.class);
         getActivity().startService(mIntentGatewayController);
-        setCommandLine("\n");
-        setCommandLine("Start Services...");
+        setCommandLine("\n", false);
+        setCommandLine("Start Services...", false);
         getActivity().bindService(mIntentGatewayController, mConnection, Context.BIND_AUTO_CREATE);
         mProcessing = true;
     }
@@ -224,8 +219,8 @@ public class GatewayFragment extends Fragment {
     private void stopGatewayService() {
         if(mConnection != null && mProcessing) {getActivity().unbindService(mConnection);}
         if(mIntentGatewayController != null) {getActivity().stopService(mIntentGatewayController); }
-        setCommandLine("\n");
-        setCommandLine("Stop Services...");
+        setCommandLine("\n", false);
+        setCommandLine("Stop Services...", false);
         mProcessing = false;
     }
 
@@ -249,7 +244,7 @@ public class GatewayFragment extends Fragment {
     private void checkingPermission() {
         // Use this check to determine whether BLE is supported on the device.  Then you can
         // selectively disable BLE-related features.
-        setCommandLine("Start checking permissions...");
+        setCommandLine("Start checking permissions...", false);
         if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Toast.makeText(context, "Ble is not supported", Toast.LENGTH_SHORT).show();
             getActivity().finish();
@@ -283,7 +278,7 @@ public class GatewayFragment extends Fragment {
             }
         }
 
-        setCommandLine("Checking permissions done...");
+        setCommandLine("Checking permissions done...", false);
     }
 
     /**
@@ -303,11 +298,14 @@ public class GatewayFragment extends Fragment {
         IntentFilter filter4 = new IntentFilter(GatewayService.USER_CHOICE_SERVICE);
         getActivity().registerReceiver(mReceiver, filter4);
 
+        IntentFilter filter5 = new IntentFilter(GatewayService.START_NEW_CYCLE);
+        getActivity().registerReceiver(mReceiver, filter5);
+
         IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
         pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
         getActivity().registerReceiver(mBReceiver, pairingRequestFilter);
 
-        setCommandLine("Start Broadcast Listener...");
+        setCommandLine("Start Broadcast Listener...", false);
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -318,7 +316,7 @@ public class GatewayFragment extends Fragment {
 
             if (action.equals(GatewayService.MESSAGE_COMMAND)) {
                 String message = intent.getStringExtra("command");
-                setCommandLine(message);
+                setCommandLine(message, false);
             } else if (action.equals(GatewayService.TERMINATE_COMMAND)) {
                 String message = intent.getStringExtra("command");
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
@@ -334,6 +332,8 @@ public class GatewayFragment extends Fragment {
                 String message = intent.getStringExtra("message");
                 String macAddress = intent.getStringExtra("macAddress");
                 alertDialog("Service Interface", message, "Yes", "No", macAddress);
+            } else if(action.equals(GatewayService.START_NEW_CYCLE)) {
+                setCommandLine("", true);
             }
         }
 
@@ -345,16 +345,6 @@ public class GatewayFragment extends Fragment {
 
     private void setWakeLock() {
         if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
-    }
-
-    private void clearDatabase() {
-        bleDeviceDatabase = new BleDeviceDatabase(context);
-        bleServicesDatabase = new ServicesDatabase(context);
-        bleCharacteristicDatabase = new CharacteristicsDatabase(context);
-        
-        bleDeviceDatabase.deleteAllData();
-        bleServicesDatabase.deleteAllData();
-        bleCharacteristicDatabase.deleteAllData();
     }
 
     /**
@@ -403,19 +393,17 @@ public class GatewayFragment extends Fragment {
         });
     }
 
-    private void setCommandLine(final String info) {
+    private void setCommandLine(final String info, final boolean clearScreen) {
         screenCounter++;
         getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if(screenCounter < 100) {
+                if(!clearScreen) {
                     textArea.append("\n");
                     textArea.append(info);
                 } else {
                     screenCounter = 0;
                     textArea.getText().clear();
-                    textArea.setText("");
-                    textArea.append("\n");
                     textArea.append(info);
                 }
             }
