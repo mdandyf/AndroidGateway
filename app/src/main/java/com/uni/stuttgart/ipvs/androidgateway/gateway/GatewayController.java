@@ -1,7 +1,6 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
 import android.app.Service;
-import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -15,20 +14,10 @@ import android.os.RemoteException;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePolling;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.FairExhaustivePolling;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.FixedPriority;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithAHP;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
-import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -132,7 +121,8 @@ public class GatewayController extends Service {
             //doScheduleRR();
             //doScheduleEP();
             //doScheduleFEP();
-            doScheduleFP();
+            //doSchedulePriorityAHP();
+            doSchedulePriorityANP();
         }
 
         @Override
@@ -222,13 +212,31 @@ public class GatewayController extends Service {
      * ============================================================================================================================= *
      */
 
-    // scheduling based on Fixed Priority
-    private void doScheduleFP() {
-        broadcastUpdate("Start Fixed Priority Scheduling...");
+    // scheduling based on Priority with AHP decision making algorithm
+    private void doSchedulePriorityAHP() {
+        broadcastUpdate("Start Priority Scheduling with AHP...");
         try {
             iGatewayService.setProcessing(mProcessing);
             process = new ProcessPriority(10);
-            runnablePeriodic = new FixedPriority(context, mProcessing, iGatewayService);
+            runnablePeriodic = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
+            threadPeriodic = process.newThread(runnablePeriodic);
+            threadPeriodic.start();
+            threadPeriodic.setName("Fixed Priority");
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    // scheduling based on Priority with ANP decision making algorithm
+    private void doSchedulePriorityANP() {
+        broadcastUpdate("Start Priority Scheduling with ANP...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            process = new ProcessPriority(10);
+            runnablePeriodic = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
             threadPeriodic = process.newThread(runnablePeriodic);
             threadPeriodic.start();
             threadPeriodic.setName("Fixed Priority");

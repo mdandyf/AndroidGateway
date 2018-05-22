@@ -13,6 +13,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.ANP;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
 
@@ -25,7 +26,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class FixedPriority implements Runnable {
+public class PriorityBasedWithANP implements Runnable {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
@@ -53,7 +54,7 @@ public class FixedPriority implements Runnable {
 
     private ProcessPriority processConnecting;
 
-    public FixedPriority(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public PriorityBasedWithANP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
@@ -290,7 +291,7 @@ public class FixedPriority implements Runnable {
         private Map<BluetoothDevice, Double> doRankDeviceAHP(List<BluetoothDevice> devices) {
             try {
                 broadcastUpdate("\n");
-                broadcastUpdate("Start ranking device...");
+                broadcastUpdate("Start ranking device with ANP algorithm...");
 
                 Map<BluetoothDevice, Double> rankedDevices = new ConcurrentHashMap<>();
                 Map<BluetoothDevice, Object[]> mapParameters = new ConcurrentHashMap<>();
@@ -312,8 +313,8 @@ public class FixedPriority implements Runnable {
                     mapParameters.put(device, parameters);
                 }
 
-                AHP ahp = new AHP(mapParameters);
-                AsyncTask<Void, Void, Map<BluetoothDevice, Double>> rankingTask = ahp.execute();
+                ANP anp = new ANP(mapParameters);
+                AsyncTask<Void, Void, Map<BluetoothDevice, Double>> rankingTask = anp.execute();
                 rankedDevices = rankingTask.get();
                 broadcastUpdate("Finish ranking device...");
                 return rankedDevices;
