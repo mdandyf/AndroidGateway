@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.helper;
+package com.uni.stuttgart.ipvs.androidgateway.helper.view;
 
 import android.view.View;
 

@@ -8,6 +8,7 @@ import List;
 import ParcelUuid;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PHandlerThread;
 //import Runnable;
 
 interface IGatewayService {
@@ -27,11 +28,21 @@ interface IGatewayService {
 
     PMessageHandler getMessageHandler();
 
+    PHandlerThread getHandlerThread();
+
     void setProcessing(boolean mProcessing);
+
+    boolean getScanState();
+
+    void setScanResult(in List<BluetoothDevice> scanResult);
 
     List<BluetoothDevice> getScanResults();
 
+    void setCurrentGatt(in PBluetoothGatt gatt);
+
     PBluetoothGatt getCurrentGatt();
+
+    void setListGatt(in List<PBluetoothGatt> listGatt);
 
     void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID);
 
@@ -49,11 +60,25 @@ interface IGatewayService {
 
     void execCharacteristicQueue();
 
+    BluetoothDevice getDevice(String macAddress);
+
+    void initializeDatabase();
+
+    void insertDatabaseDevice(in BluetoothDevice device, in int rssi, in String deviceState);
+
+    void updateDatabaseDevice(in BluetoothDevice device, in int rssi, in byte[] scanRecord);
+
+    boolean updateDatabaseService(in String macAddress, in String serviceUUID);
+
+    boolean updateDatabaseCharacteristics(in String macAddress, in String serviceUUID, in String characteristicUUID, in String property, in String value);
+
     void updateDatabaseDeviceState(in BluetoothDevice device, in String deviceState);
 
     void updateDatabaseDeviceAdvRecord(in BluetoothDevice device, in byte[] scanRecord);
 
     void updateDatabaseDeviceUsrChoice(in String macAddress, in String userChoice);
+
+    void updateDatabaseDevicePowerUsage(in String macAddress, in long powerUsage);
 
     void updateAllDeviceStates(in List<String> nearbyDevices);
 
@@ -69,10 +94,22 @@ interface IGatewayService {
 
     String getDeviceUsrChoice(in String macAddress);
 
+    String getDeviceState(in String macAddress);
+
+    long getDevicePowerUsage(in String macAddress);
+
+    void insertDatabasePowerUsage(in String idCase, in double batteryLevel, in double batteryLevelUpper, in double powerUsage1, in double powerUsage2, in double powerUsage3);
+
+    double[] getPowerUsageConstraints(in double batteryLevel);
+
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 
     List<ParcelUuid> getCharacteristicUUIDs(String macAddress);
 
     void disconnectSpecificGatt(in String macAddress);
+
+    void broadcastUpdate(in String message);
+
+    void broadcastCommand(in String message, in String action);
 
 }

@@ -18,7 +18,7 @@ public class BluetoothLeDevice {
     public static int SCANNING = 300;
     public static int STOP_SCANNING = 301;
     public static int FIND_LE_DEVICE = 302;
-    public static int CONNECTING = 303;
+    public static int STOP_SCAN = 303;
     public static int CONNECTED = 304;
     public static int DISCONNECTED = 305;
     public static int STOP_SEQUENCE = 306;
