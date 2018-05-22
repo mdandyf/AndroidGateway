@@ -243,6 +243,7 @@ public class GatewayController extends Service {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
+
     /**
      * End of Algorithm Section
      */
