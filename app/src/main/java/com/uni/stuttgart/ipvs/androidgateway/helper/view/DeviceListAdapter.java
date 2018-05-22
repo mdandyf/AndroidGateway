@@ -1,8 +1,7 @@
-package com.uni.stuttgart.ipvs.androidgateway.helper;
+package com.uni.stuttgart.ipvs.androidgateway.helper.view;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import android.media.Image;
 import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,6 +11,8 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
+import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewConnectListener;
+import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewDisconnectListener;
 
 import java.util.HashMap;
 import java.util.List;

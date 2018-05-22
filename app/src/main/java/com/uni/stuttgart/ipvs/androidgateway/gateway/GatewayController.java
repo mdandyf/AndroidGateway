@@ -253,9 +253,9 @@ public class GatewayController extends Service {
             broadcastUpdate("Initialize database...");
             broadcastUpdate("\n");
             iGatewayService.initializeDatabase();
-            iGatewayService.insertDatabasePowerUsage("Case1", 6.0/10, 10/10, 1 * Math.pow(10, 14), 1 * Math.pow(10, 15), 1 * Math.pow(10, 15));
-            iGatewayService.insertDatabasePowerUsage("Case2", 2.0/10, 6.0/10, 1 * Math.pow(10, 13), 1 * Math.pow(10, 14), 1 * Math.pow(10, 14));
-            iGatewayService.insertDatabasePowerUsage("Case3", 0, 2.0/10, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
+            iGatewayService.insertDatabasePowerUsage("Case1", 60, 100, 1 * Math.pow(10, 14), 1 * Math.pow(10, 15), 1 * Math.pow(10, 15));
+            iGatewayService.insertDatabasePowerUsage("Case2", 20, 60, 1 * Math.pow(10, 13), 1 * Math.pow(10, 14), 1 * Math.pow(10, 14));
+            iGatewayService.insertDatabasePowerUsage("Case3", 0, 20, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
         } catch (RemoteException e) {
             e.printStackTrace();
         }

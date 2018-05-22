@@ -3,6 +3,7 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm;
 import android.bluetooth.BluetoothDevice;
 import android.os.AsyncTask;
 
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.IMatrixComputation;
 import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.MatrixComputation;
 
@@ -105,7 +106,7 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
             for(Map.Entry entry : mapInput.entrySet()) {
                 BluetoothDevice device = (BluetoothDevice) entry.getKey();
                 Object[] values = (Object[]) entry.getValue();
-                int rssi = 0; String state = ""; String userChoice="";long powerUsage = 0;int counter = 0;
+                int rssi = 0; String state = ""; String userChoice="";long powerUsage = 0;int counter = 0;double[] powerConstraints = new double[3];
                 for(Object value : values) {
                     counter++;
                     if(counter == 1) {
@@ -116,6 +117,8 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
                         userChoice = (String) value;
                     } else if(counter == 4) {
                         powerUsage = (Long) value;
+                    } else if(counter == 5) {
+                        powerConstraints = (double[]) value;
                     }
                 }
 
@@ -136,11 +139,11 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
                 }
 
                 //calculate percentage PowerUsage
-                if(powerUsage > (1 * 10^15)) {
+                if(powerUsage > powerConstraints[0]) {
                     devicePercentage = devicePercentage + powerUsageMatrix[0];
-                } else if((powerUsage >= (1 * 10^14)) && (powerUsage < (1 * 10^15))) {
+                } else if((powerUsage >= powerConstraints[1]) && (powerUsage < powerConstraints[0])) {
                     devicePercentage = devicePercentage + powerUsageMatrix[1];
-                } else if(powerUsage < (1 * 10^14)) {
+                } else if(powerUsage < powerConstraints[2]) {
                     devicePercentage = devicePercentage + powerUsageMatrix[2];
                 }
 

@@ -121,6 +121,11 @@ public class PowerEstimator {
                 String voltage = readBatteryInfo("/sys/class/power_supply/battery/voltage_now", "voltage_now");
                 if(voltage != null) {voltageNow = Integer.valueOf(voltage);}
 
+                if(batteryRemainingPercent == 0) {
+                    String capacity = readBatteryInfo("/sys/class/power_supply/battery/capacity", "capacity");
+                    if(capacity != null) {batteryRemainingPercent = Integer.valueOf(capacity);}
+                }
+
             } catch (Exception e) {
                 e.printStackTrace();
             }

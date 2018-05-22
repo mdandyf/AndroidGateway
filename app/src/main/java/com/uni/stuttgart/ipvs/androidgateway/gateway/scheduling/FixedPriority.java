@@ -29,7 +29,7 @@ public class FixedPriority implements Runnable {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
-    private static final double NUMBER_PERCENTAGE_CONNECT = 0.3;
+    private static final int NUMBER_OF_MAX_CONNECT_DEVICES = 10; // set max 10 devices connect before listening to disconnection time
 
     private ScheduledThreadPoolExecutor schedulerPower;
     private ScheduledThreadPoolExecutor scheduler;
@@ -71,12 +71,6 @@ public class FixedPriority implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        if(isBroadcastRegistered) {unregisterBroadcastListener();}
     }
 
     private class FPStartScanning implements Runnable {
@@ -165,7 +159,7 @@ public class FixedPriority implements Runnable {
             }
         }
 
-        // first iteration connect using Round Robin Method
+        // 1st iteration connect using Round Robin Method
         private void connectRR() {
             try {
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
@@ -220,51 +214,28 @@ public class FixedPriority implements Runnable {
                 connectCounter = 0;
                 Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(iGatewayService.getScanResults());
 
-                for (Map.Entry entry : mapRankedDevices.entrySet()) {
-                    if((Double) entry.getValue() >= NUMBER_PERCENTAGE_CONNECT) {
-                        connectCounter++;
-                    }
-                }
-
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 int remainingTime = PROCESSING_TIME - SCAN_TIME;
 
-                if(connectCounter <= 0 && mapRankedDevices.size() > 0) {
-                    broadcastUpdate("No Device enabled to connect");
-                    broadcastUpdate("Trying to reconnect to nearby devices");
-                    maxConnectTime = remainingTime / mapRankedDevices.size();
-
+                if(mapRankedDevices.size() > 0) {
                     DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
                     mapRankedDevices = sortData.sortMapByComparatorDouble(mapRankedDevices, false);
                     broadcastUpdate("Sorting devices by their priorities...");
 
                     broadcastUpdate("\n");
+                    maxConnectTime = remainingTime / mapRankedDevices.size();
                     broadcastUpdate("Connecting to " + mapRankedDevices.size() + " device(s)");
+                    broadcastUpdate("Maximum connection time for all devices is " + maxConnectTime / 1000 + " s");
                     broadcastUpdate("\n");
 
-                    if(mapRankedDevices.size() > 10) {
+                    if(mapRankedDevices.size() > NUMBER_OF_MAX_CONNECT_DEVICES) {
+                        // if more than 10 devices, try to listen to disconnect time before finish waiting
+                        // (ignoring maxConnectTime)
                         isBroadcastRegistered = registerBroadcastListener();
                         connect(mapRankedDevices, remainingTime);
                         if(isBroadcastRegistered) {unregisterBroadcastListener();}
                     } else {
-                        connect(mapRankedDevices, remainingTime);
-                    }
-
-                } else if(connectCounter >=0) {
-                    maxConnectTime = remainingTime / connectCounter;
-
-                    DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
-                    mapRankedDevices = sortData.sortMapByComparatorDouble(mapRankedDevices, false);
-                    broadcastUpdate("Sorting devices by their priorities...");
-
-                    broadcastUpdate("\n");
-                    broadcastUpdate("Connecting to " + connectCounter + " device(s)");
-                    broadcastUpdate("\n");
-
-                    if(mapRankedDevices.size() > 10) {
-                        registerBroadcastListener();
-                        connect(mapRankedDevices, remainingTime);
-                    } else {
+                        // if less than 10 devices, waiting time is based on maxConnectTime
                         connect(mapRankedDevices, remainingTime);
                     }
 
@@ -284,7 +255,6 @@ public class FixedPriority implements Runnable {
             try {
                 for (Map.Entry entry : mapRankedDevices.entrySet()) {
                     BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                    long timeConnect = (long) ((Double) entry.getValue() * remainingTime);
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
                     processUserChoiceAlert(device.getAddress(), device.getName());
 
@@ -296,10 +266,9 @@ public class FixedPriority implements Runnable {
 
                     schedulerPower = new ScheduledThreadPoolExecutor(5);
                     schedulerPower.scheduleAtFixedRate(doMeasurePower(), 0, 100, MILLISECONDS);
-                    broadcastUpdate("Maximum Connection time is " + timeConnect / 1000 + " s");
 
                     // set timer to xx seconds
-                    waitThread(timeConnect);
+                    waitThread(maxConnectTime);
                     if (!mProcessing) { return; }
 
                     broadcastUpdate("Wait time finished, disconnected...");
@@ -329,13 +298,17 @@ public class FixedPriority implements Runnable {
                     int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
                     String deviceState = iGatewayService.getDeviceState(device.getAddress());
                     String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
-                    long powerEstimator = iGatewayService.getDevicePowerUsage(device.getAddress());
+                    long powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());
 
-                    Object[] parameters = new Object[4];
+                    long batteryRemaining = powerEstimator.getBatteryRemainingPercent();
+                    double[] powerConstraints = iGatewayService.getPowerUsageConstraints((double) batteryRemaining);
+
+                    Object[] parameters = new Object[5];
                     parameters[0] = rssi;
                     parameters[1] = deviceState;
                     parameters[2] = userChoice;
-                    parameters[3] = powerEstimator;
+                    parameters[3] = powerUsage;
+                    parameters[4] = powerConstraints;
                     mapParameters.put(device, parameters);
                 }
 

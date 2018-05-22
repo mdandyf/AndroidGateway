@@ -45,11 +45,11 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
 import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
-import com.uni.stuttgart.ipvs.androidgateway.helper.DeviceListAdapter;
+import com.uni.stuttgart.ipvs.androidgateway.helper.view.DeviceListAdapter;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
-import com.uni.stuttgart.ipvs.androidgateway.helper.ImageViewConnectListener;
-import com.uni.stuttgart.ipvs.androidgateway.helper.ImageViewDisconnectListener;
+import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewConnectListener;
+import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewDisconnectListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
