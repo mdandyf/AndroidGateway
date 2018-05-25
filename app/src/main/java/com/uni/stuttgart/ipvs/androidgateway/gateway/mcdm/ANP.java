@@ -10,6 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
 
+    private static final int GOAL_SIZE = 1;
+    private static final int CRITERIA_SIZE = 3;
+
     private Map<BluetoothDevice, Object[]> mapInput;
     private Map<BluetoothDevice, Double> mapOutput;
     private Map<BluetoothDevice, Long> mapPowerUsage;
@@ -29,6 +32,11 @@ public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
     private double[] userChoiceMatrix;
     private double[] deviceStateMatrix;
     private double[] powerUsageMatrix;
+
+    private double[][] superMatrix;
+    private double[][] superMatrixUnweighted;
+    private double[][] superMatrixWeighted;
+    private double[][] LimitMatrix;
 
     /**
      * =======================================================================================================================
@@ -89,6 +97,12 @@ public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
         this.matrix3x3Weight = matrixComputePU.getMatrixWeight(matrix3x3Standardize);
         this.matrix3x3SubWeight = matrixComputePU.getMatrixSubWeight(matrix3x3Weight, matrixAHPWeight[2]);
         this.powerUsageMatrix = this.matrix3x3SubWeight;
+
+        MatrixComputation matrixCompute = new MatrixComputation((GOAL_SIZE + CRITERIA_SIZE + mapInput.size()),(GOAL_SIZE + CRITERIA_SIZE + mapInput.size()));
+        this.superMatrix = matrixCompute.getMatrixZero();
+        this.superMatrix = matrixCompute.changeMatrixValue(this.superMatrix, 1, 0, this.matrixAHPWeight[0]);
+        this.superMatrix = matrixCompute.changeMatrixValue(this.superMatrix, 2, 0, this.matrixAHPWeight[1]);
+        this.superMatrix = matrixCompute.changeMatrixValue(this.superMatrix, 3, 0, this.matrixAHPWeight[2]);
     }
 
     /**

@@ -30,12 +30,10 @@ public class BluetoothLeScanProcess {
 
     private BluetoothAdapter mBluetoothAdapter;
     private android.bluetooth.le.BluetoothLeScanner mBleScanner;
-    private ScanResult scanResult;
     private Context context;
     private boolean mScanning = false;
     public ScanCallbackNew callback;
     public ScanCallbackOld callbackOld;
-    private Handler mHandlerMessage;
 
     public BluetoothLeScanProcess(Context context, BluetoothAdapter adapter) {
         this.context = context;
@@ -54,7 +52,6 @@ public class BluetoothLeScanProcess {
     public boolean getScanState() {return this.mScanning;}
 
     public void setHandlerMessage(Handler mHandlerMessage) {
-        this.mHandlerMessage = mHandlerMessage;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             callback.setMessageHandler(mHandlerMessage);
         } else {

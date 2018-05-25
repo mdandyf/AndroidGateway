@@ -74,14 +74,11 @@ public class Semaphore implements Runnable {
 
                 // do Semaphore for Connecting method
                 for (final BluetoothDevice device : scanResults) {
-                    processPowerMeasurement = new ProcessPriority(10);
-                    processPowerMeasurement.newThread(doMeasurePower()).start();
 
                     iGatewayService.doConnect(device.getAddress());
                     processUserChoiceAlert(device.getAddress(), device.getName());
                     if (!mProcessing) { return; }
 
-                    processPowerMeasurement.interruptThread();
                     iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
                 }
             } catch (RemoteException e) {

@@ -120,9 +120,9 @@ public class GatewayController extends Service {
             //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            //doScheduleFEP();
+            doScheduleFEP();
             //doSchedulePriorityAHP();
-            doSchedulePriorityANP();
+            //doSchedulePriorityANP();
         }
 
         @Override
@@ -150,6 +150,7 @@ public class GatewayController extends Service {
             threadPeriodic = process.newThread(runnablePeriodic);
             threadPeriodic.setName("Semaphore");
             threadPeriodic.start();
+
         } catch (Exception e) { e.printStackTrace(); }
     }
 

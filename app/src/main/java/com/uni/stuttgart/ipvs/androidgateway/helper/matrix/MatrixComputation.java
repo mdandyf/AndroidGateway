@@ -24,6 +24,18 @@ public class MatrixComputation implements IMatrixComputation {
     }
 
     @Override
+    public double[][] getMatrixZero() {
+        double[][] floats = new double[this.numberRows][this.numberColumns];
+        for (int i = 0; i < this.numberRows; i++) {
+            for (int j = 0; j < this.numberColumns; j++) {
+                floats[i][j] = 0;
+            }
+        }
+
+        return floats;
+    }
+
+    @Override
     public double[][] changeMatrixValue(double[][] inputMatrix, int row, int column, double value) {
         double[][] outputMatrix = inputMatrix;
         outputMatrix[row][column] = value;
