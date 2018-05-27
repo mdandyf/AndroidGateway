@@ -34,6 +34,7 @@ import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -43,7 +44,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Created by mdand on 3/17/2018.
@@ -91,6 +96,8 @@ public class GatewayService extends Service {
 
     private HandlerThread mThread = new HandlerThread("mThreadCallback");
     private Handler mHandlerMessage;
+    private ExecutionTask<PBluetoothGatt> executionTask;
+
     private boolean mProcessing;
     private boolean mScanning;
     private PowerManager powerManager;
@@ -125,6 +132,9 @@ public class GatewayService extends Service {
         listBluetoothGatt = new ArrayList<>();
         mapGattCallback = new HashMap<>();
         scanResults = new ArrayList<>();
+
+        int N = Runtime.getRuntime().availableProcessors();
+        executionTask = new ExecutionTask<>(N, N * 2);
 
         status = "Created";
     }
@@ -176,10 +186,12 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void setMessageHandler(PMessageHandler messageHandler) throws RemoteException {
+        public void setMessageHandler(final PMessageHandler messageHandler) throws RemoteException {
             Handler handler = messageHandler.getHandlerMessage();
             if (handler != null) {
-                mHandlerMessage = handler;
+                synchronized (mHandlerMessage) {
+                    mHandlerMessage = handler;
+                }
             }
         }
 
@@ -219,15 +231,14 @@ public class GatewayService extends Service {
 
         @Override
         public void setCurrentGatt(PBluetoothGatt gatt) throws RemoteException {
-            PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
-            mBluetoothGatt = parcelBluetoothGatt.getGatt();
+            mBluetoothGatt = gatt.getGatt();
         }
 
         @Override
         public PBluetoothGatt getCurrentGatt() throws RemoteException {
-            PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
-            parcelBluetoothGatt.setGatt(mBluetoothGatt);
-            return parcelBluetoothGatt;
+            PBluetoothGatt pBluetoothGatt = new PBluetoothGatt();
+            pBluetoothGatt.setGatt(mBluetoothGatt);
+            return pBluetoothGatt;
         }
 
         @Override
@@ -328,23 +339,49 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void doConnecting(String macAddress) throws RemoteException {
+        public PBluetoothGatt doConnecting(final String macAddress) throws RemoteException {
             status = "Connecting";
             final BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
-            synchronized (device) {
-                BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
-                gattCallback.setHandlerMessage(mHandlerMessage);
-                mBluetoothGatt = gattCallback.connect();
-                Log.d(TAG, "connect to " + mBluetoothGatt.getDevice().getAddress() + " on " + mBinder.getPid());
+
+            broadcastUpdate("\n");
+            broadcastUpdate("connecting to " + device.getAddress());
+
+            PBluetoothGatt pBluetoothGatt = new PBluetoothGatt();
+
+            Callable<PBluetoothGatt> callable = new Callable<PBluetoothGatt>() {
+                @Override
+                public PBluetoothGatt call() throws Exception {
+                    BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(context, device);
+                    gattCallback.setHandlerMessage(mHandlerMessage);
+                    mBluetoothGatt = gattCallback.connect();
+
+                    PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
+                    parcelBluetoothGatt.setGatt(mBluetoothGatt);
+
+                    Log.d(TAG, "connect to " + mBluetoothGatt.getDevice().getAddress());
+                    return parcelBluetoothGatt;
+                }
+            };
+
+            try {
+                pBluetoothGatt = executionTask.submitCallableMultiThread(callable).get(500, TimeUnit.MICROSECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            } catch (TimeoutException e) {
+                e.printStackTrace();
             }
+
+            return pBluetoothGatt;
         }
 
         @Override
         public void doConnected(PBluetoothGatt gatt) {
+            mBluetoothGatt = gatt.getGatt();
+            status = "Connected";
             synchronized (lock) {
                 try {
-                    status = "Connected";
-                    mBluetoothGatt = gatt.getGatt();
                     broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
                     broadcastUpdate("discovering services...");
                     status = "Discovering";
@@ -582,9 +619,9 @@ public class GatewayService extends Service {
         @Override
         public double[] getPowerUsageConstraints(double batteryLevel) throws RemoteException {
             double[] powerConstraint = new double[3];
-            powerConstraint[0] = blePowerUsageDatabase.getPowerConstraint1( batteryLevel);
-            powerConstraint[1] = blePowerUsageDatabase.getPowerConstraint2( batteryLevel);
-            powerConstraint[2] = blePowerUsageDatabase.getPowerConstraint3( batteryLevel);
+            powerConstraint[0] = blePowerUsageDatabase.getPowerConstraint1(batteryLevel);
+            powerConstraint[1] = blePowerUsageDatabase.getPowerConstraint2(batteryLevel);
+            powerConstraint[2] = blePowerUsageDatabase.getPowerConstraint3(batteryLevel);
             return powerConstraint;
         }
 

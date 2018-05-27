@@ -50,7 +50,7 @@ interface IGatewayService {
 
     void doConnect(in String macAddress);
 
-    void doConnecting(in String macAddress);
+    PBluetoothGatt doConnecting(in String macAddress);
 
     void doConnected(in PBluetoothGatt gatt);
 

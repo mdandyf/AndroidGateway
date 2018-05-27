@@ -15,7 +15,7 @@ public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
 
     private Map<BluetoothDevice, Object[]> mapInput;
     private Map<BluetoothDevice, Double> mapOutput;
-    private Map<BluetoothDevice, Long> mapPowerUsage;
+    private Map<BluetoothDevice, Object[]> mapDeviceSubWeight;
 
     private double[][] matrix3x3;
     private double[][] matrix3x3Standardize;
@@ -33,10 +33,14 @@ public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
     private double[] deviceStateMatrix;
     private double[] powerUsageMatrix;
 
+    private double[][] wrtRssi;
+    private double[][] wrtPU;
+    private double[][] wrtDS;
     private double[][] superMatrix;
-    private double[][] superMatrixUnweighted;
     private double[][] superMatrixWeighted;
     private double[][] LimitMatrix;
+
+
 
     /**
      * =======================================================================================================================
@@ -114,6 +118,7 @@ public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
     @Override
     protected Map<BluetoothDevice, Double> doInBackground(Void... voids) {
         // Looping to all available devices
+        Object[] subWeight = new Object[4];
         if(mapInput != null && mapInput.size() > 0) {
             for(Map.Entry entry : mapInput.entrySet()) {
                 BluetoothDevice device = (BluetoothDevice) entry.getKey();
@@ -139,29 +144,54 @@ public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
                 // calculate percentage RSSI
                 if(rssi != 0 && rssi > -80) {
                     devicePercentage = rssiMatrix[0];
+                    subWeight[0] = rssiMatrix[0];
                 } else {
                     devicePercentage = rssiMatrix[1];
+                    subWeight[0] = rssiMatrix[1];
                 }
 
                 // calculate percentage DeviceState
                 if("active".equals(state)) {
                     devicePercentage = devicePercentage + deviceStateMatrix[0];
+                    subWeight[1] = deviceStateMatrix[0];
                 } else {
                     devicePercentage = devicePercentage + deviceStateMatrix[1];
+                    subWeight[1] = deviceStateMatrix[1];
                 }
 
                 //calculate percentage PowerUsage
                 if(powerUsage > powerConstraints[0]) {
                     devicePercentage = devicePercentage + powerUsageMatrix[0];
+                    subWeight[2] = powerUsageMatrix[0];
                 } else if((powerUsage >= powerConstraints[1]) && (powerUsage < powerConstraints[0])) {
                     devicePercentage = devicePercentage + powerUsageMatrix[1];
+                    subWeight[2] = powerUsageMatrix[1];
                 } else if(powerUsage < powerConstraints[2]) {
                     devicePercentage = devicePercentage + powerUsageMatrix[2];
+                    subWeight[2] = powerUsageMatrix[2];
                 }
 
                 mapOutput.put(device, devicePercentage);
+                mapDeviceSubWeight.put(device, subWeight);
             }
         }
+
+        MatrixComputation computeWrtRssi = new MatrixComputation(mapInput.size(), mapInput.size());
+        this.wrtRssi = computeWrtRssi.getMatrixIdentity();
+
+        int i = 0;
+        int j = 0;
+        this.wrtRssi = new double[mapDeviceSubWeight.size()][mapDeviceSubWeight.size()];
+        for(Map.Entry entry : mapDeviceSubWeight.entrySet()){
+            for(Map.Entry entry2 : mapDeviceSubWeight.entrySet()){
+                Object[] value = (Object[]) mapDeviceSubWeight.get((BluetoothDevice) entry.getKey());
+                Object[] value2 = (Object[]) mapDeviceSubWeight.get((BluetoothDevice) entry2.getKey());
+                this.wrtRssi[i][j] = (double) value[0] / (double) value2[0];
+                j++;
+            }
+            i++;
+        }
+
         return mapOutput;
     }
 
@@ -169,6 +199,6 @@ public class ANP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
     protected void onPreExecute() {
         super.onPreExecute();
         mapOutput  = new ConcurrentHashMap<>();
-        mapPowerUsage = new ConcurrentHashMap<>();
+        mapDeviceSubWeight = new ConcurrentHashMap<>();
     }
 }

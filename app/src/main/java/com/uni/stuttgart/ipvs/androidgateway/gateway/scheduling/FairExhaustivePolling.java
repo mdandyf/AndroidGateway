@@ -3,15 +3,14 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
-import android.os.AsyncTask;
 import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayController;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
@@ -19,7 +18,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
-public class FairExhaustivePolling implements Runnable {
+public class FairExhaustivePolling {
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
 
@@ -29,19 +28,15 @@ public class FairExhaustivePolling implements Runnable {
     private ScheduledFuture<?> future2;
 
     private IGatewayService iGatewayService;
-    private PowerEstimator mServicePE;
 
-    private boolean mBoundPE;
     private boolean mScanning;
     private Context context;
     private boolean mProcessing;
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
-    private long powerUsage = 0;
 
-    private ProcessPriority process;
-    private ProcessPriority processConnecting;
-    private ProcessPriority processPowerMeasurement;
+    private Thread thread;
+    private ExecutionTask<String> executionTask;
 
     public FairExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
@@ -49,28 +44,30 @@ public class FairExhaustivePolling implements Runnable {
         this.iGatewayService = iGatewayService;
     }
 
-    public void cancel() {
-        mProcessing = false;
-        future.cancel(true);future2.cancel(true);
-        scheduler.shutdownNow();scheduler2.shutdownNow();
-        scheduler = null;scheduler2 = null;
-        if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
-        if (processConnecting != null) { processConnecting.interruptThread(); }
-        if (processPowerMeasurement != null) { processPowerMeasurement.interruptThread(); }
+    public void start() {
+        int N = Runtime.getRuntime().availableProcessors();
+        executionTask = new ExecutionTask<>(N, N * 2);
+
+        scheduler = executionTask.scheduleWithThreadPoolExecutor(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
+        future = executionTask.getFuture();
+
+        scheduler2 = executionTask.scheduleWithThreadPoolExecutor(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS);
+        future2 = executionTask.getFuture();
     }
 
-    @Override
-    public void run() {
-        scheduler = new ScheduledThreadPoolExecutor(5);
-        future = scheduler.scheduleAtFixedRate(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
-        scheduler2 = new ScheduledThreadPoolExecutor(5);
-        future2 = scheduler2.scheduleAtFixedRate(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 5 minutes
+    public void stop() {
+        mProcessing = false;
+        future.cancel(true);
+        future2.cancel(true);
+        scheduler.shutdownNow();
+        scheduler2.shutdownNow();
     }
 
     private class FEPStartScanning implements Runnable {
         @Override
         public void run() {
             try {
+                iGatewayService.setProcessing(mProcessing);
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");
                 cycleCounter++;
@@ -145,8 +142,7 @@ public class FairExhaustivePolling implements Runnable {
                     e.printStackTrace();
                 }
                 if (devices.contains(device.getAddress())) {
-                    processConnecting = new ProcessPriority(10);
-                    processConnecting.newThread(doConnecting(device.getAddress())).start();
+                    thread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Connecting " + device.getAddress(), 10);
                     processUserChoiceAlert(device.getAddress(), device.getName());
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -158,7 +154,7 @@ public class FairExhaustivePolling implements Runnable {
                         e.printStackTrace();
                     }
                     waitThread(10);
-                    processConnecting.interruptThread();
+                    thread.interrupt();
                 }
             }
         }
@@ -175,34 +171,6 @@ public class FairExhaustivePolling implements Runnable {
                 e.printStackTrace();
             }
         }
-    }
-
-    private Runnable doMeasurePower() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                if(!mBoundPE) {
-                    broadcastUpdate("Power Executor Calculation Failed...");
-                    return;
-                }
-                boolean process = true;
-                while (process) {
-                    int voltage = mServicePE.getVoltageNow();
-                    long current = mServicePE.getCurrentNow();
-
-                    if(voltage <= 0) {
-                        voltage = voltage * -1;
-                    }
-
-                    if(current <= 0) {
-                        current = current * -1;
-                    }
-
-                    powerUsage = powerUsage + (voltage * current);
-                    process = false;
-                }
-            }
-        };
     }
 
     private Runnable doConnecting(final String macAddress) {

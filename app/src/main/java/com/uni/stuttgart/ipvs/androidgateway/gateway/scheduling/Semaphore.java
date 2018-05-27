@@ -3,20 +3,20 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
-import android.os.AsyncTask;
 import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
 
 // implementation of Semaphore Scheduling Gateway Controller
 
-public class Semaphore implements Runnable {
+public class Semaphore {
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
 
@@ -31,7 +31,7 @@ public class Semaphore implements Runnable {
     private int maxConnectTime = 0;
     private long powerUsage = 0;
 
-    private ProcessPriority processPowerMeasurement;
+    private ExecutionTask<String> executionTask;
 
     public Semaphore(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
@@ -39,50 +39,57 @@ public class Semaphore implements Runnable {
         this.iGatewayService = iGatewayService;
     }
     
-    public void cancelled() {
+    public void stop() {
         mProcessing = false;
-        if(mScanning) { try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue();mScanning = false; } catch (RemoteException e) { e.printStackTrace(); }}
-        if (processPowerMeasurement != null) { processPowerMeasurement.interruptThread(); }
+        executionTask.terminateExecutorPools();
     }
 
-    @Override
-    public void run() {
+    public void start() {
         mProcessing = true;
+        int N = Runtime.getRuntime().availableProcessors();
+        executionTask = new ExecutionTask<>(N, N*2);
+        executionTask.submitRunnableSingleThread(new SemaphoreSchedulling());
+    }
 
-        while (mProcessing) {
-            broadcastUpdate("\n");
-            broadcastUpdate("Start new cycle...");
-            cycleCounter++;
-            broadcastUpdate("Cycle number " + cycleCounter);
-            try {
-                iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
-                iGatewayService.execScanningQueue();
-                mScanning = iGatewayService.getScanState();
+    private class SemaphoreSchedulling implements Runnable {
 
-                waitThread(SCAN_TIME);
-
-                // do Normal Scanning Method
+        @Override
+        public void run() {
+            while (mProcessing) {
                 broadcastUpdate("\n");
-                iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
-                iGatewayService.execScanningQueue();
-                mScanning = iGatewayService.getScanState();
+                broadcastUpdate("Start new cycle...");
+                cycleCounter++;
+                broadcastUpdate("Cycle number " + cycleCounter);
+                try {
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                    iGatewayService.execScanningQueue();
+                    mScanning = iGatewayService.getScanState();
 
-                if (!mProcessing) { return; }
+                    waitThread(SCAN_TIME);
 
-                waitThread(100);
-                List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                    // do Normal Scanning Method
+                    broadcastUpdate("\n");
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
+                    iGatewayService.execScanningQueue();
+                    mScanning = iGatewayService.getScanState();
 
-                // do Semaphore for Connecting method
-                for (final BluetoothDevice device : scanResults) {
-
-                    iGatewayService.doConnect(device.getAddress());
-                    processUserChoiceAlert(device.getAddress(), device.getName());
                     if (!mProcessing) { return; }
 
-                    iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
+                    waitThread(100);
+                    List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+
+                    // do Semaphore for Connecting method
+                    for (final BluetoothDevice device : scanResults) {
+
+                        iGatewayService.doConnect(device.getAddress());
+                        processUserChoiceAlert(device.getAddress(), device.getName());
+                        if (!mProcessing) { return; }
+
+                        iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
+                    }
+                } catch (RemoteException e) {
+                    e.printStackTrace();
                 }
-            } catch (RemoteException e) {
-                e.printStackTrace();
             }
         }
     }

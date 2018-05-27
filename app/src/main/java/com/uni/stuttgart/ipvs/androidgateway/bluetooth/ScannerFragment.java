@@ -473,7 +473,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
         queue.add(ble);
     }
 
-    private void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
+    private synchronized void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
         BluetoothLeGatt ble = new BluetoothLeGatt();
 
         for (BluetoothGattService service : gatt.getServices()) {
@@ -509,7 +509,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
 
     }
 
-    private void processQueue() {
+    private synchronized void processQueue() {
         if (!queue.isEmpty()) {
             for (BluetoothLeGatt bleQueue = queue.poll(); bleQueue != null; bleQueue = queue.poll()) {
                 if (bleQueue != null) {

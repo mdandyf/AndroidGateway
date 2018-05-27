@@ -13,11 +13,10 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.ANP;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +25,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class PriorityBasedWithANP implements Runnable {
+public class PriorityBasedWithANP {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
@@ -52,7 +51,8 @@ public class PriorityBasedWithANP implements Runnable {
     private long powerUsage = 0;
     private int connectCounter = 0;
 
-    private ProcessPriority processConnecting;
+    private ThreadTrackingPriority processConnecting;
+    private ExecutionTask<String> executionTask;
 
     public PriorityBasedWithANP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
@@ -60,15 +60,23 @@ public class PriorityBasedWithANP implements Runnable {
         this.iGatewayService = iGatewayService;
     }
 
-    @Override
-    public void run() {
+    public void stop() {
+        future.cancel(true);future2.cancel(true);
+        scheduler.shutdownNow();scheduler2.shutdownNow();
+    }
+
+    public void start() {
         try {
             isBroadcastRegistered = false;
             powerEstimator = new PowerEstimator(context);
-            scheduler = new ScheduledThreadPoolExecutor(5);
-            future = scheduler.scheduleAtFixedRate(new FPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
-            scheduler2 = new ScheduledThreadPoolExecutor(5);
-            future2 = scheduler2.scheduleAtFixedRate(new FPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS); // refresh db state after 5 minutes
+
+            int N = Runtime.getRuntime().availableProcessors();
+            executionTask = new ExecutionTask<>(N, N*2);
+            scheduler = executionTask.scheduleWithThreadPoolExecutor(new FPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
+            future = executionTask.getFuture();
+
+            scheduler2 = executionTask.scheduleWithThreadPoolExecutor(new FPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS);
+            future2 = executionTask.getFuture();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -181,11 +189,10 @@ public class PriorityBasedWithANP implements Runnable {
                     powerUsage = 0;
                     powerEstimator.start();
 
-                    processConnecting = new ProcessPriority(10);
+                    processConnecting = new ThreadTrackingPriority(10);
                     processConnecting.newThread(doConnecting(device.getAddress())).start();
 
-                    schedulerPower = new ScheduledThreadPoolExecutor(5);
-                    schedulerPower.scheduleAtFixedRate(doMeasurePower(), 0, 100, MILLISECONDS);
+                    schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -262,11 +269,10 @@ public class PriorityBasedWithANP implements Runnable {
                     powerUsage = 0;
                     powerEstimator.start();
 
-                    processConnecting = new ProcessPriority(10);
+                    processConnecting = new ThreadTrackingPriority(10);
                     processConnecting.newThread(doConnecting(device.getAddress())).start();
 
-                    schedulerPower = new ScheduledThreadPoolExecutor(5);
-                    schedulerPower.scheduleAtFixedRate(doMeasurePower(), 0, 100, MILLISECONDS);
+                    schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -291,7 +297,7 @@ public class PriorityBasedWithANP implements Runnable {
         private Map<BluetoothDevice, Double> doRankDeviceAHP(List<BluetoothDevice> devices) {
             try {
                 broadcastUpdate("\n");
-                broadcastUpdate("Start ranking device with ANP algorithm...");
+                broadcastUpdate("Start ranking device with AHP algorithm...");
 
                 Map<BluetoothDevice, Double> rankedDevices = new ConcurrentHashMap<>();
                 Map<BluetoothDevice, Object[]> mapParameters = new ConcurrentHashMap<>();
@@ -313,8 +319,8 @@ public class PriorityBasedWithANP implements Runnable {
                     mapParameters.put(device, parameters);
                 }
 
-                ANP anp = new ANP(mapParameters);
-                AsyncTask<Void, Void, Map<BluetoothDevice, Double>> rankingTask = anp.execute();
+                AHP ahp = new AHP(mapParameters);
+                AsyncTask<Void, Void, Map<BluetoothDevice, Double>> rankingTask = ahp.execute();
                 rankedDevices = rankingTask.get();
                 broadcastUpdate("Finish ranking device...");
                 return rankedDevices;
