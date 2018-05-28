@@ -37,9 +37,12 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -148,6 +151,7 @@ public class GatewayService extends Service {
      */
 
     private final IGatewayService.Stub mBinder = new IGatewayService.Stub() {
+
         @Override
         public int getPid() throws RemoteException {
             return Process.myPid();
@@ -448,8 +452,13 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public List<ParcelUuid> getCharacteristicUUIDs(String macAddress) throws RemoteException {
-            return null;
+        public List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicUUIDs(macAddress, serviceUUID);
+        }
+
+        @Override
+        public String getCharacteristicValue(String macAddress, String serviceUUID, String characteristicUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicValue(macAddress,serviceUUID,characteristicUUID);
         }
 
         @Override

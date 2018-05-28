@@ -5,11 +5,14 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.os.ParcelUuid;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -133,6 +136,44 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
 
         return status;
     }
+
+    public List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID) {
+        List<ParcelUuid> listUUIDs = new ArrayList<>();
+        Cursor cursor = getQuery("SELECT characteristic_uuid from BleCharacteristicsData WHERE mac_address=? AND service_uuid=?", new String[]{macAddress + "",serviceUUID + ""});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                String uuid = cursor.getString(cursor.getColumnIndex(CHARACRERISTIC_UUID));
+                listUUIDs.add(ParcelUuid.fromString(uuid));
+                cursor.moveToNext();
+            }
+        }
+        cursor.close();
+        return listUUIDs;
+    }
+
+    public String getCharacteristicValue(String macAddress, String serviceUUID, String characteristicUUID) {
+        Cursor cursor = getQuery("SELECT characteristic_value from BleCharacteristicsData WHERE mac_address=? AND service_uuid=? AND characteristic_uuid=?"
+                , new String[]{macAddress + "",serviceUUID + "",characteristicUUID + ""});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                return cursor.getString(cursor.getColumnIndex(CHARACRERISTIC_VALUE));
+            }
+        }
+        return "";
+    }
+
+    private Cursor getQuery(String query, String[] argument) {
+        Cursor cursor = null;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery(query, argument);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return cursor;
+    }
+
 
 
 }

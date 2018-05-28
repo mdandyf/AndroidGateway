@@ -71,7 +71,9 @@ interface IGatewayService {
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 
-    List<ParcelUuid> getCharacteristicUUIDs(String macAddress);
+    List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID);
+
+    String getCharacteristicValue(String macAddress, String serviceUUID, String CharacteristicUUID);
 
     void disconnectSpecificGatt(in String macAddress);
 
