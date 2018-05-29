@@ -12,6 +12,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WPM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
@@ -25,7 +26,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class PriorityBasedWithWSM {
+public class PriorityBasedWithWPM {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
@@ -53,7 +54,7 @@ public class PriorityBasedWithWSM {
     private ThreadTrackingPriority processConnecting;
     private ExecutionTask<String> executionTask;
 
-    public PriorityBasedWithWSM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public PriorityBasedWithWPM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
@@ -217,7 +218,7 @@ public class PriorityBasedWithWSM {
                 Map<BluetoothDevice, Double> mapRankedDevices;
                 if (scanResults.size() != 0) {
                     broadcastUpdate("\n");
-                    broadcastUpdate("Start ranking device with WSM algorithm...");
+                    broadcastUpdate("Start ranking device with WPM algorithm...");
                     mapRankedDevices = doRankDeviceWSM(scanResults);
                     broadcastUpdate("Finish ranking device...");
                 } else {
@@ -245,12 +246,11 @@ public class PriorityBasedWithWSM {
                         // if less than 10 devices, waiting time is based on maxConnectTime
                         connect(mapRankedDevices, remainingTime);
                     }
+
                 } else {
                     broadcastUpdate("No nearby device(s) available");
                     return;
                 }
-
-
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -294,9 +294,11 @@ public class PriorityBasedWithWSM {
         // implementation of Ranking Devices based on WSM
         private Map<BluetoothDevice, Double> doRankDeviceWSM(List<BluetoothDevice> devices) {
             try {
-                WSM wsm = new WSM(devices, iGatewayService, powerEstimator.getBatteryRemaining());
+                broadcastUpdate("\n");
+                WPM wpm = new WPM(devices, iGatewayService, powerEstimator.getBatteryRemaining());
                 broadcastUpdate("Sorting devices by their priorities...");
-                return wsm.call();
+                return wpm.call();
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
