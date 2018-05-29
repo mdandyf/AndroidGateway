@@ -16,6 +16,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePollin
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.FairExhaustivePolling;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithAHP;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithANP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWPM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
@@ -45,6 +46,7 @@ public class GatewayController extends Service {
     private PriorityBasedWithAHP ahp;
     private PriorityBasedWithANP anp;
     private PriorityBasedWithWSM wsm;
+    private PriorityBasedWithWPM wpm;
 
     private Runnable runnablePeriodic;
     private Thread threadPeriodic;
@@ -97,6 +99,7 @@ public class GatewayController extends Service {
         if(ahp != null) {ahp.stop();}
         if(anp != null) {anp.stop();}
         if(wsm != null) {wsm.stop();}
+        if(wpm != null) {wpm.stop();}
 
         if(threadPeriodic != null) {threadPeriodic.interrupt();}
         if(mConnection != null) {unbindService(mConnection); }
@@ -138,7 +141,8 @@ public class GatewayController extends Service {
             //doScheduleFEP();
             //doSchedulePriorityAHP();
             //doSchedulePriorityANP();
-            doSchedulePriorityWSM();
+            //doSchedulePriorityWSM();
+            doSchedulePriorityWPM();
         }
 
         @Override
@@ -246,13 +250,28 @@ public class GatewayController extends Service {
      * ============================================================================================================================= *
      */
 
-    // scheduling based on Priority with ANP decision making algorithm
+    // scheduling based on Priority with WSM decision making algorithm
     private void doSchedulePriorityWSM() {
         broadcastUpdate("Start Priority Scheduling with WSM...");
         try {
             iGatewayService.setProcessing(mProcessing);
             wsm = new PriorityBasedWithWSM(context, mProcessing, iGatewayService);
             wsm.start();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    // scheduling based on Priority with WPM decision making algorithm
+    private void doSchedulePriorityWPM() {
+        broadcastUpdate("Start Priority Scheduling with WPM...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            wpm = new PriorityBasedWithWPM(context, mProcessing, iGatewayService);
+            wpm.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
