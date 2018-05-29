@@ -447,9 +447,13 @@ public class GatewayService extends Service {
             return bleServicesDatabase.getServiceUUIDs(macAddress);
         }
 
+        public List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicUUIDs(macAddress, serviceUUID);
+        }
+
         @Override
-        public List<ParcelUuid> getCharacteristicUUIDs(String macAddress) throws RemoteException {
-            return null;
+        public String getCharacteristicValue(String macAddress, String serviceUUID, String characteristicUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicValue(macAddress, serviceUUID, characteristicUUID);
         }
 
         @Override
@@ -741,11 +745,11 @@ public class GatewayService extends Service {
      */
 
     private BluetoothDevice getDevice(String macAddress) {
-        if(scanResults != null && scanResults.size() > 0) {
+        if (scanResults != null && scanResults.size() > 0) {
             List<BluetoothDevice> devices = null;
             try {
                 devices = mBinder.getScanResults();
-                for(BluetoothDevice device : devices) {
+                for (BluetoothDevice device : devices) {
                     if (device.getAddress().equals(macAddress)) {
                         return device;
                     }
@@ -799,5 +803,4 @@ public class GatewayService extends Service {
             sendBroadcast(intent);
         }
     }
-
 }
