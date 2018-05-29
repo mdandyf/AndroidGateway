@@ -26,11 +26,8 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 
 public class MainActivity extends AppCompatActivity {
 
-    private TabHost tabHost;
-    private TabHost.TabSpec spec;
     private FragmentTabHost mTabHost;
     private boolean isServiceStarted;
-    String oldTab = "Gateway";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onDestroy() { super.onDestroy(); }
+    protected void onDestroy() { super.onDestroy(); if(!isServiceStarted) {unregisterReceiver(mReceiver);}}
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
 
@@ -82,11 +79,5 @@ public class MainActivity extends AppCompatActivity {
         mTabHost.addTab(
                 mTabHost.newTabSpec(tag).setIndicator(indicator, icon),
                 fragmentClass, null);
-    }
-
-    private void broadcastCommand(String message, String action) {
-        final Intent intent = new Intent(action);
-        intent.putExtra("command", message);
-        sendBroadcast(intent);
     }
 }

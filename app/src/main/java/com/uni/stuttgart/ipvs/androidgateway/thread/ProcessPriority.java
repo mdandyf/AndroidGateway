@@ -22,4 +22,12 @@ public class ProcessPriority implements ThreadFactory {
         thread.interrupt();
     }
 
+    public long getThreadId() {return thread.getId();}
+
+    public void setThreadJoin() throws InterruptedException {thread.join();}
+
+    public void setThreadPriority(int priority) {thread.setPriority(priority);}
+
+    public int getThreadPriority() {return thread.getPriority();}
+
 }
