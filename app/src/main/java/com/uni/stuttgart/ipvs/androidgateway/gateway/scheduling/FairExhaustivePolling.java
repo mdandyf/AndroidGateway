@@ -8,6 +8,7 @@ import android.os.RemoteException;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
@@ -142,19 +143,17 @@ public class FairExhaustivePolling {
                     e.printStackTrace();
                 }
                 if (devices.contains(device.getAddress())) {
-                    thread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Connecting " + device.getAddress(), 10);
-                    processUserChoiceAlert(device.getAddress(), device.getName());
-                    // set timer to xx seconds
-                    waitThread(maxConnectTime);
-                    if (!mProcessing) { future.cancel(true); return; }
-                    broadcastUpdate("Wait time finished, disconnected...");
                     try {
-                        iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
+                        PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
+                        processUserChoiceAlert(device.getAddress(), device.getName());
+                        // set timer to xx seconds
+                        waitThread(maxConnectTime);
+                        if (!mProcessing) { future.cancel(true); return; }
+                        broadcastUpdate("Wait time finished, disconnected...");
+                        iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
-                    waitThread(10);
-                    thread.interrupt();
                 }
             }
         }

@@ -129,7 +129,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
                 "MyWakelockTag");
         wakeLock.acquire();
 
-        mThread = new HandlerThread("mThreadCallback");
+        mThread = new HandlerThread("mThreadScannerCallback");
         mThread.start();
         mHandlerMessage = new Handler(mThread.getLooper(), mHandlerCallback);
 
@@ -344,7 +344,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     /**
      * Handling callback messages
      */
-    Handler.Callback mHandlerCallback = new Handler.Callback() {
+    private Handler.Callback mHandlerCallback = new Handler.Callback() {
 
         @Override
         public boolean handleMessage(Message msg) {
@@ -600,6 +600,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     }
 
     private synchronized void updateUIConnected(final BluetoothGatt gatt) {
+        Log.d("Fragment", "fragment thread accessing UI = " + Thread.currentThread().getName());
         final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
         getActivity().runOnUiThread(new Runnable() {
             @Override
@@ -617,6 +618,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     }
 
     private synchronized void updateUIConnected(final BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
+        Log.d("Fragment", "fragment thread accessing UI = " + Thread.currentThread().getName());
         final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
         getActivity().runOnUiThread(new Runnable() {
             @Override
@@ -635,6 +637,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     }
 
     private synchronized void updateUIDisonnected(final BluetoothGatt gatt) {
+        Log.d("Fragment", "fragment thread accessing UI = " + Thread.currentThread().getName());
         getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {

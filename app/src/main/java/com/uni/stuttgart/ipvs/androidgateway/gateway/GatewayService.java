@@ -94,7 +94,7 @@ public class GatewayService extends Service {
     private Map<BluetoothGatt, BluetoothLeGattCallback> mapGattCallback;
     private BluetoothGatt mBluetoothGatt;
 
-    private HandlerThread mThread = new HandlerThread("mThreadCallback");
+    private HandlerThread mThread = new HandlerThread("mThreadGatewayCallback");
     private Handler mHandlerMessage;
     private ExecutionTask<PBluetoothGatt> executionTask;
 
@@ -187,12 +187,16 @@ public class GatewayService extends Service {
 
         @Override
         public void setMessageHandler(final PMessageHandler messageHandler) throws RemoteException {
-            Handler handler = messageHandler.getHandlerMessage();
-            if (handler != null) {
-                synchronized (mHandlerMessage) {
-                    mHandlerMessage = handler;
+            mHandlerMessage.removeCallbacksAndMessages(gatewayCallback);
+            mHandlerMessage.removeMessages(0);
+            mHandlerMessage.removeMessages(1);
+            mThread.interrupt();
+            executionTask.submitRunnableMultiThread(new Runnable() {
+                @Override
+                public void run() {
+                    mHandlerMessage = messageHandler.getHandlerMessage();
                 }
-            }
+            });
         }
 
         @Override
@@ -346,6 +350,8 @@ public class GatewayService extends Service {
             broadcastUpdate("\n");
             broadcastUpdate("connecting to " + device.getAddress());
 
+            Log.d("Fragment", "fragment thread = " + Thread.currentThread().getName());
+
             PBluetoothGatt pBluetoothGatt = new PBluetoothGatt();
 
             Callable<PBluetoothGatt> callable = new Callable<PBluetoothGatt>() {
@@ -364,12 +370,10 @@ public class GatewayService extends Service {
             };
 
             try {
-                pBluetoothGatt = executionTask.submitCallableMultiThread(callable).get(500, TimeUnit.MICROSECONDS);
+                pBluetoothGatt = executionTask.submitCallableMultiThread(callable).get();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             } catch (ExecutionException e) {
-                e.printStackTrace();
-            } catch (TimeoutException e) {
                 e.printStackTrace();
             }
 

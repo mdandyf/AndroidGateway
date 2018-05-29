@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by mdand on 2/24/2018.
@@ -39,9 +40,9 @@ public class BluetoothLeScanProcess {
         this.context = context;
         this.mBluetoothAdapter = adapter;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>(), new HashMap<BluetoothDevice, byte[]>());
+            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new ConcurrentHashMap<BluetoothDevice, GattDataJson>(), new ConcurrentHashMap<BluetoothDevice, byte[]>());
         } else {
-            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>(), new HashMap<BluetoothDevice, byte[]>());
+            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new ConcurrentHashMap<BluetoothDevice, GattDataJson>(), new ConcurrentHashMap<BluetoothDevice, byte[]>());
         }
     }
 

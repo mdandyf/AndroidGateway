@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.AsyncTask;
 import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
@@ -13,7 +12,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
@@ -26,7 +25,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class PriorityBasedWithAHP {
+public class PriorityBasedWithWSM {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
@@ -55,7 +54,7 @@ public class PriorityBasedWithAHP {
     private ThreadTrackingPriority processConnecting;
     private ExecutionTask<String> executionTask;
 
-    public PriorityBasedWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public PriorityBasedWithWSM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
@@ -216,7 +215,7 @@ public class PriorityBasedWithAHP {
             try {
                 /*registerBroadcast(); // start listening to disconnected Gatt and or finished read data*/
                 connectCounter = 0;
-                Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(iGatewayService.getScanResults());
+                Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceWSM(iGatewayService.getScanResults());
 
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 int remainingTime = PROCESSING_TIME - SCAN_TIME;
@@ -289,35 +288,33 @@ public class PriorityBasedWithAHP {
 
         }
 
-        // implementation of Ranking Devices based on AHP
-        private Map<BluetoothDevice, Double> doRankDeviceAHP(List<BluetoothDevice> devices) {
+        // implementation of Ranking Devices based on WSM
+        private Map<BluetoothDevice, Double> doRankDeviceWSM(List<BluetoothDevice> devices) {
             try {
                 broadcastUpdate("\n");
-                broadcastUpdate("Start ranking device with AHP algorithm...");
+                broadcastUpdate("Start ranking device with WSM algorithm...");
 
                 Map<BluetoothDevice, Double> rankedDevices = new ConcurrentHashMap<>();
                 Map<BluetoothDevice, Object[]> mapParameters = new ConcurrentHashMap<>();
                 for (BluetoothDevice device : devices) {
                     int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
                     String deviceState = iGatewayService.getDeviceState(device.getAddress());
-                    String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
                     long powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());
-
                     long batteryRemaining = powerEstimator.getBatteryRemainingPercent();
-                    double[] powerConstraints = iGatewayService.getPowerUsageConstraints((double) batteryRemaining);
+                    double batteryPercent = (double) batteryRemaining;
+                    double[] powerConstraints = iGatewayService.getPowerUsageConstraints(batteryPercent);
 
                     Object[] parameters = new Object[5];
                     parameters[0] = rssi;
                     parameters[1] = deviceState;
-                    parameters[2] = userChoice;
-                    parameters[3] = powerUsage;
-                    parameters[4] = powerConstraints;
+                    parameters[2] = powerUsage;
+                    parameters[3] = powerConstraints;
+                    parameters[4] = batteryRemaining;
                     mapParameters.put(device, parameters);
                 }
 
-                AHP ahp = new AHP(mapParameters);
-                AsyncTask<Void, Void, Map<BluetoothDevice, Double>> rankingTask = ahp.execute();
-                rankedDevices = rankingTask.get();
+                WSM wsm = new WSM(mapParameters);
+                rankedDevices = wsm.call();
                 broadcastUpdate("Finish ranking device...");
                 return rankedDevices;
             } catch (Exception e) {
