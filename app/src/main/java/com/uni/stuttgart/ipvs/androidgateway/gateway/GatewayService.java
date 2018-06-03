@@ -623,7 +623,12 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public List<ParcelUuid> getCharacteristicUUIDs(String macAddress) throws RemoteException {
+        public List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID) throws RemoteException {
+            return null;
+        }
+
+        @Override
+        public String getCharacteristicValue(String macAddress, String serviceUUID, String CharacteristicUUID) throws RemoteException {
             return null;
         }
 
