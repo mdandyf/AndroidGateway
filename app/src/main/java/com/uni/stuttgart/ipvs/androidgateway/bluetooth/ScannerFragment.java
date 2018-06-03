@@ -1,6 +1,5 @@
 package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.content.BroadcastReceiver;
@@ -15,10 +14,8 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -30,17 +27,12 @@ import android.widget.ExpandableListView;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.R;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
 import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.view.DeviceListAdapter;
-import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
-import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewConnectListener;
 import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewDisconnectListener;
 
@@ -53,7 +45,6 @@ import static android.content.Context.POWER_SERVICE;
 
 public class ScannerFragment extends Fragment implements ImageViewConnectListener, ImageViewDisconnectListener {
 
-    private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
     private static final int SCAN_PERIOD = 10000;
     private static final String TAG = "Scanner Fragment";
 
@@ -192,12 +183,11 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     public void imageViewConnectClicked(View v) {
         if (!mScanning) {
             final String macAddress = (String) v.getTag();
+            Toast.makeText(context, "Connecting to " + macAddress, Toast.LENGTH_SHORT).show();
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    Looper.prepare();
                     connectLeDevice(macAddress);
-                    Toast.makeText(context, "Connecting to " + macAddress, Toast.LENGTH_SHORT).show();
                 }
             }).start();
         } else {
