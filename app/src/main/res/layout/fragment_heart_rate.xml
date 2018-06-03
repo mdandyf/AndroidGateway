@@ -38,7 +38,7 @@
                 />
 
             <TextView
-                android:id="@+id/battery_service"
+                android:id="@+id/heart_service"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Service UUID"
@@ -65,7 +65,7 @@
                 />
 
             <TextView
-                android:id="@+id/battery_characteristic"
+                android:id="@+id/location_characteristic"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Characteristic UUID"
@@ -73,42 +73,78 @@
                 android:textSize="15dp"
                 />
 
+
+
+        </LinearLayout>
+
+        <!--Characteristic-->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Value:"
+                android:textSize="15dp"
+                android:textStyle="bold"
+                android:layout_marginRight="10dp"
+                />
+
+            <TextView
+                android:id="@+id/location_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Characteristic Value"
+
+                android:textSize="15dp"
+                />
+
+
+
         </LinearLayout>
 
 
 
+        <TextView
+            android:id="@+id/heart_characteristic"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Heart Rate Characteristic goes here"
+            android:layout_gravity="center"
+            android:textStyle="bold"
+            android:layout_marginTop="40dp"
+            android:textSize="20dp"
+            />
+
         <ImageView
-            android:id="@+id/imageView"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="20dp"
             android:layout_gravity="center"
-            app:srcCompat="@drawable/battery" />
+            app:srcCompat="@drawable/heartrate" />
 
 
         <TextView
-            android:id="@+id/battery_value"
+            android:id="@+id/heart_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:textSize="20dp"
+            android:textSize="30dp"
             android:textStyle="bold"
             android:layout_marginTop="20dp"
-            android:text="battery level goes here"/>
+            android:text="No Value"/>
 
-
-        <ProgressBar
-            android:id="@+id/battery_bar"
-            style="?android:attr/progressBarStyleHorizontal"
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
             android:layout_gravity="center"
-            android:max="100"
-            android:maxHeight="500dp"
-            android:maxWidth="300dp"
-            android:minHeight="100dp"
-            android:minWidth="200dp"/>
+            android:textSize="30dp"
+            android:textStyle="bold"
+            android:layout_marginTop="10dp"
+            android:text="bpm"/>
 
 
     </LinearLayout>

@@ -200,13 +200,13 @@ public class GattDataLookUp {
 
     private static HashMap<String, String> bodySensorLocations = new HashMap<>();
     static {
-        bodySensorLocations.put("0x00", "Other");
-        bodySensorLocations.put("0x01", "Chest");
-        bodySensorLocations.put("0x02", "Wrist");
-        bodySensorLocations.put("0x03", "Finger");
-        bodySensorLocations.put("0x04", "Hand");
-        bodySensorLocations.put("0x05", "Ear Lobe");
-        bodySensorLocations.put("0x06", "Foot");
+        bodySensorLocations.put("00", "Other");
+        bodySensorLocations.put("01", "Chest");
+        bodySensorLocations.put("02", "Wrist");
+        bodySensorLocations.put("03", "Finger");
+        bodySensorLocations.put("04", "Hand");
+        bodySensorLocations.put("05", "Ear Lobe");
+        bodySensorLocations.put("06", "Foot");
     }
 
     // PUBLIC LOOKUP FUNCTIONS
@@ -224,6 +224,11 @@ public class GattDataLookUp {
     public static String characteristicNameLookup(UUID uuid) {
         String characteristic = characteristics.get(uuid);
         return (characteristic==null) ? "unknown" : characteristic;
+    }
+
+    public static String bodySensorLocationLookup(String location) {
+        String sensorLocation = bodySensorLocations.get(location);
+        return  (sensorLocation==null) ? "unknown" : sensorLocation;
     }
 
     public static Integer formatLookup(String format) {
