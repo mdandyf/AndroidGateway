@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.gateway;
+package com.uni.stuttgart.ipvs.androidgateway.gateway.callback;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -14,6 +14,9 @@ import android.os.ParcelUuid;
 import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;

@@ -24,7 +24,7 @@ interface IGatewayService {
 
     String getCurrentStatus();
 
-    void setMessageHandler(in PMessageHandler messageHandler);
+    void setHandler(in PMessageHandler messageHandler, in String threadName, in String type);
 
     PMessageHandler getMessageHandler();
 
@@ -44,7 +44,7 @@ interface IGatewayService {
 
     void setListGatt(in List<PBluetoothGatt> listGatt);
 
-    void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID);
+    void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID, in long waitTime);
 
     void execScanningQueue();
 

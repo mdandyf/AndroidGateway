@@ -3,23 +3,16 @@ package com.uni.stuttgart.ipvs.androidgateway.bluetooth;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
-import android.bluetooth.le.ScanResult;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.support.annotation.NonNull;
@@ -51,33 +44,23 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewConnectListener;
 import com.uni.stuttgart.ipvs.androidgateway.helper.view.ImageViewDisconnectListener;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static android.content.Context.POWER_SERVICE;
 
 public class ScannerFragment extends Fragment implements ImageViewConnectListener, ImageViewDisconnectListener {
 
     private static final int PERMISSION_REQUEST_ACCESS_COARSE_LOCATION = 1;
-    private static final int SCAN_PERIOD = 10;
+    private static final int SCAN_PERIOD = 10000;
     private static final String TAG = "Scanner Fragment";
 
     private PowerManager.WakeLock wakeLock;
-    private BluetoothAdapter mBluetoothAdapter;
-    private BluetoothLeScanProcess mBluetoothLeScanProcess;
-    private List<BluetoothDevice> listDevice;
-    private BluetoothGatt mBluetoothGatt;
+
     private List<BluetoothGatt> listConnectedGatt;
     private List<BluetoothGatt> listBondedGatt;
-    private List<BluetoothGattCharacteristic> listCharBondRead;
     private IGatewayService iGatewayService;
 
     private boolean mProcessing; // flag to track processing
@@ -92,18 +75,13 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     private HashMap<String, List<String>> listDataChild;
 
     private Menu menuBar;
-
     private BroadcastReceiverHelper mReceiver = new BroadcastReceiverHelper();
-    private ConcurrentLinkedQueue<BluetoothLeGatt> queue;
-    private HandlerThread mThread;
-    private Handler mHandlerMessage;
 
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
         this.context = context;
     }
-
 
     @Override
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -114,9 +92,10 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
         //set of List view command
         listView = (ExpandableListView) view.findViewById(R.id.listViewBle);
 
-        listDataHeader = new ArrayList<String>();
+        listDataHeader = new ArrayList<>();
         listDataChild = new HashMap<>();
         listDataHeaderSmall = new HashMap<>();
+
         listAdapter = new DeviceListAdapter(getContext(), listDataHeader, listDataChild);
         listAdapter.setDataHeaderSmall(listDataHeaderSmall);
         listAdapter.setImageConnectListener(this);
@@ -129,25 +108,13 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
                 "MyWakelockTag");
         wakeLock.acquire();
 
-        mThread = new HandlerThread("mThreadScannerCallback");
-        mThread.start();
-        mHandlerMessage = new Handler(mThread.getLooper(), mHandlerCallback);
-
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        mBluetoothLeScanProcess = new
-                BluetoothLeScanProcess(getContext(), mBluetoothAdapter);
-        mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-        listDevice = new ArrayList<>();
         listConnectedGatt = new ArrayList<>();
         listBondedGatt = new ArrayList<>();
-        listCharBondRead = new ArrayList<>();
 
         mScanning = false;
         mProcessing = false;
 
-        final IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
-        pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
-        getActivity().registerReceiver(mReceiver, pairingRequestFilter);
+        registerBroadcastListener();
 
         getActivity().bindService(new Intent(context, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
 
@@ -155,13 +122,19 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     }
 
     @Override
-    public void onStart() { super.onStart(); }
+    public void onStart() {
+        super.onStart();
+    }
 
     @Override
-    public void onResume() { super.onResume(); }
+    public void onResume() {
+        super.onResume();
+    }
 
     @Override
-    public void onStop() { super.onStop(); }
+    public void onStop() {
+        super.onStop();
+    }
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
@@ -202,12 +175,13 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
                 }
             }
         }
-        if(listBondedGatt != null && listBondedGatt.size() > 0) {
-            for(BluetoothGatt gatt : listBondedGatt) {
+        if (listBondedGatt != null && listBondedGatt.size() > 0) {
+            for (BluetoothGatt gatt : listBondedGatt) {
                 deleteBondInformation(gatt.getDevice());
             }
         }
         wakeLock.release();
+        getActivity().unregisterReceiver(mScannerReceiver);
         getActivity().unregisterReceiver(mReceiver);
         getActivity().unbindService(mConnection);
         mProcessing = false;
@@ -215,23 +189,8 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSION_REQUEST_ACCESS_COARSE_LOCATION: {
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    mBluetoothLeScanProcess.scanLeDevice(true);
-                } else {
-                    Toast.makeText(getContext(), "Location access is required to scan for Bluetooth devices.", Toast.LENGTH_SHORT).show();
-                    getActivity().finish();
-                }
-            }
-        }
-    }
-
-    @Override
     public void imageViewConnectClicked(View v) {
-        if(!mScanning) {
+        if (!mScanning) {
             final String macAddress = (String) v.getTag();
             new Thread(new Runnable() {
                 @Override
@@ -250,9 +209,9 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     public void imageViewDisconnectClicked(View v) {
         String macAddress = (String) v.getTag();
         disconnectLeDevice(macAddress);
-        if(listBondedGatt != null && listBondedGatt.size() != 0) {
-            for(BluetoothGatt gatt : listBondedGatt) {
-                if(gatt.getDevice().getAddress().equals(macAddress)) {
+        if (listBondedGatt != null && listBondedGatt.size() != 0) {
+            for (BluetoothGatt gatt : listBondedGatt) {
+                if (gatt.getDevice().getAddress().equals(macAddress)) {
                     deleteBondInformation(gatt.getDevice());
                 }
             }
@@ -280,39 +239,39 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
 
     private void scanLeDevice() {
         mScanning = true;
+        mProcessing = true;
 
-        if (mBluetoothLeScanProcess != null) {
-            mProcessing = true;
-            mBluetoothLeScanProcess.scanLeDevice(true);
+        try {
+            iGatewayService.setHandler(null, "mScannerHandler", "Scanner");
+            iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+            iGatewayService.execScanningQueue();
             setMenuVisibility();
-            Handler handler = new Handler();
-            handler.postDelayed(new Runnable() {
+            new Handler().postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    if(mScanning) {
-                        stopLeDevice();
-                    }
+                    stopLeDevice();
                 }
-            }, SCAN_PERIOD * 1000);
+            }, SCAN_PERIOD);
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
     }
 
     private void stopLeDevice() {
         mScanning = false;
-
-        if (mBluetoothLeScanProcess != null) {
-            mBluetoothLeScanProcess.scanLeDevice(false);
+        try {
+            iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+            iGatewayService.execScanningQueue();
             setMenuVisibility();
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
     }
 
     private void connectLeDevice(final String macAddress) {
         try {
-            PMessageHandler parcelMessageHandler = new PMessageHandler();
-            parcelMessageHandler.setHandlerMessage(mHandlerMessage);
-            iGatewayService.setMessageHandler(parcelMessageHandler);
-            iGatewayService.doConnecting(macAddress);
-            mProcessing = true;
+            PBluetoothGatt parcellGatt = iGatewayService.doConnecting(macAddress);
+            listConnectedGatt.add(parcellGatt.getGatt());
         } catch (RemoteException e) {
             e.printStackTrace();
         }
@@ -320,9 +279,6 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
 
     private void disconnectLeDevice(String macAddress) {
         try {
-            PMessageHandler parcelMessageHandler = new PMessageHandler();
-            parcelMessageHandler.setHandlerMessage(mHandlerMessage);
-            iGatewayService.setMessageHandler(parcelMessageHandler);
             PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
             parcelBluetoothGatt.setGatt(findConnectedGatt(macAddress));
             iGatewayService.doDisconnected(parcelBluetoothGatt, "ScannerFragment");
@@ -332,8 +288,8 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     }
 
     private BluetoothGatt findConnectedGatt(String macAddress) {
-        for(BluetoothGatt gatt : listConnectedGatt) {
-            if(gatt.getDevice().getAddress().equals(macAddress)) {
+        for (BluetoothGatt gatt : listConnectedGatt) {
+            if (gatt.getDevice().getAddress().equals(macAddress)) {
                 return gatt;
             }
         }
@@ -341,275 +297,62 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
         return null;
     }
 
-    /**
-     * Handling callback messages
-     */
-    private Handler.Callback mHandlerCallback = new Handler.Callback() {
+    private void registerBroadcastListener() {
+        final IntentFilter pairingRequestFilter = new IntentFilter(BluetoothDevice.ACTION_PAIRING_REQUEST);
+        pairingRequestFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY - 1);
+        getActivity().registerReceiver(mReceiver, pairingRequestFilter);
+
+        IntentFilter filter = new IntentFilter(BluetoothLeDevice.UI_CONNECTED);
+        getActivity().registerReceiver(mScannerReceiver, filter);
+
+        IntentFilter filter2 = new IntentFilter(BluetoothLeDevice.UI_DISCONNECTED);
+        getActivity().registerReceiver(mScannerReceiver, filter2);
+
+        IntentFilter filter3 = new IntentFilter(BluetoothLeDevice.UI_SCAN);
+        getActivity().registerReceiver(mScannerReceiver, filter3);
+    }
+
+    private final BroadcastReceiver mScannerReceiver = new BroadcastReceiver() {
 
         @Override
-        public boolean handleMessage(Message msg) {
-
-            boolean processBle = false;
-
-            try {
-
-                if (msg.what == 0) {
-                    // getting results from scanning
-                    if (msg.arg1 == 0) {
-
-                    } else if (msg.arg1 == 1) {
-
-                    } else if (msg.arg1 == 2) {
-                        // Next, do connecting
-                    } else if (msg.arg1 == 3) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            ScanResult result = ((ScanResult) msg.obj);
-                            updateUIScan(result);
-                            queue = new ConcurrentLinkedQueue<>();
-                        }
-                    } else if (msg.arg1 == 4) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            List<ScanResult> results = ((List<ScanResult>) msg.obj);
-                            for (ScanResult result : results) {
-                                updateUIScan(result);
-                            }
-                            queue = new ConcurrentLinkedQueue<>();
-                        }
-                    } else if (msg.arg1 == 5) {
-                        final Map<BluetoothDevice, GattDataJson> mapDevice = ((Map<BluetoothDevice, GattDataJson>) msg.obj);
-                        updateUIScan(mapDevice);
-                        queue = new ConcurrentLinkedQueue<>();
-                    }
-
-                } else if (msg.what == 1) {
-                    //getting results from BluetoothLeGattCallback for connecting
-                    if (msg.arg1 == 0) {
-                        // read all bluetoothGatt servers
-                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        processBle = false;
-                    } else if (msg.arg1 == 1) {
-                        // read all bluetoothGatt connected servers
-                        final BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
-                        if(gatt != null) {
-                            mBluetoothGatt = gatt;
-                            queueCommand(gatt, null, null, null, null, BluetoothLeDevice.CONNECTED);
-                            processBle = true;
-                        }
-                    } else if (msg.arg1 == 2) {
-                        // read all bluetoothGatt disconnected servers
-                        final BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
-                        if(gatt != null) {
-                            mBluetoothGatt = gatt;
-                            queueCommand(gatt, null, null, null, null, BluetoothLeDevice.DISCONNECTED);
-                            processBle = true;
-                        }
-                    } else if (msg.arg1 == 3) {
-                        // read all bluetoothGatt rssi
-                        // do nothing
-                    } else if (msg.arg1 == 4) {
-                        //discovered services and read all characteristics
-                        BluetoothGatt gatt = ((BluetoothGatt) msg.obj);
-                        mBluetoothGatt = gatt;
-                        queueSubscribeOrReadGatt(gatt);
-                        processBle = true;
-                    } else if (msg.arg1 == 5) {
-                        // onReadCharacteristic
-                        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
-                        for(Map.Entry entry : mapGatt.entrySet()) {
-                            mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                            updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
-                        }
-                        processBle = true;
-                    } else if (msg.arg1 == 6) {
-                        // onWriteCharacteristic
-                        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
-                        for(Map.Entry entry : mapGatt.entrySet()) {
-                            mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                            updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
-                        }
-                        processBle = true;
-                    } else if (msg.arg1 == 7) {
-                        //onCharacteristicChanged
-                        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
-                        for(Map.Entry entry : mapGatt.entrySet()) {
-                            mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                            updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
-                        }
-                        processBle = true;
-                    } else if (msg.arg1 == 8) {
-                        //onDescriptorRead
-                        mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                        processBle = true;
-                    } else if (msg.arg1 == 9) {
-                        //onDescriptorWrite
-                    } else if(msg.arg1 == 10) {
-                        Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
-                        for(Map.Entry entry : mapGatt.entrySet()) {
-                            mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                            BluetoothGattCharacteristic characteristic = (BluetoothGattCharacteristic) entry.getValue();
-                            if(!listCharBondRead.contains(characteristic)) {listCharBondRead.add(characteristic);}
-                            IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
-                            getActivity().registerReceiver(mReceiver, filter);
-                        }
-                        processBle = false;
-                    }
-
-                    // processing next queue
-                    if (processBle & mProcessing) {
-                        processQueue();
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(BluetoothLeDevice.UI_SCAN)) {
+                String deviceAddress = intent.getStringExtra("DeviceAddress");
+                String[] deviceData = intent.getStringArrayExtra("DeviceData");
+                updateUIScan(deviceAddress, getListFromArray(deviceData));
+            } else if (action.equals(BluetoothLeDevice.UI_CONNECTED)) {
+                String deviceAddress = intent.getStringExtra("DeviceAddress");
+                String[] deviceData = intent.getStringArrayExtra("DeviceData");
+                updateUIConnected(deviceAddress, getListFromArray(deviceData));
+            } else if (action.equals(BluetoothLeDevice.UI_DISCONNECTED)) {
+                String deviceAddress = intent.getStringExtra("DeviceAddress");
+                String[] deviceData = intent.getStringArrayExtra("DeviceData");
+                updateUIDisonnected(deviceAddress, getListFromArray(deviceData));
             }
-            return false;
         }
-
-
     };
 
-    private synchronized void queueCommand(BluetoothGatt gatt, UUID serviceUUID, UUID characteristicUUID, UUID descriptorUUID, byte[] data, int typeCommand) {
-        BluetoothLeGatt ble = new BluetoothLeGatt(gatt, serviceUUID, characteristicUUID, descriptorUUID, data, typeCommand);
-        queue.add(ble);
-    }
-
-    private synchronized void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
-        BluetoothLeGatt ble = new BluetoothLeGatt();
-
-        for (BluetoothGattService service : gatt.getServices()) {
-            for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
-                JSONArray properties = GattDataHelper.decodeProperties(characteristic);
-                for (int i = 0; i < properties.length(); i++) {
-                    try {
-                        String property = properties.getString(i);
-                        if (property.equals("Read")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.READ);
-                            queue.add(ble);
-                        } else if (property.equals("Write")) {
-                            ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), null, null, BluetoothLeGatt.WRITE);
-                            queue.add(ble);
-                        } else if (property.equals("Notify")) {
-                            for(BluetoothGattDescriptor descriptor:characteristic.getDescriptors()) {
-                                ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), descriptor.getUuid(), null, BluetoothLeGatt.REGISTER_NOTIFY);
-                                queue.add(ble);
-                            }
-                        } else if (property.equals("Indicate")) {
-                            for(BluetoothGattDescriptor descriptor:characteristic.getDescriptors()) {
-                                ble = new BluetoothLeGatt(gatt, service.getUuid(), characteristic.getUuid(), descriptor.getUuid(), null, BluetoothLeGatt.REGISTER_INDICATE);
-                                queue.add(ble);
-                            }
-                        }
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-
-
-    }
-
-    private synchronized void processQueue() {
-        if (!queue.isEmpty()) {
-            for (BluetoothLeGatt bleQueue = queue.poll(); bleQueue != null; bleQueue = queue.poll()) {
-                if (bleQueue != null) {
-                    synchronized (bleQueue) {
-                        BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(bleQueue.getGatt());
-                        if (bleQueue.getTypeCommand() == BluetoothLeDevice.CONNECTED) {
-                            final BluetoothGatt gatt = bleQueue.getGatt();
-                            Toast.makeText(context, "Connected to " + gatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
-                            gatt.readRemoteRssi();
-                            gatt.discoverServices();
-                            updateUIConnected(gatt);
-                            listConnectedGatt.add(gatt);
-                        } else if (bleQueue.getTypeCommand() == BluetoothLeDevice.DISCONNECTED) {
-                            final BluetoothGatt gatt = bleQueue.getGatt();
-                            updateUIDisonnected(gatt);
-                            Toast.makeText(context, "Disconnected from " + gatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
-                        } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.READ) {
-                            gattCallback.readCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID());
-                        }  else if (bleQueue.getTypeCommand() == BluetoothLeGatt.REGISTER_NOTIFY) {
-                            gattCallback.writeDescriptorNotify(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getDescriptorUUID());
-                        } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.REGISTER_INDICATE) {
-                            gattCallback.writeDescriptorIndication(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getDescriptorUUID());
-                        } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.WRITE) {
-                            //gattCallback.writeCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getData());
-                        } else if(bleQueue.getTypeCommand() == BluetoothLeGatt.READ_DESCRIPTOR) {
-                            gattCallback.readDescriptor(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getDescriptorUUID());
-                        } else if(bleQueue.getTypeCommand() == BluetoothLeDevice.UPDATE_UI_CONNECTED) {
-                            final BluetoothGatt gatt = bleQueue.getGatt();
-                            updateUIConnected(gatt);
-                        }
-                    }
-                } else {
-                    Log.d(TAG, "Command Queue is empty.");
-                }
-            }
-
-        }
-    }
-
-    private synchronized void updateUIScan(final ScanResult result) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (!listDevice.contains(result.getDevice())) {
-                listDevice.add(result.getDevice());
-            }
-            final BluetoothDevice device = result.getDevice();
-            final int rssi = result.getRssi();
-            getActivity().runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    GattDataJson json = new GattDataJson(device, rssi, null);
-                    if (!listDataHeader.contains(device.getAddress())) {
-                        listDataHeader.add(device.getAddress());
-                        json.setJsonData(json.getJsonAdvertising().toString());
-                    } else {
-                        json.setJsonData(json.getJsonAdvertising().toString());
-                    }
-                    listDataChild.put(device.getAddress(), json.getPreparedChildData());
-                    listDataHeaderSmall.put(device.getAddress(), "Disconnected");
-                    listAdapter.notifyDataSetChanged();
-                }
-            });
-        }
-
-    }
-
-    private synchronized void updateUIScan(Map<BluetoothDevice, GattDataJson> map) {
-        for (final Map.Entry entry : map.entrySet()) {
-            final BluetoothDevice device = (BluetoothDevice) entry.getKey();
-            if (!listDevice.contains(device)) {
-                listDevice.add(device);
-            }
-            getActivity().runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    GattDataJson json = (GattDataJson) entry.getValue();
-                    if (!listDataHeader.contains(device.getAddress())) {
-                        listDataHeader.add(device.getAddress());
-                        json.setJsonData(json.getJsonAdvertising().toString());
-                    } else {
-                        json.setJsonData(json.getJsonAdvertising().toString());
-                    }
-                    listDataChild.put(device.getAddress(), json.getPreparedChildData());
-                    listDataHeaderSmall.put(device.getAddress(), "Disconnected");
-                    listAdapter.notifyDataSetChanged();
-                }
-            });
-        }
-    }
-
-    private synchronized void updateUIConnected(final BluetoothGatt gatt) {
-        Log.d("Fragment", "fragment thread accessing UI = " + Thread.currentThread().getName());
-        final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
+    private void updateUIScan(final String deviceAddress, final List<String> deviceData) {
         getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (listDataHeader.contains(gatt.getDevice().getAddress())) {
-                    json.setJsonData(json.getJsonData().toString());
-                    listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
-                    listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Connected");
-                    listAdapter.setConnectionListener(true, gatt.getDevice().getAddress());
+                if(!listDataHeader.contains(deviceAddress)) { listDataHeader.add(deviceAddress); }
+                listDataChild.put(deviceAddress, deviceData);
+                listDataHeaderSmall.put(deviceAddress, "Disconnected");
+                listAdapter.notifyDataSetChanged();
+            }
+        });
+    }
+
+    private void updateUIConnected(final String deviceAddress, final List<String> deviceData) {
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (listDataHeader.contains(deviceAddress)) {
+                    listDataChild.put(deviceAddress, deviceData);
+                    listDataHeaderSmall.put(deviceAddress, "Connected");
+                    listAdapter.setConnectionListener(true, deviceAddress);
                     listAdapter.setTextAppearanceHeader("Large");
                     listAdapter.notifyDataSetChanged();
                 }
@@ -617,38 +360,26 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
         });
     }
 
-    private synchronized void updateUIConnected(final BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
-        Log.d("Fragment", "fragment thread accessing UI = " + Thread.currentThread().getName());
-        final GattDataJson json = new GattDataJson(gatt.getDevice(), gatt);
+    private void updateUIDisonnected(final String deviceAddress, final List<String> deviceData) {
         getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (listDataHeader.contains(gatt.getDevice().getAddress())) {
-                    json.setJsonData(json.getJsonData().toString());
-                    json.updateJsonData(json.getJsonData(), characteristic);
-                    listDataChild.put(gatt.getDevice().getAddress(), json.getPreparedChildData());
-                    listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Connected");
-                    listAdapter.setConnectionListener(true, gatt.getDevice().getAddress());
-                    listAdapter.setTextAppearanceHeader("Large");
-                    listAdapter.notifyDataSetChanged();
-                }
-            }
-        });
-    }
-
-    private synchronized void updateUIDisonnected(final BluetoothGatt gatt) {
-        Log.d("Fragment", "fragment thread accessing UI = " + Thread.currentThread().getName());
-        getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (listDataHeader.contains(gatt.getDevice().getAddress())) {
-                    listDataHeaderSmall.put(gatt.getDevice().getAddress(), "Disconnected");
+                if (listDataHeader.contains(deviceAddress)) {
+                    listDataHeaderSmall.put(deviceAddress, "Disconnected");
                     listAdapter.setTextAppearanceHeader("Medium");
-                    listAdapter.setConnectionListener(false, gatt.getDevice().getAddress());
+                    listAdapter.setConnectionListener(false, deviceAddress);
                     listAdapter.notifyDataSetChanged();
                 }
             }
         });
+    }
+
+    private List<String> getListFromArray(String[] input) {
+        List<String> result = new ArrayList<>();
+        for(int i = 0; i < input.length; i++) {
+            result.add(input[i]);
+        }
+        return result;
     }
 
     private void setMenuVisibility() {
@@ -670,16 +401,11 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     }
 
 
-
-    public static void deleteBondInformation(BluetoothDevice device)
-    {
-        try
-        {
+    public static void deleteBondInformation(BluetoothDevice device) {
+        try {
             Method m = device.getClass().getMethod("removeBond", (Class[]) null);
             m.invoke(device, (Object[]) null);
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

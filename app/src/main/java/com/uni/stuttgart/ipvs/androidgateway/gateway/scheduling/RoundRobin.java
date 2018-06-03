@@ -68,11 +68,11 @@ public class RoundRobin {
                 broadcastUpdate("Start new cycle...");
                 cycleCounter++;
                 broadcastUpdate("Cycle number " + cycleCounter);
-                iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
+                iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                 iGatewayService.execScanningQueue();
                 mScanning = iGatewayService.getScanState();
-                waitThread(SCAN_TIME);
-                stop();
                 waitThread(100);
 
                 if(!mProcessing) {future.cancel(false);return;}
@@ -80,21 +80,6 @@ public class RoundRobin {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }
-
-        private void stop() {
-            broadcastUpdate("\n");
-            if(mScanning) {
-                try {
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
-                    iGatewayService.execScanningQueue();
-                    mScanning = iGatewayService.getScanState();
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            if(!mProcessing) {future.cancel(false);return;}
         }
 
         private void connect() {

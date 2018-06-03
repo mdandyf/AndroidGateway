@@ -4,25 +4,19 @@ import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
-import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Binder;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.ParcelUuid;
-import android.os.Parcelable;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattCallback;
@@ -31,13 +25,9 @@ import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
-import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
-import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-
-import org.json.JSONArray;
-import org.json.JSONException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,8 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Created by mdand on 3/17/2018.
@@ -83,7 +71,6 @@ public class GatewayService extends Service {
 
     private BluetoothLeDevice bleDevice;
     private BluetoothLeGatt bleGatt;
-    private GatewayCallback gatewayCallback;
     private Object lock;
 
     private BluetoothAdapter mBluetoothAdapter;
@@ -94,7 +81,7 @@ public class GatewayService extends Service {
     private Map<BluetoothGatt, BluetoothLeGattCallback> mapGattCallback;
     private BluetoothGatt mBluetoothGatt;
 
-    private HandlerThread mThread = new HandlerThread("mThreadGatewayCallback");
+    private HandlerThread mThread;
     private Handler mHandlerMessage;
     private ExecutionTask<PBluetoothGatt> executionTask;
 
@@ -113,11 +100,6 @@ public class GatewayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        mThread.start();
-        gatewayCallback = new GatewayCallback(context, mProcessing, mBinder);
-        mHandlerMessage = new Handler(mThread.getLooper(), gatewayCallback);
-        gatewayCallback.setmHandlerMessage(mHandlerMessage);
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
@@ -186,17 +168,21 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void setMessageHandler(final PMessageHandler messageHandler) throws RemoteException {
-            mHandlerMessage.removeCallbacksAndMessages(gatewayCallback);
-            mHandlerMessage.removeMessages(0);
-            mHandlerMessage.removeMessages(1);
-            mThread.interrupt();
-            executionTask.submitRunnableMultiThread(new Runnable() {
-                @Override
-                public void run() {
-                    mHandlerMessage = messageHandler.getHandlerMessage();
-                }
-            });
+        public void setHandler(PMessageHandler messageHandler, String threadName, String type) throws RemoteException {
+            if(mThread != null && mThread.isAlive()) { mThread.interrupt(); }
+            mThread = new HandlerThread(threadName);
+            mThread.start();
+            if(type.equals("Gateway")) {
+                GatewayCallback gatewayCallback = new GatewayCallback(context, mProcessing, mBinder);
+                mHandlerMessage = new Handler(mThread.getLooper(), gatewayCallback);
+                gatewayCallback.setmHandlerMessage(mHandlerMessage);
+            } else {
+                ScannerCallback scannerCallback = new ScannerCallback(context, mProcessing);
+                mHandlerMessage = new Handler(mThread.getLooper(), scannerCallback);
+            }
+
+            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+            if(mBluetoothGattCallback != null) {mBluetoothGattCallback.setHandlerMessage(mHandlerMessage);};
         }
 
         @Override
@@ -256,12 +242,10 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void addQueueScanning(String macAddress, String name, int rssi, int typeCommand, ParcelUuid serviceUUID) throws RemoteException {
+        public void addQueueScanning(String macAddress, String name, int rssi, int typeCommand, ParcelUuid serviceUUID, long waitTime) throws RemoteException {
             UUID uuidService = null;
-            if (serviceUUID != null) {
-                uuidService = serviceUUID.getUuid();
-            }
-            bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, uuidService);
+            if (serviceUUID != null) { uuidService = serviceUUID.getUuid(); }
+            bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, uuidService, waitTime);
             queueScanning.add(bleDevice);
         }
 
@@ -274,6 +258,7 @@ public class GatewayService extends Service {
                         int type = bleDevice.getType();
                         if (type == BluetoothLeDevice.SCANNING) {
                             //step scan new BLE devices
+                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing scanning method");
                             mScanning = true;
                             broadcastUpdate("Scanning bluetooth...");
                             Log.d(TAG, "Start scanning");
@@ -282,6 +267,7 @@ public class GatewayService extends Service {
                         } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
                             // step scan for known BLE devices
                             Log.d(TAG, "Start scanning for known BLE device ");
+                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing find LE device method");
                             if (bleDevice.getMacAddress() != null) {
                                 // find specific macAddress
                                 mScanning = false;
@@ -309,14 +295,16 @@ public class GatewayService extends Service {
                         } else if (type == BluetoothLeDevice.STOP_SCANNING) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Stop scanning...");
+                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
                             broadcastUpdate("Stop scanning bluetooth...");
                             broadcastUpdate("Found " + mBluetoothLeScanProcess.getScanResult().size() + " device(s)");
                         } else if (type == BluetoothLeDevice.STOP_SCAN) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Stop scanning...");
+                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing stop scan method");
                             broadcastUpdate("Stop scanning...");
+                        } else if(type == BluetoothLeDevice.WAIT_THREAD) {
+                            sleepThread(bleDevice.getWaitTime());
                         }
                     }
                 }

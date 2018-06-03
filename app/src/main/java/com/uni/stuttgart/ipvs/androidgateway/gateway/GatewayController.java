@@ -89,7 +89,7 @@ public class GatewayController extends Service {
 
     @Override
     public boolean onUnbind(Intent intent) {
-        try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue(); } catch (RemoteException e) { e.printStackTrace(); }
+        try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);iGatewayService.execScanningQueue(); } catch (RemoteException e) { e.printStackTrace(); }
         try { iGatewayService.setProcessing(false); } catch (RemoteException e) { e.printStackTrace(); }
 
         if(fep != null) {fep.stop();}
@@ -141,8 +141,8 @@ public class GatewayController extends Service {
             //doScheduleFEP();
             //doSchedulePriorityAHP();
             //doSchedulePriorityANP();
-            //doSchedulePriorityWSM();
-            doSchedulePriorityWPM();
+            doSchedulePriorityWSM();
+            //doSchedulePriorityWPM();
         }
 
         @Override
@@ -165,6 +165,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Semaphore Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             sem = new Semaphore(context, mProcessing, iGatewayService);
             sem.start();
         } catch (Exception e) { e.printStackTrace(); }
@@ -180,6 +181,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Round Robin Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             rr = new RoundRobin(context, mProcessing, iGatewayService);
             rr.start();
         } catch (Exception e) { e.printStackTrace(); }
@@ -195,6 +197,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Exhaustive Polling Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             ep = new ExhaustivePolling(context, mProcessing, iGatewayService);
             ep.start();
         } catch (Exception e) { e.printStackTrace(); }
@@ -210,6 +213,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             fep =  new FairExhaustivePolling(context, mProcessing, iGatewayService);
             fep.start();
         } catch (Exception e) { e.printStackTrace(); }
@@ -225,6 +229,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Priority Scheduling with AHP...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             ahp = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
             ahp.start();
         } catch (Exception e) { e.printStackTrace(); }
@@ -240,6 +245,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Priority Scheduling with ANP...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             anp = new PriorityBasedWithANP(context, mProcessing, iGatewayService);
             anp.start();
         } catch (Exception e) { e.printStackTrace(); }
@@ -255,6 +261,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Priority Scheduling with WSM...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             wsm = new PriorityBasedWithWSM(context, mProcessing, iGatewayService);
             wsm.start();
         } catch (Exception e) { e.printStackTrace(); }
@@ -270,6 +277,7 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Priority Scheduling with WPM...");
         try {
             iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             wpm = new PriorityBasedWithWPM(context, mProcessing, iGatewayService);
             wpm.start();
         } catch (Exception e) { e.printStackTrace(); }

@@ -61,15 +61,11 @@ public class Semaphore {
                 cycleCounter++;
                 broadcastUpdate("Cycle number " + cycleCounter);
                 try {
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                     iGatewayService.execScanningQueue();
-                    mScanning = iGatewayService.getScanState();
 
-                    waitThread(SCAN_TIME);
-
-                    // do Normal Scanning Method
-                    broadcastUpdate("\n");
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
 

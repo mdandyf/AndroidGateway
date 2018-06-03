@@ -97,24 +97,20 @@ public class PriorityBasedWithWPM {
                 if (isDataExist) {
 
                     List<String> devices = iGatewayService.getListActiveDevices();
-                    for (String device : devices) {
-                        iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null);
-                    }
-                    iGatewayService.execScanningQueue();
-                    mScanning = iGatewayService.getScanState();
+                    for (String device : devices) { iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0); }
 
                     // do normal scanning only for half of normal scanning time
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME / 2);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
-                    waitThread(SCAN_TIME / 2);
 
                     if (!mProcessing) {
                         future.cancel(false);
                         return;
                     }
 
-                    stop();
                     waitThread(100);
 
                     if (!mProcessing) {
@@ -124,18 +120,17 @@ public class PriorityBasedWithWPM {
                     connectFP();
                 } else {
                     // do normal scanning
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
-                    waitThread(SCAN_TIME);
 
                     if (!mProcessing) {
                         future.cancel(false);
-                        stop();
                         return;
                     }
 
-                    stop();
                     waitThread(100);
 
                     if (!mProcessing) {
@@ -148,23 +143,6 @@ public class PriorityBasedWithWPM {
 
             } catch (Exception e) {
                 e.printStackTrace();
-            }
-        }
-
-        private void stop() {
-            if (mScanning) {
-                try {
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null);
-                    iGatewayService.execScanningQueue();
-                    mScanning = iGatewayService.getScanState();
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            if (!mProcessing) {
-                future.cancel(false);
-                return;
             }
         }
 
@@ -219,7 +197,7 @@ public class PriorityBasedWithWPM {
                 if (scanResults.size() != 0) {
                     broadcastUpdate("\n");
                     broadcastUpdate("Start ranking device with WPM algorithm...");
-                    mapRankedDevices = doRankDeviceWSM(scanResults);
+                    mapRankedDevices = doRankDeviceWPM(scanResults);
                     broadcastUpdate("Finish ranking device...");
                 } else {
                     broadcastUpdate("No nearby device(s) available...");
@@ -246,11 +224,12 @@ public class PriorityBasedWithWPM {
                         // if less than 10 devices, waiting time is based on maxConnectTime
                         connect(mapRankedDevices, remainingTime);
                     }
-
                 } else {
                     broadcastUpdate("No nearby device(s) available");
                     return;
                 }
+
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -291,14 +270,12 @@ public class PriorityBasedWithWPM {
 
         }
 
-        // implementation of Ranking Devices based on WSM
-        private Map<BluetoothDevice, Double> doRankDeviceWSM(List<BluetoothDevice> devices) {
+        // implementation of Ranking Devices based on WPM
+        private Map<BluetoothDevice, Double> doRankDeviceWPM(List<BluetoothDevice> devices) {
             try {
-                broadcastUpdate("\n");
                 WPM wpm = new WPM(devices, iGatewayService, powerEstimator.getBatteryRemaining());
                 broadcastUpdate("Sorting devices by their priorities...");
                 return wpm.call();
-
             } catch (Exception e) {
                 e.printStackTrace();
             }
