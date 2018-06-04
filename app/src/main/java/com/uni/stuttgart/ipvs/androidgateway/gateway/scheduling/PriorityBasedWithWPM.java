@@ -272,14 +272,15 @@ public class PriorityBasedWithWPM {
 
         // implementation of Ranking Devices based on WPM
         private Map<BluetoothDevice, Double> doRankDeviceWPM(List<BluetoothDevice> devices) {
+            Map<BluetoothDevice, Double> result = new ConcurrentHashMap<>();
             try {
                 WPM wpm = new WPM(devices, iGatewayService, powerEstimator.getBatteryRemainingPercent());
                 broadcastUpdate("Sorting devices by their priorities...");
-                return wpm.call();
+                result = wpm.call();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            return null;
+            return result;
         }
     }
 
