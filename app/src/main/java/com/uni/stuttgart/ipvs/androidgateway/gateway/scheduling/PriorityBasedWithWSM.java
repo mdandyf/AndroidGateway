@@ -271,14 +271,15 @@ public class PriorityBasedWithWSM {
 
         // implementation of Ranking Devices based on WSM
         private Map<BluetoothDevice, Double> doRankDeviceWSM(List<BluetoothDevice> devices) {
+            Map<BluetoothDevice, Double> result = new ConcurrentHashMap<>();
             try {
-                WSM wsm = new WSM(devices, iGatewayService, powerEstimator.getBatteryRemaining());
+                WSM wsm = new WSM(devices, iGatewayService, powerEstimator.getBatteryRemainingPercent());
                 broadcastUpdate("Sorting devices by their priorities...");
-                return wsm.call();
+                result = wsm.call();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            return null;
+            return result;
         }
     }
 
