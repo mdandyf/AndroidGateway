@@ -174,9 +174,6 @@ public class GatewayCallback implements Handler.Callback {
                 } else if (msg.arg1 == 7) {
                     //onCharacteristicChanged
                     readData(msg);
-                } else if (msg.arg1 == 12) {
-                    //Finish Reading
-                    mBinder.broadcastCommand("Finish reading data", GatewayService.FINISH_READ);
                 }
             }
         } catch (Exception e) {
@@ -232,7 +229,7 @@ public class GatewayCallback implements Handler.Callback {
                 if (databaseService && databaseCharacteristic) {
                     try {
                         mBinder.updateDatabaseDeviceState(gatt.getDevice(), "active");
-                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 12, 0));
+                        mBinder.broadcastCommand(gatt.getDevice().getAddress(), GatewayService.FINISH_READ);
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
