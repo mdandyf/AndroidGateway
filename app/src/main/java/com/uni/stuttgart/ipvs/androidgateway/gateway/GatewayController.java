@@ -138,8 +138,8 @@ public class GatewayController extends Service {
             //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            //doScheduleFEP();
-            doSchedulePriorityAHP();
+            doScheduleFEP();
+            //doSchedulePriorityAHP();
             //doSchedulePriorityANP();
             //doSchedulePriorityWSM();
             //doSchedulePriorityWPM();

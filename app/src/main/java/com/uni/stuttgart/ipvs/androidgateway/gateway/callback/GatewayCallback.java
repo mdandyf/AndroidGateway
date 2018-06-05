@@ -36,6 +36,7 @@ public class GatewayCallback implements Handler.Callback {
 
     private Handler mHandlerMessage;
     private Context context;
+    private List<BluetoothDevice> scanResults = new ArrayList<>();
 
     private List<PBluetoothGatt> listBluetoothGatt = new ArrayList<>();
 
@@ -64,7 +65,6 @@ public class GatewayCallback implements Handler.Callback {
                 } else if (msg.arg1 == 3) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         ScanResult result = ((ScanResult) msg.obj);
-                        List<BluetoothDevice> scanResults = mBinder.getScanResults();
                         if (!scanResults.contains(result.getDevice())) {
                             scanResults.add(result.getDevice());
                             mBinder.setScanResult(scanResults);
@@ -76,7 +76,6 @@ public class GatewayCallback implements Handler.Callback {
                 } else if (msg.arg1 == 4) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         List<ScanResult> results = ((List<ScanResult>) msg.obj);
-                        List<BluetoothDevice> scanResults = mBinder.getScanResults();
                         for (ScanResult result : results) {
                             if (!scanResults.contains(result.getDevice())) {
                                 scanResults.add(result.getDevice());
@@ -91,7 +90,6 @@ public class GatewayCallback implements Handler.Callback {
                     final Map<BluetoothDevice, GattDataJson> mapDevice = ((Map<BluetoothDevice, GattDataJson>) msg.obj);
                     for (Map.Entry entry : mapDevice.entrySet()) {
                         BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                        List<BluetoothDevice> scanResults = mBinder.getScanResults();
                         if (!scanResults.contains(device)) {
                             scanResults.add(device);
                             mBinder.setScanResult(scanResults);
@@ -108,7 +106,6 @@ public class GatewayCallback implements Handler.Callback {
                     }
                 } else if (msg.arg1 == 7) {
                     final BluetoothDevice device = (BluetoothDevice) msg.obj;
-                    List<BluetoothDevice> scanResults = mBinder.getScanResults();
                     if (!scanResults.contains(device)) {
                         scanResults.add(device);
                         mBinder.setScanResult(scanResults);
@@ -118,7 +115,6 @@ public class GatewayCallback implements Handler.Callback {
                     if(mapScanRecord.size() > 0) {
                         for (Map.Entry entry : mapScanRecord.entrySet()) {
                             BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                            List<BluetoothDevice> scanResults = mBinder.getScanResults();
                             if (!scanResults.contains(device)) {
                                 mBinder.updateDatabaseDeviceAdvRecord(device, (byte[]) entry.getValue());
                             }

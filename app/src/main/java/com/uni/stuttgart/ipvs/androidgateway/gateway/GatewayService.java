@@ -35,6 +35,7 @@ import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -223,9 +224,10 @@ public class GatewayService extends Service {
         public List<BluetoothDevice> getScanResults() throws RemoteException {
             // only known devices that will be connected or processed
             if(scanResults.size() > 0) {
-                for(BluetoothDevice device : scanResults) {
+                for(Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext();) {
+                    BluetoothDevice device = iterator.next();
                     if(!isDeviceManufacturerKnown(device.getAddress())) {
-                        scanResults.remove(device);
+                        iterator.remove();
                     }
                 }
             }
@@ -608,20 +610,24 @@ public class GatewayService extends Service {
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
             List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
 
-            Map<String, Object> mapListAdvertisement;
+            if(structures.size() > 0) {
+                Map<String, Object>  mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
 
-            mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
-
-            int compId = (int) mapListAdvertisement.get("CompanyId");
-            String compIdString = GattDataHelper.decToHex(compId);
-            compIdString = compIdString.substring(4,8);
-            compIdString = "0x" + compIdString;
-            Log.d(TAG, "Company Id: " + compIdString);
-
-            boolean isManufacturerExist = manufacturerDatabase.isManufacturerExist(compIdString);
-
-            return isManufacturerExist;
-
+                if(mapListAdvertisement.containsKey("CompanyId")) {
+                    int compId = (int) mapListAdvertisement.get("CompanyId");
+                    String compIdString = GattDataHelper.decToHex(compId);
+                    compIdString = compIdString.substring(4,8);
+                    compIdString = "0x" + compIdString;
+                    Log.d(TAG, "Company Id: " + compIdString);
+                    return manufacturerDatabase.isManufacturerExist(compIdString);
+                } else {
+                    // if device has no manufacturer id
+                    return false;
+                }
+            } else {
+                // if device has no scan record
+                return false;
+            }
         }
 
         @Override
