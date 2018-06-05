@@ -227,6 +227,7 @@ public class GatewayService extends Service {
                 for(Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext();) {
                     BluetoothDevice device = iterator.next();
                     if(!isDeviceManufacturerKnown(device.getAddress())) {
+                        updateDatabaseDeviceState(device, "inactive");
                         iterator.remove();
                     }
                 }
@@ -313,7 +314,7 @@ public class GatewayService extends Service {
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
                             broadcastUpdate("Stop scanning bluetooth...");
-                            broadcastUpdate("Found " + mBluetoothLeScanProcess.getScanResult().size() + " device(s)");
+                            broadcastUpdate("Found " + getScanResults().size() + " device(s)");
                         } else if (type == BluetoothLeDevice.STOP_SCAN) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
@@ -610,7 +611,7 @@ public class GatewayService extends Service {
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
             List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
 
-            if(structures.size() > 0) {
+            if(structures != null && structures.size() > 0) {
                 Map<String, Object>  mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
 
                 if(mapListAdvertisement.containsKey("CompanyId")) {
