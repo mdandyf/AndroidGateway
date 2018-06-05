@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (action.equals(GatewayService.START_SERVICE_INTERFACE)) {
+            if (!isServiceStarted && action.equals(GatewayService.START_SERVICE_INTERFACE)) {
                 String message = intent.getStringExtra("message");
                 addTab("Services", "SERVICES", com.uni.stuttgart.ipvs.androidgateway.service.ServiceInterface.class, null);
                 isServiceStarted = true;

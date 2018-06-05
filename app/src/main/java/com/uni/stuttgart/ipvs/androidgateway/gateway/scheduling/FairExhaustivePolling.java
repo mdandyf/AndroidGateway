@@ -10,12 +10,15 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
+import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
@@ -77,10 +80,12 @@ public class FairExhaustivePolling {
                 boolean isDataExist = iGatewayService.checkDevice(null);
                 if (isDataExist) {
                     List<String> devices = iGatewayService.getListActiveDevices();
-                    for (String device : devices) { iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0); }
+                    for (String device : devices) {
+                        iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+                    }
                     // do normal scanning only for half of normal scanning time
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME/2);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME / 2);
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
                 } else {
@@ -101,7 +106,7 @@ public class FairExhaustivePolling {
 
         private void stop() {
             broadcastUpdate("\n");
-            if(mScanning) {
+            if (mScanning) {
                 try {
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                     iGatewayService.execScanningQueue();
@@ -111,7 +116,10 @@ public class FairExhaustivePolling {
                 }
             }
 
-            if (!mProcessing) { future.cancel(true); return; }
+            if (!mProcessing) {
+                future.cancel(true);
+                return;
+            }
         }
 
         private void connect() {
@@ -124,11 +132,16 @@ public class FairExhaustivePolling {
                 e.printStackTrace();
             }
 
-            if (!mProcessing) { future.cancel(true); return; }
-            if(devices == null || devices.size() <= 0) { return; }
+            if (!mProcessing) {
+                future.cancel(true);
+                return;
+            }
+
+            if (devices == null || devices.size() <= 0) { return; }
 
             // calculate timer for connection (to obtain Round Robin Scheduling)
-            int remainingTime = PROCESSING_TIME - SCAN_TIME;;
+            int remainingTime = PROCESSING_TIME - SCAN_TIME;
+            ;
             maxConnectTime = remainingTime / devices.size();
             broadcastUpdate("Number of active devices is " + devices.size());
             broadcastUpdate("Maximum connection time is " + maxConnectTime / 1000 + " s");
@@ -136,6 +149,7 @@ public class FairExhaustivePolling {
             // do Round Robin part for connection
             for (BluetoothDevice device : scanResults) {
                 try {
+                    broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
                 } catch (RemoteException e) {
                     e.printStackTrace();
@@ -143,10 +157,12 @@ public class FairExhaustivePolling {
                 if (devices.contains(device.getAddress())) {
                     try {
                         PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
-                        processUserChoiceAlert(device.getAddress(), device.getName());
                         // set timer to xx seconds
                         waitThread(maxConnectTime);
-                        if (!mProcessing) { future.cancel(true); return; }
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            return;
+                        }
                         broadcastUpdate("Wait time finished, disconnected...");
                         iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
                     } catch (RemoteException e) {
@@ -160,7 +176,10 @@ public class FairExhaustivePolling {
     private class FEPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-            if (!mProcessing) { future2.cancel(true); return; }
+            if (!mProcessing) {
+                future2.cancel(true);
+                return;
+            }
             broadcastUpdate("Update all device states...");
             try {
                 iGatewayService.updateAllDeviceStates(null);
@@ -201,21 +220,10 @@ public class FairExhaustivePolling {
         }
     }
 
-    private void processUserChoiceAlert(String macAddress, String deviceName) {
-        try {
-            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-            if(deviceName == null) {deviceName = "Unknown";};
-            if(userChoice == null || userChoice == "") broadcastAlertDialog("Start Service Interface of Device " + macAddress + "-" + deviceName, macAddress);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void broadcastAlertDialog(String message, String macAddress) {
+    private void broadcastServiceInterface(String message) {
         if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.USER_CHOICE_SERVICE);
+            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
             intent.putExtra("message", message);
-            intent.putExtra("macAddress", macAddress);
             context.sendBroadcast(intent);
         }
     }

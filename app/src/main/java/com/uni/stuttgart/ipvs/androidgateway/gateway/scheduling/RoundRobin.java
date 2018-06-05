@@ -86,6 +86,14 @@ public class RoundRobin {
             List<BluetoothDevice> scanResults = null;
             try {
                 scanResults = iGatewayService.getScanResults();
+                for (final BluetoothDevice device : scanResults) {
+                    // only known manufacturer that will be used to connect
+                    boolean isMfgExist = processMfgChoice(device.getAddress());
+                    if(!isMfgExist) {
+                        scanResults.remove(device);
+                    }
+                }
+
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 if (scanResults.size() != 0) {
                     int remainingTime = PROCESSING_TIME - SCAN_TIME;
@@ -97,9 +105,10 @@ public class RoundRobin {
 
                 // do connecting by Round Robin
                 for (final BluetoothDevice device : scanResults) {
+                    broadcastServiceInterface("Start service interface");
                     processConnecting = new ThreadTrackingPriority(10);
                     processConnecting.newThread(doConnecting(device.getAddress())).start();
-                    processUserChoiceAlert(device.getAddress(), device.getName());
+
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
                     if(!mProcessing) {future.cancel(false);return;}
@@ -143,21 +152,20 @@ public class RoundRobin {
         }
     }
 
-    private void processUserChoiceAlert(String macAddress, String deviceName) {
+    private boolean processMfgChoice(String macAddress) {
+        boolean isMfgExist = false;
         try {
-            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-            if(deviceName == null) {deviceName = "Unknown";};
-            if(userChoice == null || userChoice == "") broadcastAlertDialog("Start Service Interface of Device " + macAddress + "-" + deviceName, macAddress);
+            isMfgExist = iGatewayService.isDeviceManufacturerKnown(macAddress);
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+        return isMfgExist;
     }
 
-    private void broadcastAlertDialog(String message, String macAddress) {
+    private void broadcastServiceInterface(String message) {
         if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.USER_CHOICE_SERVICE);
+            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
             intent.putExtra("message", message);
-            intent.putExtra("macAddress", macAddress);
             context.sendBroadcast(intent);
         }
     }

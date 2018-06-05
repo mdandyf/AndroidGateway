@@ -5,14 +5,17 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.RemoteException;
 
+import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
+import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
+import java.util.Map;
 
 // implementation of Semaphore Scheduling Gateway Controller
 
@@ -76,55 +79,20 @@ public class Semaphore {
 
                     // do Semaphore for Connecting method
                     for (final BluetoothDevice device : scanResults) {
+                        // only known manufacturer that will be used to connect
+                        boolean isMfgExist = processMfgChoice(device.getAddress());
+                        if(isMfgExist) {
+                            broadcastServiceInterface("Start service interface");
+                            iGatewayService.doConnect(device.getAddress());
+                        }
 
-                        iGatewayService.doConnect(device.getAddress());
-                        processUserChoiceAlert(device.getAddress(), device.getName());
                         if (!mProcessing) { return; }
 
-                        iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
                     }
                 } catch (RemoteException e) {
                     e.printStackTrace();
                 }
             }
-        }
-    }
-    
-    private Runnable doMeasurePower() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                if(!mBoundPE) {
-                    broadcastUpdate("Power Executor Calculation Failed...");
-                    return;
-                }
-                boolean process = true;
-                while (process) {
-                    int voltage = mServicePE.getVoltageNow();
-                    long current = mServicePE.getCurrentNow();
-
-                    if(voltage <= 0) {
-                        voltage = voltage * -1;
-                    }
-
-                    if(current <= 0) {
-                        current = current * -1;
-                    }
-
-                    powerUsage = powerUsage + (voltage * current);
-                    process = false;
-                }
-            }
-        };
-    }
-
-    private void processUserChoiceAlert(String macAddress, String deviceName) {
-        try {
-            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-            if(deviceName == null) {deviceName = "Unknown";};
-            if(userChoice == null || userChoice == "") broadcastAlertDialog("Start Service Interface of Device " + macAddress + "-" + deviceName, macAddress);
-        } catch (RemoteException e) {
-            e.printStackTrace();
         }
     }
 
@@ -144,11 +112,20 @@ public class Semaphore {
         }
     }
 
-    private void broadcastAlertDialog(String message, String macAddress) {
+    private boolean processMfgChoice(String macAddress) {
+        boolean isMfgExist = false;
+        try {
+            isMfgExist = iGatewayService.isDeviceManufacturerKnown(macAddress);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+        return isMfgExist;
+    }
+
+    private void broadcastServiceInterface(String message) {
         if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.USER_CHOICE_SERVICE);
+            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
             intent.putExtra("message", message);
-            intent.putExtra("macAddress", macAddress);
             context.sendBroadcast(intent);
         }
     }

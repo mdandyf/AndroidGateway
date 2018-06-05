@@ -16,6 +16,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 
+import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
@@ -27,6 +28,8 @@ import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
+import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
@@ -54,8 +57,8 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_COMMAND";
     public static final String START_SERVICE_INTERFACE =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_SERVICE_INTERFACE";
-    public static final String USER_CHOICE_SERVICE =
-            "com.uni-stuttgart.ipvs.androidgateway.gateway.USER_CHOICE_SERVICE";
+    public static final String MFG_CHOICE_SERVICE =
+            "com.uni-stuttgart.ipvs.androidgateway.gateway.MFG_CHOICE_SERVICE";
     public static final String DISCONNECT_COMMAND =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.DISCONNECT_COMMAND";
     public static final String FINISH_READ =
@@ -218,6 +221,15 @@ public class GatewayService extends Service {
 
         @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
+            // only known devices that will be connected or processed
+            if(scanResults.size() > 0) {
+                for(BluetoothDevice device : scanResults) {
+                    if(!isDeviceManufacturerKnown(device.getAddress())) {
+                        scanResults.remove(device);
+                    }
+                }
+            }
+
             return scanResults;
         }
 
@@ -588,6 +600,28 @@ public class GatewayService extends Service {
         @Override
         public byte[] getDeviceScanRecord(String macAddress) throws RemoteException {
             return bleDeviceDatabase.getDeviceScanRecord(macAddress);
+        }
+
+        @Override
+        public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
+
+            byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
+            List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
+
+            Map<String, Object> mapListAdvertisement;
+
+            mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
+
+            int compId = (int) mapListAdvertisement.get("CompanyId");
+            String compIdString = GattDataHelper.decToHex(compId);
+            compIdString = compIdString.substring(4,8);
+            compIdString = "0x" + compIdString;
+            Log.d(TAG, "Company Id: " + compIdString);
+
+            boolean isManufacturerExist = manufacturerDatabase.isManufacturerExist(compIdString);
+
+            return isManufacturerExist;
+
         }
 
         @Override

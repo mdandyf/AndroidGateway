@@ -307,21 +307,11 @@ public class GatewayController extends Service {
             iGatewayService.insertDatabasePowerUsage("Case1", 60, 100, 1 * Math.pow(10, 14), 1 * Math.pow(10, 15), 1 * Math.pow(10, 15));
             iGatewayService.insertDatabasePowerUsage("Case2", 20, 60, 1 * Math.pow(10, 13), 1 * Math.pow(10, 14), 1 * Math.pow(10, 14));
             iGatewayService.insertDatabasePowerUsage("Case3", 0, 20, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
+            iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology");
+            iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service");
         } catch (RemoteException e) {
             e.printStackTrace();
         }
-    }
-
-    public void updateDeviceUserChoice(String macAddress, String userChoice) {
-        if(mBound) {
-            try {
-                iGatewayService.updateDatabaseDeviceUsrChoice(macAddress, userChoice);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        }
-
-        if(userChoice.equals("Yes")) {broadcastServiceInterface("Start Service Interface");;}
     }
 
     private void setWakeLock() {
@@ -332,14 +322,6 @@ public class GatewayController extends Service {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
             intent.putExtra("command", message);
-            sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             sendBroadcast(intent);
         }
     }

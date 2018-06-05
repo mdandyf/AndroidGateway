@@ -92,6 +92,8 @@ interface IGatewayService {
 
     byte[] getDeviceScanRecord(in String macAddress);
 
+    boolean isDeviceManufacturerKnown(in String macAddress);
+
     String getDeviceUsrChoice(in String macAddress);
 
     String getDeviceState(in String macAddress);

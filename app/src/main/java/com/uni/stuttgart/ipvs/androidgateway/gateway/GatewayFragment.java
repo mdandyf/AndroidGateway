@@ -295,7 +295,7 @@ public class GatewayFragment extends Fragment {
         IntentFilter filter3 = new IntentFilter(GatewayService.START_COMMAND);
         getActivity().registerReceiver(mReceiver, filter3);
 
-        IntentFilter filter4 = new IntentFilter(GatewayService.USER_CHOICE_SERVICE);
+        IntentFilter filter4 = new IntentFilter(GatewayService.MFG_CHOICE_SERVICE);
         getActivity().registerReceiver(mReceiver, filter4);
 
         IntentFilter filter5 = new IntentFilter(GatewayService.START_NEW_CYCLE);
@@ -328,10 +328,6 @@ public class GatewayFragment extends Fragment {
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
                     if (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) { startGatewayService(); }
                 }
-            } else if(action.equals(GatewayService.USER_CHOICE_SERVICE)) {
-                String message = intent.getStringExtra("message");
-                String macAddress = intent.getStringExtra("macAddress");
-                alertDialog("Service Interface", message, "Yes", "No", macAddress);
             } else if(action.equals(GatewayService.START_NEW_CYCLE)) {
                 setCommandLine("", true);
             }
@@ -350,48 +346,6 @@ public class GatewayFragment extends Fragment {
     /**
      * View Related Routine Section
      */
-
-    private void alertDialog(final String title, final String message, final String positive, final String negative, final String args) {
-        getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-
-                final boolean[] hasAnswered = {false};
-                final AlertDialog.Builder dialog = new AlertDialog.Builder(context);
-                dialog.setTitle(title)
-                        .setIcon(R.drawable.ic_info_black_24dp)
-                        .setMessage(message)
-                        .setNegativeButton(negative, new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialoginterface, int i) {
-                                // update No to database
-                                mService.updateDeviceUserChoice(args, "No");
-                                hasAnswered[0] = true;
-                            }
-                        })
-                        .setPositiveButton(positive, new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialoginterface, int i) {
-                                //update Yes to database
-                                mService.updateDeviceUserChoice(args, "Yes");
-                                hasAnswered[0] = true;
-                            }
-                        });
-
-                final AlertDialog ad = dialog.show();
-
-                //if no answer within 5 seconds, then it is no
-                Handler handler = new Handler();
-                handler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        if(!hasAnswered[0]) {
-                            mService.updateDeviceUserChoice(args, "No");
-                            ad.dismiss();
-                        }
-                    }
-                }, 5 * 1000);
-            }
-        });
-    }
 
     private void setCommandLine(final String info, final boolean clearScreen) {
         screenCounter++;

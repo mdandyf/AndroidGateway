@@ -162,7 +162,7 @@ public class PriorityBasedWithWPM {
                 // do connecting by Round Robin
                 for (final BluetoothDevice device : scanResults) {
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
-                    processUserChoiceAlert(device.getAddress(), device.getName());
+                    broadcastServiceInterface("Start service interface");
 
                     powerUsage = 0;
                     powerEstimator.start();
@@ -241,7 +241,6 @@ public class PriorityBasedWithWPM {
                 for (Map.Entry entry : mapRankedDevices.entrySet()) {
                     BluetoothDevice device = (BluetoothDevice) entry.getKey();
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
-                    processUserChoiceAlert(device.getAddress(), device.getName());
 
                     powerUsage = 0;
                     powerEstimator.start();
@@ -395,22 +394,10 @@ public class PriorityBasedWithWPM {
         }
     }
 
-    private void processUserChoiceAlert(String macAddress, String deviceName) {
-        try {
-            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-            if (deviceName == null) { deviceName = "Unknown"; }
-            if (userChoice == null || userChoice == "")
-                broadcastAlertDialog("Start Service Interface of Device " + macAddress + "-" + deviceName, macAddress);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void broadcastAlertDialog(String message, String macAddress) {
+    private void broadcastServiceInterface(String message) {
         if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.USER_CHOICE_SERVICE);
+            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
             intent.putExtra("message", message);
-            intent.putExtra("macAddress", macAddress);
             context.sendBroadcast(intent);
         }
     }

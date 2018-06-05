@@ -9,10 +9,12 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDev
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
+import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 // implementation of Scheduling using Exhaustive Polling
@@ -81,8 +83,12 @@ public class ExhaustivePolling {
 
                     // do Connecting by using Semaphore
                     for (final BluetoothDevice device : scanResults) {
-                        iGatewayService.doConnect(device.getAddress());
-                        processUserChoiceAlert(device.getAddress(), device.getName());
+                        // only known manufacturer that will be used to connect
+                        boolean isMfgExist = processMfgChoice(device.getAddress());
+                        if(isMfgExist) {
+                            broadcastServiceInterface("Start service interface");
+                            iGatewayService.doConnect(device.getAddress());
+                        }
                         if (!mProcessing) { return; }
                     }
 
@@ -122,21 +128,20 @@ public class ExhaustivePolling {
         }
     }
 
-    private void processUserChoiceAlert(String macAddress, String deviceName) {
+    private boolean processMfgChoice(String macAddress) {
+        boolean isMfgExist = false;
         try {
-            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-            if(deviceName == null) {deviceName = "Unknown";};
-            if(userChoice == null || userChoice == "") broadcastAlertDialog("Start Service Interface of Device " + macAddress + "-" + deviceName, macAddress);
+            isMfgExist = iGatewayService.isDeviceManufacturerKnown(macAddress);
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+        return isMfgExist;
     }
 
-    private void broadcastAlertDialog(String message, String macAddress) {
+    private void broadcastServiceInterface(String message) {
         if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.USER_CHOICE_SERVICE);
+            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
             intent.putExtra("message", message);
-            intent.putExtra("macAddress", macAddress);
             context.sendBroadcast(intent);
         }
     }
