@@ -23,6 +23,7 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattC
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
@@ -94,6 +95,7 @@ public class GatewayService extends Service {
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
     private PowerUsageDatabase blePowerUsageDatabase = new PowerUsageDatabase(this);
+    private ManufacturerDatabase manufacturerDatabase = new ManufacturerDatabase(this);
 
     private String status;
 
@@ -601,6 +603,26 @@ public class GatewayService extends Service {
         @Override
         public long getDevicePowerUsage(String macAddress) throws RemoteException {
             return bleDeviceDatabase.getDevicePowerUsage(macAddress);
+        }
+
+        @Override
+        public void insertDatabaseManufacturer(String manfId, String manfName) throws RemoteException {
+            manufacturerDatabase.insertData(manfId, manfName);
+        }
+
+        @Override
+        public boolean checkManufacturer(String mfr_id) throws RemoteException {
+            return manufacturerDatabase.isManufacturerExist(mfr_id);
+        }
+
+        @Override
+        public List<String> getListManufacturers() throws RemoteException {
+            return manufacturerDatabase.getListManufacturers();
+        }
+
+        @Override
+        public String getManufacturerName(String mfr_id) throws RemoteException {
+            return manufacturerDatabase.getManufacturerName(mfr_id);
         }
 
         @Override
