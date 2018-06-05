@@ -156,6 +156,7 @@ public class PowerUsageDatabase extends SQLiteOpenHelper {
                     cursor.close();
                     break;
                 }
+                cursor.moveToNext();
             }
         }
         return result;

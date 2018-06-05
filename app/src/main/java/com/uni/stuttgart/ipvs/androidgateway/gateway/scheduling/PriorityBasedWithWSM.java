@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.AsyncTask;
 import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
@@ -13,7 +12,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
@@ -26,7 +25,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class PriorityBasedWithAHP {
+public class PriorityBasedWithWSM {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
@@ -50,12 +49,11 @@ public class PriorityBasedWithAHP {
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
     private long powerUsage = 0;
-    private int connectCounter = 0;
 
     private ThreadTrackingPriority processConnecting;
     private ExecutionTask<String> executionTask;
 
-    public PriorityBasedWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public PriorityBasedWithWSM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
@@ -107,6 +105,11 @@ public class PriorityBasedWithAHP {
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
 
+                    if (!mProcessing) {
+                        future.cancel(false);
+                        return;
+                    }
+
                     waitThread(100);
 
                     if (!mProcessing) {
@@ -119,7 +122,6 @@ public class PriorityBasedWithAHP {
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
 
@@ -147,7 +149,6 @@ public class PriorityBasedWithAHP {
         private void connectRR() {
             try {
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
-
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 if (scanResults.size() != 0) {
                     int remainingTime = PROCESSING_TIME - SCAN_TIME;
@@ -159,8 +160,8 @@ public class PriorityBasedWithAHP {
 
                 // do connecting by Round Robin
                 for (final BluetoothDevice device : scanResults) {
-                    broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
+                    broadcastServiceInterface("Start service interface");
 
                     powerUsage = 0;
                     powerEstimator.start();
@@ -190,17 +191,22 @@ public class PriorityBasedWithAHP {
         private void connectFP() {
             try {
                 /*registerBroadcast(); // start listening to disconnected Gatt and or finished read data*/
-                connectCounter = 0;
-                Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(iGatewayService.getScanResults());
+                List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                Map<BluetoothDevice, Double> mapRankedDevices;
+                if (scanResults.size() != 0) {
+                    broadcastUpdate("\n");
+                    broadcastUpdate("Start ranking device with WSM algorithm...");
+                    mapRankedDevices = doRankDeviceWSM(scanResults);
+                    broadcastUpdate("Finish ranking device...");
+                } else {
+                    broadcastUpdate("No nearby device(s) available...");
+                    return;
+                }
 
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 int remainingTime = PROCESSING_TIME - SCAN_TIME;
 
                 if(mapRankedDevices.size() > 0) {
-                    DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
-                    mapRankedDevices = sortData.sortMapByComparatorDouble(mapRankedDevices, false);
-                    broadcastUpdate("Sorting devices by their priorities...");
-
                     broadcastUpdate("\n");
                     maxConnectTime = remainingTime / mapRankedDevices.size();
                     broadcastUpdate("Connecting to " + mapRankedDevices.size() + " device(s)");
@@ -217,9 +223,8 @@ public class PriorityBasedWithAHP {
                         // if less than 10 devices, waiting time is based on maxConnectTime
                         connect(mapRankedDevices, remainingTime);
                     }
-
                 } else {
-                    broadcastUpdate("No nearby device available");
+                    broadcastUpdate("No nearby device(s) available");
                     return;
                 }
 
@@ -263,41 +268,17 @@ public class PriorityBasedWithAHP {
 
         }
 
-        // implementation of Ranking Devices based on AHP
-        private Map<BluetoothDevice, Double> doRankDeviceAHP(List<BluetoothDevice> devices) {
+        // implementation of Ranking Devices based on WSM
+        private Map<BluetoothDevice, Double> doRankDeviceWSM(List<BluetoothDevice> devices) {
+            Map<BluetoothDevice, Double> result = new ConcurrentHashMap<>();
             try {
-                broadcastUpdate("\n");
-                broadcastUpdate("Start ranking device with AHP algorithm...");
-
-                Map<BluetoothDevice, Double> rankedDevices = new ConcurrentHashMap<>();
-                Map<BluetoothDevice, Object[]> mapParameters = new ConcurrentHashMap<>();
-                for (BluetoothDevice device : devices) {
-                    int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
-                    String deviceState = iGatewayService.getDeviceState(device.getAddress());
-                    String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
-                    long powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());
-
-                    long batteryRemaining = powerEstimator.getBatteryRemainingPercent();
-                    double[] powerConstraints = iGatewayService.getPowerUsageConstraints((double) batteryRemaining);
-
-                    Object[] parameters = new Object[5];
-                    parameters[0] = rssi;
-                    parameters[1] = deviceState;
-                    parameters[2] = userChoice;
-                    parameters[3] = powerUsage;
-                    parameters[4] = powerConstraints;
-                    mapParameters.put(device, parameters);
-                }
-
-                AHP ahp = new AHP(mapParameters);
-                AsyncTask<Void, Void, Map<BluetoothDevice, Double>> rankingTask = ahp.execute();
-                rankedDevices = rankingTask.get();
-                broadcastUpdate("Finish ranking device...");
-                return rankedDevices;
+                WSM wsm = new WSM(devices, iGatewayService, powerEstimator.getBatteryRemainingPercent());
+                broadcastUpdate("Sorting devices by their priorities...");
+                result = wsm.call();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            return null;
+            return result;
         }
     }
 
@@ -419,5 +400,4 @@ public class PriorityBasedWithAHP {
             context.sendBroadcast(intent);
         }
     }
-
 }

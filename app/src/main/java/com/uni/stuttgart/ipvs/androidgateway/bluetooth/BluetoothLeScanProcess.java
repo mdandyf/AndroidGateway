@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Created by mdand on 2/24/2018.
@@ -30,20 +31,18 @@ public class BluetoothLeScanProcess {
 
     private BluetoothAdapter mBluetoothAdapter;
     private android.bluetooth.le.BluetoothLeScanner mBleScanner;
-    private ScanResult scanResult;
     private Context context;
     private boolean mScanning = false;
     public ScanCallbackNew callback;
     public ScanCallbackOld callbackOld;
-    private Handler mHandlerMessage;
 
     public BluetoothLeScanProcess(Context context, BluetoothAdapter adapter) {
         this.context = context;
         this.mBluetoothAdapter = adapter;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>(), new HashMap<BluetoothDevice, byte[]>());
+            callback = new ScanCallbackNew(context, new ArrayList<BluetoothDevice>(), new ConcurrentHashMap<BluetoothDevice, GattDataJson>(), new ConcurrentHashMap<BluetoothDevice, byte[]>());
         } else {
-            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new HashMap<BluetoothDevice, GattDataJson>(), new HashMap<BluetoothDevice, byte[]>());
+            callbackOld = new ScanCallbackOld(new ArrayList<BluetoothDevice>(), new ConcurrentHashMap<BluetoothDevice, GattDataJson>(), new ConcurrentHashMap<BluetoothDevice, byte[]>());
         }
     }
 
@@ -54,7 +53,6 @@ public class BluetoothLeScanProcess {
     public boolean getScanState() {return this.mScanning;}
 
     public void setHandlerMessage(Handler mHandlerMessage) {
-        this.mHandlerMessage = mHandlerMessage;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             callback.setMessageHandler(mHandlerMessage);
         } else {

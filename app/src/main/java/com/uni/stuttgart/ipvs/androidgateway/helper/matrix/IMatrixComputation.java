@@ -2,6 +2,7 @@ package com.uni.stuttgart.ipvs.androidgateway.helper.matrix;
 
 public interface IMatrixComputation {
     public double[][] getMatrixIdentity();
+    public double[][] getMatrixZero();
     public double[][] changeMatrixValue(double[][] inputMatrix, int row, int column, double value);
     public double[][] getMatrixStandardize(double[][] inputMatrix);
     public double[] getMatrixWeight(double[][] matrixStandardize);

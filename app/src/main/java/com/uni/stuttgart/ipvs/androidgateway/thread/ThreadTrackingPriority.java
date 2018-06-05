@@ -1,13 +1,16 @@
 package com.uni.stuttgart.ipvs.androidgateway.thread;
 
+import android.util.Log;
+
 import java.util.concurrent.ThreadFactory;
 
-public class ProcessPriority implements ThreadFactory {
-
+public class ThreadTrackingPriority implements ThreadFactory {
+    private static final String TAG = "Thread Factory";
+    private static int count = 0;
     private final int threadPriority;
     private Thread thread;
 
-    public ProcessPriority(int threadPriority) {
+    public ThreadTrackingPriority(int threadPriority) {
         this.threadPriority = threadPriority;
     }
 
@@ -15,6 +18,13 @@ public class ProcessPriority implements ThreadFactory {
     public Thread newThread(Runnable r) {
         thread = new Thread(r);
         thread.setPriority(threadPriority);
+        thread.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                Log.d(TAG, "Thread = " + t.getName() + ", error = " +
+                        e.getMessage());
+            }
+        });
         return thread;
     }
 

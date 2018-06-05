@@ -15,9 +15,13 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDev
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePolling;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.FairExhaustivePolling;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithAHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithANP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWPM;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ProcessPriority;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -35,11 +39,17 @@ public class GatewayController extends Service {
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
 
-    private ProcessPriority process;
+    private Semaphore sem;
+    private FairExhaustivePolling fep;
+    private ExhaustivePolling ep;
+    private RoundRobin rr;
+    private PriorityBasedWithAHP ahp;
+    private PriorityBasedWithANP anp;
+    private PriorityBasedWithWSM wsm;
+    private PriorityBasedWithWPM wpm;
+
     private Runnable runnablePeriodic;
     private Thread threadPeriodic;
-
-    private AsyncTask<Void, Void, Void> schedulingTask;
 
     @Override
     public void onCreate() {
@@ -64,7 +74,6 @@ public class GatewayController extends Service {
     public void onDestroy() {
         super.onDestroy();
         mProcessing = false;
-        if(schedulingTask != null) {schedulingTask.cancel(true);}
         if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
         stopService(mIntent);
         stopSelf();
@@ -80,10 +89,19 @@ public class GatewayController extends Service {
 
     @Override
     public boolean onUnbind(Intent intent) {
-        try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null);iGatewayService.execScanningQueue(); } catch (RemoteException e) { e.printStackTrace(); }
+        try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);iGatewayService.execScanningQueue(); } catch (RemoteException e) { e.printStackTrace(); }
         try { iGatewayService.setProcessing(false); } catch (RemoteException e) { e.printStackTrace(); }
-        if(process != null) {process.interruptThread();}
-        broadcastUpdate("Unbind GatewayController to PowerEstimator...");
+
+        if(fep != null) {fep.stop();}
+        if(ep != null) {ep.stop();}
+        if(rr != null) {rr.stop();}
+        if(sem != null) {sem.stop();}
+        if(ahp != null) {ahp.stop();}
+        if(anp != null) {anp.stop();}
+        if(wsm != null) {wsm.stop();}
+        if(wpm != null) {wpm.stop();}
+
+        if(threadPeriodic != null) {threadPeriodic.interrupt();}
         if(mConnection != null) {unbindService(mConnection); }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         return false;
@@ -120,9 +138,11 @@ public class GatewayController extends Service {
             //doScheduleSemaphore();
             //doScheduleRR();
             //doScheduleEP();
-            //doScheduleFEP();
+            doScheduleFEP();
             //doSchedulePriorityAHP();
-            doSchedulePriorityANP();
+            //doSchedulePriorityANP();
+            //doSchedulePriorityWSM();
+            //doSchedulePriorityWPM();
         }
 
         @Override
@@ -145,11 +165,9 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Semaphore Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
-            process = new ProcessPriority(10);
-            runnablePeriodic = new Semaphore(context, mProcessing, iGatewayService);
-            threadPeriodic = process.newThread(runnablePeriodic);
-            threadPeriodic.setName("Semaphore");
-            threadPeriodic.start();
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            sem = new Semaphore(context, mProcessing, iGatewayService);
+            sem.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -163,11 +181,9 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Round Robin Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
-            process = new ProcessPriority(10);
-            runnablePeriodic = new RoundRobin(context, mProcessing, iGatewayService);
-            threadPeriodic = process.newThread(runnablePeriodic);
-            threadPeriodic.setName("Round Robin");
-            threadPeriodic.start();
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            rr = new RoundRobin(context, mProcessing, iGatewayService);
+            rr.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -181,11 +197,9 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Exhaustive Polling Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
-            process = new ProcessPriority(10);
-            runnablePeriodic = new ExhaustivePolling(context, mProcessing, iGatewayService);
-            threadPeriodic = process.newThread(runnablePeriodic);
-            threadPeriodic.setName("Exhaustive Polling");
-            threadPeriodic.start();
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            ep = new ExhaustivePolling(context, mProcessing, iGatewayService);
+            ep.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -199,11 +213,9 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Fair Exhaustive Polling Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
-            process = new ProcessPriority(10);
-            runnablePeriodic = new FairExhaustivePolling(context, mProcessing, iGatewayService);
-            threadPeriodic = process.newThread(runnablePeriodic);
-            threadPeriodic.setName("Fair Exhaustive Polling");
-            threadPeriodic.start();
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            fep =  new FairExhaustivePolling(context, mProcessing, iGatewayService);
+            fep.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -217,11 +229,9 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Priority Scheduling with AHP...");
         try {
             iGatewayService.setProcessing(mProcessing);
-            process = new ProcessPriority(10);
-            runnablePeriodic = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
-            threadPeriodic = process.newThread(runnablePeriodic);
-            threadPeriodic.start();
-            threadPeriodic.setName("Fixed Priority");
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            ahp = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
+            ahp.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -236,13 +246,45 @@ public class GatewayController extends Service {
         broadcastUpdate("Start Priority Scheduling with ANP...");
         try {
             iGatewayService.setProcessing(mProcessing);
-            process = new ProcessPriority(10);
-            runnablePeriodic = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
-            threadPeriodic = process.newThread(runnablePeriodic);
-            threadPeriodic.start();
-            threadPeriodic.setName("Fixed Priority");
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            anp = new PriorityBasedWithANP(context, mProcessing, iGatewayService);
+            anp.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    // scheduling based on Priority with WSM decision making algorithm
+    private void doSchedulePriorityWSM() {
+        broadcastUpdate("Start Priority Scheduling with WSM...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            wsm = new PriorityBasedWithWSM(context, mProcessing, iGatewayService);
+            wsm.start();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    // scheduling based on Priority with WPM decision making algorithm
+    private void doSchedulePriorityWPM() {
+        broadcastUpdate("Start Priority Scheduling with WPM...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            wpm = new PriorityBasedWithWPM(context, mProcessing, iGatewayService);
+            wpm.start();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+
 
     /**
      * End of Algorithm Section
@@ -265,21 +307,11 @@ public class GatewayController extends Service {
             iGatewayService.insertDatabasePowerUsage("Case1", 60, 100, 1 * Math.pow(10, 14), 1 * Math.pow(10, 15), 1 * Math.pow(10, 15));
             iGatewayService.insertDatabasePowerUsage("Case2", 20, 60, 1 * Math.pow(10, 13), 1 * Math.pow(10, 14), 1 * Math.pow(10, 14));
             iGatewayService.insertDatabasePowerUsage("Case3", 0, 20, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
+            iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology");
+            iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service");
         } catch (RemoteException e) {
             e.printStackTrace();
         }
-    }
-
-    public void updateDeviceUserChoice(String macAddress, String userChoice) {
-        if(mBound) {
-            try {
-                iGatewayService.updateDatabaseDeviceUsrChoice(macAddress, userChoice);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        }
-
-        if(userChoice.equals("Yes")) {broadcastServiceInterface("Start Service Interface");;}
     }
 
     private void setWakeLock() {
@@ -290,14 +322,6 @@ public class GatewayController extends Service {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
             intent.putExtra("command", message);
-            sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             sendBroadcast(intent);
         }
     }

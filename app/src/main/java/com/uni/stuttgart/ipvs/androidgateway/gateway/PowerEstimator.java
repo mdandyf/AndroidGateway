@@ -11,6 +11,8 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -21,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 public class PowerEstimator {
 
+    private ExecutionTask<String> executionTask;
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> future;
 
@@ -54,8 +57,10 @@ public class PowerEstimator {
         batteryPercentage = 0;
 
         // start scheduler to measure battery properties
-        scheduler = new ScheduledThreadPoolExecutor(5);
-        future = scheduler.scheduleAtFixedRate(new ReadPowerData(), 0, 100, TimeUnit.MILLISECONDS);
+        int N = Runtime.getRuntime().availableProcessors();
+        executionTask = new ExecutionTask<>(N, N*2);
+        scheduler = executionTask.scheduleWithThreadPoolExecutor(new ReadPowerData(), 0, 100, TimeUnit.MILLISECONDS);
+        future = executionTask.getFuture();
     }
 
     public void stop() {

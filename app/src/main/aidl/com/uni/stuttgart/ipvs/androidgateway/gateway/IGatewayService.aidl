@@ -24,7 +24,7 @@ interface IGatewayService {
 
     String getCurrentStatus();
 
-    void setMessageHandler(in PMessageHandler messageHandler);
+    void setHandler(in PMessageHandler messageHandler, in String threadName, in String type);
 
     PMessageHandler getMessageHandler();
 
@@ -44,13 +44,13 @@ interface IGatewayService {
 
     void setListGatt(in List<PBluetoothGatt> listGatt);
 
-    void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID);
+    void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID, in long waitTime);
 
     void execScanningQueue();
 
     void doConnect(in String macAddress);
 
-    void doConnecting(in String macAddress);
+    PBluetoothGatt doConnecting(in String macAddress);
 
     void doConnected(in PBluetoothGatt gatt);
 
@@ -92,11 +92,21 @@ interface IGatewayService {
 
     byte[] getDeviceScanRecord(in String macAddress);
 
+    boolean isDeviceManufacturerKnown(in String macAddress);
+
     String getDeviceUsrChoice(in String macAddress);
 
     String getDeviceState(in String macAddress);
 
     long getDevicePowerUsage(in String macAddress);
+
+    void insertDatabaseManufacturer(in String manfId, in String manfName);
+
+    boolean checkManufacturer(in String mfr_id);
+
+    List<String> getListManufacturers();
+
+    String getManufacturerName(in String mfr_id);
 
     void insertDatabasePowerUsage(in String idCase, in double batteryLevel, in double batteryLevelUpper, in double powerUsage1, in double powerUsage2, in double powerUsage3);
 
