@@ -1,9 +1,11 @@
 package com.uni.stuttgart.ipvs.androidgateway.service;
 
 import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -56,12 +58,15 @@ public class ServiceInterface extends ListFragment {
     public void onAttach(Context context) {
         super.onAttach(context);
         this.context = context;
+
+        //bind to service
+        Intent intent = new Intent(context, GatewayService.class);
+        getActivity().bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getActivity().bindService(new Intent(context, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -89,7 +94,6 @@ public class ServiceInterface extends ListFragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (scheduler != null && !scheduler.isShutdown()) { scheduler.shutdown(); }
     }
 
     @Override
@@ -297,8 +301,29 @@ public class ServiceInterface extends ListFragment {
                                        IBinder service) {
             iGatewayService = IGatewayService.Stub.asInterface(service);
             mBound = true;
-            scheduler = new ScheduledThreadPoolExecutor(10);
-            scheduler.scheduleAtFixedRate(new ServiceInterfaceRun(), 10, 5 * 1000, MILLISECONDS); // check dbase for new device every 5 seconds
+
+
+            //check active devices once
+            try {
+                List<String> activeDevices = iGatewayService.getListActiveDevices();
+                Map<String, String> data = new HashMap<>();
+
+                for(String mac : activeDevices){
+                    String deviceName = iGatewayService.getDeviceName(mac);
+                    data.put("Device Address", mac);
+                    data.put("Device Name", deviceName);
+                    if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
+
+                }
+                //if(device.getName() != null) { data.put("Device Name", device.getName()); }
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+
+            getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
+
+            //scheduler = new ScheduledThreadPoolExecutor(10);
+            //scheduler.scheduleAtFixedRate(new ServiceInterfaceRun(), 10, 5 * 1000, MILLISECONDS); // check dbase for new device every 5 seconds
         }
 
         @Override
@@ -308,41 +333,38 @@ public class ServiceInterface extends ListFragment {
     };
 
 
-    protected class ServiceInterfaceRun implements Runnable {
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
 
         @Override
-        public void run() {
-            // populate result from database
-            try {
-                List<String> activeDevices = iGatewayService.getListActiveDevices();
-                List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
-                for(final BluetoothDevice device : scanResults) {
-                    for(String macAddress: activeDevices) {
-                        if(device.getAddress().equals(macAddress)) {
-                            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-                            if(userChoice != null) {
-                                if(userChoice.equals("Yes")) {
-                                    // put data into adapter
-                                    getActivity().runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            Map<String, String> data = new HashMap<>();
-                                            data.put("Device Name", "Unknown");
-                                            if(device.getName() != null) { data.put("Device Name", device.getName()); }
-                                            data.put("Device Address", device.getAddress());
-                                            if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
-                                        }
-                                    });
-                                }
-                            }
+        public void onReceive(Context context, final Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(GatewayService.FINISH_READ)) {
+
+                final String macAddress = intent.getStringExtra("command");
+
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        try {
+                            String deviceName = iGatewayService.getDeviceName(macAddress);
+
+                            Map<String, String> data = new HashMap<>();
+                            data.put("Device Name", deviceName);
+                            data.put("Device Address", macAddress);
+                            if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
                         }
+
                     }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+                });
+
             }
         }
-    }
+    };
+
 
     private void replaceFragment(int containerView, android.support.v4.app.Fragment classFragment, String tag) {
         getActivity().getSupportFragmentManager().beginTransaction()

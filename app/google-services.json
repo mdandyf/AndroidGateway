@@ -1,0 +1,59 @@
+{
+  "project_info": {
+    "project_number": "437551514907",
+    "firebase_url": "https://android-gateway-e0242.firebaseio.com",
+    "project_id": "android-gateway-e0242",
+    "storage_bucket": "android-gateway-e0242.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:437551514907:android:75387fa3d094681b",
+        "android_client_info": {
+          "package_name": "com.uni.stuttgart.ipvs.androidgateway"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "437551514907-athonhg3j9qhei8m2feqfi8p3ucp305h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.uni.stuttgart.ipvs.androidgateway",
+            "certificate_hash": "876a1b33fc9667a4e3ce7fa0cf3288397c6542d4"
+          }
+        },
+        {
+          "client_id": "437551514907-82gemv1es34gdd87ar0bnqpv0mendo7d.apps.googleusercontent.com",
+          "client_type": 3
+        },
+        {
+          "client_id": "437551514907-82gemv1es34gdd87ar0bnqpv0mendo7d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACtDV1BdFK6Z2px57fTXw0sIxWP1lXOcM"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "437551514907-82gemv1es34gdd87ar0bnqpv0mendo7d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

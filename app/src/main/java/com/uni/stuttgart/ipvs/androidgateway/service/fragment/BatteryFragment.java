@@ -1,5 +1,6 @@
 package com.uni.stuttgart.ipvs.androidgateway.service.fragment;
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -153,6 +154,18 @@ public class BatteryFragment extends Fragment {
             Toast.makeText(getContext(), "Value Updated", Toast.LENGTH_SHORT).show();
 
             mHandler.postDelayed(this, 1000);
+        }
+    };
+
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(GatewayService.FINISH_READ)) {
+                //unregisterReceiver(mReceiver);
+            }
         }
     };
 }

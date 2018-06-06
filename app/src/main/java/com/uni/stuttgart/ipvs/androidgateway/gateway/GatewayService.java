@@ -605,6 +605,8 @@ public class GatewayService extends Service {
             return bleDeviceDatabase.getDeviceScanRecord(macAddress);
         }
 
+
+        //INCOMPLETE
         @Override
         public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
 
@@ -629,6 +631,11 @@ public class GatewayService extends Service {
                 // if device has no scan record
                 return false;
             }
+        }
+
+        @Override
+        public String getDeviceName(String macAddress) throws RemoteException {
+            return bleDeviceDatabase.getDeviceName(macAddress);
         }
 
         @Override
@@ -664,6 +671,11 @@ public class GatewayService extends Service {
         @Override
         public String getManufacturerName(String mfr_id) throws RemoteException {
             return manufacturerDatabase.getManufacturerName(mfr_id);
+        }
+
+        @Override
+        public String getManufacturerService(String mfr_id) throws RemoteException {
+            return null;
         }
 
         @Override

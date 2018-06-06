@@ -6,9 +6,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -20,6 +18,8 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
     public static final String TABLE_NAME = "BleManufacturerData";
     public static final String MANUFACTURER_ID = "mfr_id";
     public static final String MANUFACTURER_NAME = "mfr_name";
+    //public static final String SERVICE_UUID = "service_uuid";
+
 
     public ManufacturerDatabase(Context context) {
         super(context, DATABASE_NAME , null, 1);
@@ -84,12 +84,13 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
     // Check Database Section
     // ======================================================================================================================== //
 
-    public boolean isManufacturerExist(String key) {
+    public boolean isManufacturerExist(String mfrId) {
         Cursor cursor = null;
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
-            cursor = db.rawQuery("SELECT mfr_id from BleManufacturerData WHERE mfr_id=?", new String[] {key + ""});
+            cursor = db.rawQuery("SELECT mfr_id from BleManufacturerData WHERE mfr_id=?", new String[] {mfrId
+                    + ""});
             if(cursor.getCount() > 0) {
                 status = true;
             }
@@ -133,8 +134,6 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
         }
         return result;
     }
-
-
 
 
     // ======================================================================================================================== //

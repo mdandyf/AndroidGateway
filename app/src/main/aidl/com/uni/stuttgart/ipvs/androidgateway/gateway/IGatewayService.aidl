@@ -94,6 +94,8 @@ interface IGatewayService {
 
     boolean isDeviceManufacturerKnown(in String macAddress);
 
+    String getDeviceName(in String macAddress);
+
     String getDeviceUsrChoice(in String macAddress);
 
     String getDeviceState(in String macAddress);
@@ -107,6 +109,8 @@ interface IGatewayService {
     List<String> getListManufacturers();
 
     String getManufacturerName(in String mfr_id);
+
+    String getManufacturerService(in String mfr_id);
 
     void insertDatabasePowerUsage(in String idCase, in double batteryLevel, in double batteryLevelUpper, in double powerUsage1, in double powerUsage2, in double powerUsage3);
 

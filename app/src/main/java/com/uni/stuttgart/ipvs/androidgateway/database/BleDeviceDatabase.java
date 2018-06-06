@@ -27,11 +27,11 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public static final String BLE_DATA = "mac_address";
     public static final String BLE_NAME = "device_name";
     public static final String BLE_RSSI = "device_rssi";
+    public static final String BLE_USER_CHOICE = "user_choice";
     public static final String BLE_STATE = "device_state";
     public static final String BLE_CRT_DATE = "create_date";
     public static final String BLE_MDF_DATE = "modified_date";
     public static final String BLE_ADV_RECORD = "adv_record";
-    public static final String BLE_USER_CHOICE = "user_choice";
     public static final String BLE_POWER_USAGE = "power_usage";
 
     public BleDeviceDatabase(Context context) {
@@ -316,6 +316,19 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         if (cursor.moveToFirst()) {
             while (!cursor.isAfterLast()) {
                 result = cursor.getString(cursor.getColumnIndex(BLE_USER_CHOICE));
+                cursor.close();
+                break;
+            }
+        }
+        return result;
+    }
+
+    public String getDeviceName(String macAddress) {
+        Cursor cursor = getQuery("SELECT device_name from BleDeviceData WHERE mac_address=?", new String[] {macAddress});
+        String result = null;
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                result = cursor.getString(cursor.getColumnIndex(BLE_NAME));
                 cursor.close();
                 break;
             }
