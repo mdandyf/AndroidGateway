@@ -175,10 +175,17 @@ public class GatewayService extends Service {
 
         @Override
         public void setHandler(PMessageHandler messageHandler, String threadName, String type) throws RemoteException {
-            if(mThread != null && mThread.isAlive()) { mThread.interrupt(); }
+
+            if (mHandlerMessage == null) {
+                // no quit section
+            } else {
+                mThread.interrupt();
+                mThread.quit();
+            }
             mThread = new HandlerThread(threadName);
             mThread.start();
-            if(type.equals("Gateway")) {
+
+            if (type.equals("Gateway")) {
                 GatewayCallback gatewayCallback = new GatewayCallback(context, mProcessing, mBinder);
                 mHandlerMessage = new Handler(mThread.getLooper(), gatewayCallback);
                 gatewayCallback.setmHandlerMessage(mHandlerMessage);
@@ -188,7 +195,9 @@ public class GatewayService extends Service {
             }
 
             mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-            if(mBluetoothGattCallback != null) {mBluetoothGattCallback.setHandlerMessage(mHandlerMessage);};
+            if (mBluetoothGattCallback != null) {
+                mBluetoothGattCallback.setHandlerMessage(mHandlerMessage);
+            }
         }
 
         @Override
@@ -222,11 +231,11 @@ public class GatewayService extends Service {
 
         @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
-            // only known devices that will be connected or processed
-            if(scanResults.size() > 0) {
-                for(Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext();) {
+            // only known devices that will be processed
+            if (scanResults.size() > 0) {
+                for (Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext(); ) {
                     BluetoothDevice device = iterator.next();
-                    if(!isDeviceManufacturerKnown(device.getAddress())) {
+                    if (!isDeviceManufacturerKnown(device.getAddress())) {
                         updateDatabaseDeviceState(device, "inactive");
                         iterator.remove();
                     }
@@ -261,7 +270,9 @@ public class GatewayService extends Service {
         @Override
         public void addQueueScanning(String macAddress, String name, int rssi, int typeCommand, ParcelUuid serviceUUID, long waitTime) throws RemoteException {
             UUID uuidService = null;
-            if (serviceUUID != null) { uuidService = serviceUUID.getUuid(); }
+            if (serviceUUID != null) {
+                uuidService = serviceUUID.getUuid();
+            }
             bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, uuidService, waitTime);
             queueScanning.add(bleDevice);
         }
@@ -275,7 +286,7 @@ public class GatewayService extends Service {
                         int type = bleDevice.getType();
                         if (type == BluetoothLeDevice.SCANNING) {
                             //step scan new BLE devices
-                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing scanning method");
+                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
                             mScanning = true;
                             broadcastUpdate("Scanning bluetooth...");
                             Log.d(TAG, "Start scanning");
@@ -284,7 +295,7 @@ public class GatewayService extends Service {
                         } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
                             // step scan for known BLE devices
                             Log.d(TAG, "Start scanning for known BLE device ");
-                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing find LE device method");
+                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
                             if (bleDevice.getMacAddress() != null) {
                                 // find specific macAddress
                                 mScanning = false;
@@ -314,13 +325,13 @@ public class GatewayService extends Service {
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
                             broadcastUpdate("Stop scanning bluetooth...");
-                            broadcastUpdate("Found " + getScanResults().size() + " device(s)");
+                            broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
                         } else if (type == BluetoothLeDevice.STOP_SCAN) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing stop scan method");
+                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
                             broadcastUpdate("Stop scanning...");
-                        } else if(type == BluetoothLeDevice.WAIT_THREAD) {
+                        } else if (type == BluetoothLeDevice.WAIT_THREAD) {
                             sleepThread(bleDevice.getWaitTime());
                         }
                     }
@@ -607,17 +618,16 @@ public class GatewayService extends Service {
 
         @Override
         public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
-
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
             List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
 
-            if(structures != null && structures.size() > 0) {
-                Map<String, Object>  mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
+            if (structures != null && structures.size() > 0) {
+                Map<String, Object> mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
 
-                if(mapListAdvertisement.containsKey("CompanyId")) {
+                if (mapListAdvertisement.containsKey("CompanyId")) {
                     int compId = (int) mapListAdvertisement.get("CompanyId");
                     String compIdString = GattDataHelper.decToHex(compId);
-                    compIdString = compIdString.substring(4,8);
+                    compIdString = compIdString.substring(4, 8);
                     compIdString = "0x" + compIdString;
                     Log.d(TAG, "Company Id: " + compIdString);
                     return manufacturerDatabase.isManufacturerExist(compIdString);
@@ -752,6 +762,7 @@ public class GatewayService extends Service {
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
         }
+        mThread.quit();
         stopService(mIntent);
         stopSelf();
     }

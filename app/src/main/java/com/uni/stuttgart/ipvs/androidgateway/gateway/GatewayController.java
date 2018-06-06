@@ -137,8 +137,8 @@ public class GatewayController extends Service {
 
             //doScheduleSemaphore();
             //doScheduleRR();
-            //doScheduleEP();
-            doScheduleFEP();
+            doScheduleEP();
+            //doScheduleFEP();
             //doSchedulePriorityAHP();
             //doSchedulePriorityANP();
             //doSchedulePriorityWSM();
@@ -309,6 +309,7 @@ public class GatewayController extends Service {
             iGatewayService.insertDatabasePowerUsage("Case3", 0, 20, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
             iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology");
             iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service");
+            iGatewayService.insertDatabaseManufacturer("0x0001", "Nokia Mobile Phones");
         } catch (RemoteException e) {
             e.printStackTrace();
         }

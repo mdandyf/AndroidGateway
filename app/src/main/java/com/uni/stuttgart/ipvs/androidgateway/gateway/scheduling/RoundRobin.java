@@ -64,9 +64,10 @@ public class RoundRobin {
         @Override
         public void run() {
             try {
+                cycleCounter++;
+                if(cycleCounter > 2) {broadcastClrScrn();}
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle...");
-                cycleCounter++;
                 broadcastUpdate("Cycle number " + cycleCounter);
                 iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
                 iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
@@ -86,13 +87,6 @@ public class RoundRobin {
             List<BluetoothDevice> scanResults = null;
             try {
                 scanResults = iGatewayService.getScanResults();
-                for (final BluetoothDevice device : scanResults) {
-                    // only known manufacturer that will be used to connect
-                    boolean isMfgExist = processMfgChoice(device.getAddress());
-                    if(!isMfgExist) {
-                        scanResults.remove(device);
-                    }
-                }
 
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 if (scanResults.size() != 0) {
@@ -144,22 +138,22 @@ public class RoundRobin {
         }
     }
 
+    /**
+     * Clear the screen in Gateway Tab
+     */
+    private void broadcastClrScrn() {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+            context.sendBroadcast(intent);
+        }
+    }
+
     private void broadcastUpdate(String message) {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
             intent.putExtra("command", message);
             context.sendBroadcast(intent);
         }
-    }
-
-    private boolean processMfgChoice(String macAddress) {
-        boolean isMfgExist = false;
-        try {
-            isMfgExist = iGatewayService.isDeviceManufacturerKnown(macAddress);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-        return isMfgExist;
     }
 
     private void broadcastServiceInterface(String message) {

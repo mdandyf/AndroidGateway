@@ -21,6 +21,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 public class ExhaustivePolling {
 
     private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
+    private static final int SCAN_TIME_HALF = SCAN_TIME / 2; // set scanning and reading time to 10 seoonds
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
 
     private IGatewayService iGatewayService;
@@ -45,7 +46,7 @@ public class ExhaustivePolling {
     public void start() {
         mProcessing = true;
         int N = Runtime.getRuntime().availableProcessors();
-        executionTask = new ExecutionTask<>(N, N*2);
+        executionTask = new ExecutionTask<>(N, N * 2);
         executionTask.submitRunnableSingleThread(new RunEPScheduling());
     }
 
@@ -55,17 +56,21 @@ public class ExhaustivePolling {
             try {
                 while (mProcessing) {
                     // do Exhaustive Polling Part
+                    cycleCounter++;
+                    if(cycleCounter > 2) { broadcastClrScrn(); }
                     broadcastUpdate("\n");
                     broadcastUpdate("Start new cycle");
-                    cycleCounter++;
                     broadcastUpdate("Cycle number " + cycleCounter);
                     boolean isDataExist = iGatewayService.checkDevice(null);
                     if (isDataExist) {
                         List<String> devices = iGatewayService.getListActiveDevices();
-                        for (String device : devices) { iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0); }
+                        // search for known device listed in database
+                        for (String device : devices) {
+                            iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+                        }
                         // do normal scanning only for half of normal scanning time
                         iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME/2);
+                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
                         iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
                         iGatewayService.execScanningQueue();
                         mScanning = iGatewayService.getScanState();
@@ -78,18 +83,12 @@ public class ExhaustivePolling {
                         mScanning = iGatewayService.getScanState();
                     }
 
-                    if(!mProcessing) {return;}
                     List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
 
                     // do Connecting by using Semaphore
                     for (final BluetoothDevice device : scanResults) {
-                        // only known manufacturer that will be used to connect
-                        boolean isMfgExist = processMfgChoice(device.getAddress());
-                        if(isMfgExist) {
-                            broadcastServiceInterface("Start service interface");
-                            iGatewayService.doConnect(device.getAddress());
-                        }
-                        if (!mProcessing) { return; }
+                        broadcastServiceInterface("Start service interface");
+                        iGatewayService.doConnect(device.getAddress());
                     }
 
                 }
@@ -99,24 +98,13 @@ public class ExhaustivePolling {
         }
     }
 
-    private Runnable doConnecting(final String macAddress) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    iGatewayService.doConnect(macAddress);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
-        };
-    }
-
-    private void waitThread(int time) {
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+    /**
+     * Clear the screen in Gateway Tab
+     */
+    private void broadcastClrScrn() {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+            context.sendBroadcast(intent);
         }
     }
 
@@ -126,16 +114,6 @@ public class ExhaustivePolling {
             intent.putExtra("command", message);
             context.sendBroadcast(intent);
         }
-    }
-
-    private boolean processMfgChoice(String macAddress) {
-        boolean isMfgExist = false;
-        try {
-            isMfgExist = iGatewayService.isDeviceManufacturerKnown(macAddress);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-        return isMfgExist;
     }
 
     private void broadcastServiceInterface(String message) {
