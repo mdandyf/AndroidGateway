@@ -610,6 +610,8 @@ public class GatewayService extends Service {
         @Override
         public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
 
+            boolean deviceKnown = false;
+
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
             List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
 
@@ -622,7 +624,24 @@ public class GatewayService extends Service {
                     compIdString = compIdString.substring(4,8);
                     compIdString = "0x" + compIdString;
                     Log.d(TAG, "Company Id: " + compIdString);
-                    return manufacturerDatabase.isManufacturerExist(compIdString);
+
+                    deviceKnown = manufacturerDatabase.isManufacturerExist(compIdString);
+
+                    if(deviceKnown){
+                        //check Service if known
+                        if(mapListAdvertisement.containsKey("DeviceUUID")){
+
+                            UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
+                            for(UUID uuid : arrayUUIDs){
+                                Log.d(TAG, "Device UUID: " + uuid.toString());
+                                deviceKnown =  manufacturerDatabase.isManufacturerServiceExist(compIdString, uuid.toString());
+
+                                Log.d(TAG, "DeviceKnown: " + deviceKnown);
+                            }
+                        }
+                    }else {
+                        return false;
+                    }
                 } else {
                     // if device has no manufacturer id
                     return false;
@@ -631,6 +650,7 @@ public class GatewayService extends Service {
                 // if device has no scan record
                 return false;
             }
+            return deviceKnown;
         }
 
         @Override
@@ -654,13 +674,18 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void insertDatabaseManufacturer(String manfId, String manfName) throws RemoteException {
-            manufacturerDatabase.insertData(manfId, manfName);
+        public void insertDatabaseManufacturer(String manfId, String manfName, String serviceUUID) throws RemoteException {
+            manufacturerDatabase.insertData(manfId, manfName, serviceUUID);
         }
 
         @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
             return manufacturerDatabase.isManufacturerExist(mfr_id);
+        }
+
+        @Override
+        public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
+            return manufacturerDatabase.isManufacturerServiceExist(mfr_id, serviceUUID);
         }
 
         @Override
@@ -674,8 +699,8 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public String getManufacturerService(String mfr_id) throws RemoteException {
-            return null;
+        public List<ParcelUuid> getManufacturerServices(String mfr_id) throws RemoteException {
+            return manufacturerDatabase.getManufacturerServices(mfr_id);
         }
 
         @Override
@@ -699,12 +724,12 @@ public class GatewayService extends Service {
 
         @Override
         public List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID) throws RemoteException {
-            return null;
+            return bleCharacteristicDatabase.getCharacteristicUUIDs(macAddress, serviceUUID);
         }
 
         @Override
-        public String getCharacteristicValue(String macAddress, String serviceUUID, String CharacteristicUUID) throws RemoteException {
-            return null;
+        public String getCharacteristicValue(String macAddress, String serviceUUID, String characteristicUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicValue(macAddress,serviceUUID,characteristicUUID);
         }
 
         @Override

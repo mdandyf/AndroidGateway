@@ -102,15 +102,17 @@ interface IGatewayService {
 
     long getDevicePowerUsage(in String macAddress);
 
-    void insertDatabaseManufacturer(in String manfId, in String manfName);
+    void insertDatabaseManufacturer(in String manfId, in String manfName, in String serviceUUID);
 
     boolean checkManufacturer(in String mfr_id);
+
+    boolean checkManufacturerService(in String mfr_id, in String serviceUUID);
 
     List<String> getListManufacturers();
 
     String getManufacturerName(in String mfr_id);
 
-    String getManufacturerService(in String mfr_id);
+    List<ParcelUuid> getManufacturerServices(in String mfr_id);
 
     void insertDatabasePowerUsage(in String idCase, in double batteryLevel, in double batteryLevelUpper, in double powerUsage1, in double powerUsage2, in double powerUsage3);
 

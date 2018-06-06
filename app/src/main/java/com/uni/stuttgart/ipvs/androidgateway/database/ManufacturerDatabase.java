@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.os.ParcelUuid;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +19,7 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
     public static final String TABLE_NAME = "BleManufacturerData";
     public static final String MANUFACTURER_ID = "mfr_id";
     public static final String MANUFACTURER_NAME = "mfr_name";
-    //public static final String SERVICE_UUID = "service_uuid";
+    public static final String SERVICE_UUID = "service_uuid";
 
 
     public ManufacturerDatabase(Context context) {
@@ -29,7 +30,7 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleManufacturerData " +
-                        "(id integer primary key, mfr_id text, mfr_name text)"
+                        "(id integer primary key, mfr_id text, mfr_name text, service_uuid text)"
         );
     }
 
@@ -43,14 +44,15 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
     // Insert Database Section
     // ======================================================================================================================== //
 
-    public boolean insertData(String mfrId, String mfrName) {
+    public boolean insertData(String mfrId, String mfrName, String serviceUUID) {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues contentValues = new ContentValues();
             contentValues.put(MANUFACTURER_ID, mfrId);
             contentValues.put(MANUFACTURER_NAME, mfrName);
-            if(!isManufacturerExist(mfrId)) {
+            contentValues.put(SERVICE_UUID, serviceUUID);
+            if(!(isManufacturerExist(mfrId) && isManufacturerServiceExist(mfrId, serviceUUID))) {
                 db.insert(TABLE_NAME, null, contentValues);
                 status = true;
             }
@@ -104,6 +106,26 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
     }
 
 
+    public boolean isManufacturerServiceExist(String mfrId, String serviceUUID) {
+        Cursor cursor = null;
+        boolean status = false;
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            cursor = db.rawQuery("SELECT mfr_id from BleManufacturerData WHERE mfr_id=? AND service_uuid=?", new String[] {mfrId
+                    + "", serviceUUID + ""});
+            if(cursor.getCount() > 0) {
+                status = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            cursor.close();
+        }
+
+        return status;
+    }
+
+
     // ======================================================================================================================== //
     // fetch data from Database Section
     // ======================================================================================================================== //
@@ -133,6 +155,20 @@ public class ManufacturerDatabase extends SQLiteOpenHelper {
             }
         }
         return result;
+    }
+
+    public List<ParcelUuid> getManufacturerServices(String mfrId) {
+        List<ParcelUuid> listUUIDs = new ArrayList<>();
+        Cursor cursor = getQuery("SELECT service_uuid from BleManufacturerData WHERE mfr_id=?", new String[] {mfrId});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                String uuid = cursor.getString(cursor.getColumnIndex(SERVICE_UUID));
+                listUUIDs.add(ParcelUuid.fromString(uuid));
+                cursor.moveToNext();
+            }
+        }
+        cursor.close();
+        return listUUIDs;
     }
 
 

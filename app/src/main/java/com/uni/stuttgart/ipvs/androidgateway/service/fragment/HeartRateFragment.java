@@ -1,9 +1,11 @@
 package com.uni.stuttgart.ipvs.androidgateway.service.fragment;
 
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
@@ -22,6 +24,8 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 
@@ -65,7 +69,6 @@ public class HeartRateFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 getActivity().onBackPressed();
-                mHandler.removeCallbacks(updateData);
             }
         });
 
@@ -110,7 +113,7 @@ public class HeartRateFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mHandler.removeCallbacks(updateData);
+        getActivity().unregisterReceiver(mReceiver);
     }
 
     //Service Connection
@@ -120,9 +123,11 @@ public class HeartRateFragment extends Fragment {
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
 
-            if(myService != null){
+            /*if(myService != null){
                 updateData.run();
-            }
+            }*/
+
+            getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
 
         }
 
@@ -135,7 +140,7 @@ public class HeartRateFragment extends Fragment {
     };
 
 
-    private Runnable updateData = new Runnable() {
+    /*private Runnable updateData = new Runnable() {
         @Override
         public void run() {
 
@@ -167,8 +172,64 @@ public class HeartRateFragment extends Fragment {
 
             }
             Toast.makeText(getContext(), "Value Updated", Toast.LENGTH_SHORT).show();
-            mHandler.postDelayed(this, 1000);
+            mHandler.postDelayed(this, 10000);
             }
+    };*/
+
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+
+        @Override
+        public void onReceive(Context context, final Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(GatewayService.FINISH_READ)) {
+
+                final String macAddress = intent.getStringExtra("command");
+
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        //Update Location Value
+                        String sensorLocationValueLong = null;
+                        try {
+                            sensorLocationValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, locationCharacteristicUUIDLong);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                        String sensorLocationValue = sensorLocationValueLong.substring(3,5);
+
+                        //Sensor Location Mapping
+                        String sensorLocationName = gattData.bodySensorLocationLookup(sensorLocationValue);
+                        locationValueText.setText(sensorLocationName);
+
+                        //Update Heart Rate Value
+                        if(bundle.getString("heartRate") != null) {
+                            String heartRateValueLong = null;
+                            try {
+                                heartRateValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, heartRateCharacteristicUUIDLong);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                            String heartRateValue = heartRateValueLong.substring(6, 8);
+
+                            int heartRateBpm = Integer.parseInt(heartRateValue, 16);
+                            heartValueText.setText(heartRateBpm + "");
+
+                        }
+                        Toast.makeText(getContext(), "Value Updated", Toast.LENGTH_SHORT).show();
+
+                    }
+                });
+
+            }
+        }
     };
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        getActivity().unregisterReceiver(mReceiver);
+    }
 }
