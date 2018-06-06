@@ -60,7 +60,7 @@ public class Semaphore {
         public void run() {
             while (mProcessing) {
                 cycleCounter++;
-                if(cycleCounter > 2) {broadcastClrScrn();}
+                if(cycleCounter > 1) {broadcastClrScrn();}
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle...");
                 broadcastUpdate("Cycle number " + cycleCounter);

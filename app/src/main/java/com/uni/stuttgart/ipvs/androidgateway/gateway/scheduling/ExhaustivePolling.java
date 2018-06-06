@@ -53,14 +53,16 @@ public class ExhaustivePolling {
     private class RunEPScheduling implements Runnable {
         @Override
         public void run() {
-            try {
-                while (mProcessing) {
-                    // do Exhaustive Polling Part
-                    cycleCounter++;
-                    if(cycleCounter > 2) { broadcastClrScrn(); }
-                    broadcastUpdate("\n");
-                    broadcastUpdate("Start new cycle");
-                    broadcastUpdate("Cycle number " + cycleCounter);
+            while (mProcessing) {
+                // do Exhaustive Polling Part
+                cycleCounter++;
+                if (cycleCounter > 1) {
+                    broadcastClrScrn();
+                }
+                broadcastUpdate("\n");
+                broadcastUpdate("Start new cycle");
+                broadcastUpdate("Cycle number " + cycleCounter);
+                try {
                     boolean isDataExist = iGatewayService.checkDevice(null);
                     if (isDataExist) {
                         List<String> devices = iGatewayService.getListActiveDevices();
@@ -91,9 +93,9 @@ public class ExhaustivePolling {
                         iGatewayService.doConnect(device.getAddress());
                     }
 
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
         }
     }
