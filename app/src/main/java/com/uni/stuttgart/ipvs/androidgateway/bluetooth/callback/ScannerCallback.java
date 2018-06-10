@@ -12,11 +12,14 @@ import android.content.IntentFilter;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
+import android.os.RemoteException;
 import android.util.Log;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.helper.BroadcastReceiverHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
@@ -32,8 +35,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ScannerCallback implements Handler.Callback {
     private final static String TAG = "ScannerCallback";
+    private final static int WHAT_SCAN_CALLBACK = 0;
+    private final static int WHAT_GATT_CALLBACK = 1;
+
     private Context context;
     private boolean mProcessing;
+    private IGatewayService.Stub mBinder;
     private ConcurrentLinkedQueue<BluetoothLeGatt> queue;
     private BroadcastReceiverHelper mReceiver = new BroadcastReceiverHelper();
 
@@ -43,15 +50,17 @@ public class ScannerCallback implements Handler.Callback {
     private BluetoothGatt mBluetoothGatt;
     private boolean processBle = false;
 
-    public ScannerCallback(Context context, boolean mProcessing) {
+    public ScannerCallback(Context context, boolean mProcessing, IGatewayService.Stub mBinder) {
         this.context = context;
         this.mProcessing = mProcessing;
+        this.mBinder = mBinder;
     }
 
     @Override
     public boolean handleMessage(Message msg) {
+
         try {
-            if (msg.what == 0) {
+            if (msg.what == WHAT_SCAN_CALLBACK) {
                 // getting results from scanning
                 if (msg.arg1 == 0) {
 
@@ -79,7 +88,7 @@ public class ScannerCallback implements Handler.Callback {
                     queue = new ConcurrentLinkedQueue<>();
                 }
 
-            } else if (msg.what == 1) {
+            } else if (msg.what == WHAT_GATT_CALLBACK) {
                 //getting results from BluetoothLeGattCallback for connecting
                 if (msg.arg1 == 0) {
                     // read all bluetoothGatt servers
@@ -115,7 +124,8 @@ public class ScannerCallback implements Handler.Callback {
                     Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
                     for(Map.Entry entry : mapGatt.entrySet()) {
                         mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                        updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
+                        BluetoothGattCharacteristic characteristic = (BluetoothGattCharacteristic) entry.getValue();
+                        queueCommand(mBluetoothGatt, characteristic.getService().getUuid(), characteristic.getUuid(), null, null, BluetoothLeDevice.UPDATE_UI_CONNECTED);
                     }
                     processBle = true;
                 } else if (msg.arg1 == 6) {
@@ -123,7 +133,8 @@ public class ScannerCallback implements Handler.Callback {
                     Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
                     for(Map.Entry entry : mapGatt.entrySet()) {
                         mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                        updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
+                        BluetoothGattCharacteristic characteristic = (BluetoothGattCharacteristic) entry.getValue();
+                        queueCommand(mBluetoothGatt, characteristic.getService().getUuid(), characteristic.getUuid(), null, null, BluetoothLeDevice.UPDATE_UI_CONNECTED);
                     }
                     processBle = true;
                 } else if (msg.arg1 == 7) {
@@ -131,15 +142,16 @@ public class ScannerCallback implements Handler.Callback {
                     Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
                     for(Map.Entry entry : mapGatt.entrySet()) {
                         mBluetoothGatt = (BluetoothGatt) entry.getKey();
-                        updateUIConnected(mBluetoothGatt, (BluetoothGattCharacteristic) entry.getValue());
+                        BluetoothGattCharacteristic characteristic = (BluetoothGattCharacteristic) entry.getValue();
+                        queueCommand(mBluetoothGatt, characteristic.getService().getUuid(), characteristic.getUuid(), null, null, BluetoothLeDevice.UPDATE_UI_CONNECTED);
                     }
                     processBle = true;
                 } else if (msg.arg1 == 8) {
                     //onDescriptorRead
-                    mBluetoothGatt = ((BluetoothGatt) msg.obj);
-                    processBle = true;
+                    processBle = false;
                 } else if (msg.arg1 == 9) {
                     //onDescriptorWrite
+                    processBle = false;
                 } else if(msg.arg1 == 10) {
                     Map<BluetoothGatt, BluetoothGattCharacteristic> mapGatt = ((Map<BluetoothGatt, BluetoothGattCharacteristic>) msg.obj);
                     for(Map.Entry entry : mapGatt.entrySet()) {
@@ -171,7 +183,7 @@ public class ScannerCallback implements Handler.Callback {
     }
 
     private void queueSubscribeOrReadGatt(BluetoothGatt gatt) {
-        BluetoothLeGatt ble = new BluetoothLeGatt();
+        BluetoothLeGatt ble;
 
         for (BluetoothGattService service : gatt.getServices()) {
             for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
@@ -212,14 +224,24 @@ public class ScannerCallback implements Handler.Callback {
                         BluetoothLeGattCallback gattCallback = new BluetoothLeGattCallback(bleQueue.getGatt());
                         if (bleQueue.getTypeCommand() == BluetoothLeDevice.CONNECTED) {
                             final BluetoothGatt gatt = bleQueue.getGatt();
-                            Toast.makeText(context, "Connected to " + gatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
-                            gatt.readRemoteRssi();
-                            gatt.discoverServices();
-                            updateUIConnected(gatt);
+                            PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
+                            parcelBluetoothGatt.setGatt(gatt);
+                            try {
+                                mBinder.doConnected(parcelBluetoothGatt);
+                                updateUIConnected(parcelBluetoothGatt.getGatt());
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (bleQueue.getTypeCommand() == BluetoothLeDevice.DISCONNECTED) {
                             final BluetoothGatt gatt = bleQueue.getGatt();
-                            updateUIDisonnected(gatt);
-                            Toast.makeText(context, "Disconnected from " + gatt.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
+                            PBluetoothGatt parcelBluetoothGatt = new PBluetoothGatt();
+                            parcelBluetoothGatt.setGatt(gatt);
+                            try {
+                                mBinder.doDisconnected(parcelBluetoothGatt, "ScannerCallback");
+                                updateUIDisonnected(parcelBluetoothGatt.getGatt());
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (bleQueue.getTypeCommand() == BluetoothLeGatt.READ) {
                             gattCallback.readCharacteristic(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID());
                         }  else if (bleQueue.getTypeCommand() == BluetoothLeGatt.REGISTER_NOTIFY) {
@@ -232,7 +254,8 @@ public class ScannerCallback implements Handler.Callback {
                             gattCallback.readDescriptor(bleQueue.getServiceUUID(), bleQueue.getCharacteristicUUID(), bleQueue.getDescriptorUUID());
                         } else if(bleQueue.getTypeCommand() == BluetoothLeDevice.UPDATE_UI_CONNECTED) {
                             final BluetoothGatt gatt = bleQueue.getGatt();
-                            updateUIConnected(gatt);
+                            final BluetoothGattCharacteristic characteristic = gatt.getService(bleQueue.getServiceUUID()).getCharacteristic(bleQueue.getCharacteristicUUID());
+                            updateUIConnected(gatt, characteristic);
                         }
                     }
                 } else {
@@ -261,10 +284,7 @@ public class ScannerCallback implements Handler.Callback {
                 i++;
             }
 
-            Intent intent = new Intent(BluetoothLeDevice.UI_SCAN);
-            intent.putExtra("DeviceAddress", device.getAddress());
-            intent.putExtra("DeviceData", dataResult);
-            context.sendBroadcast(intent);
+            broadcastResult(BluetoothLeDevice.UI_SCAN, device, dataResult);
         }
 
     }
@@ -287,10 +307,7 @@ public class ScannerCallback implements Handler.Callback {
                 i++;
             }
 
-            Intent intent = new Intent(BluetoothLeDevice.UI_SCAN);
-            intent.putExtra("DeviceAddress", device.getAddress());
-            intent.putExtra("DeviceData", dataResult);
-            context.sendBroadcast(intent);
+            broadcastResult(BluetoothLeDevice.UI_SCAN, device, dataResult);
         }
     }
 
@@ -306,10 +323,7 @@ public class ScannerCallback implements Handler.Callback {
             i++;
         }
 
-        Intent intent = new Intent(BluetoothLeDevice.UI_CONNECTED);
-        intent.putExtra("DeviceAddress", gatt.getDevice().getAddress());
-        intent.putExtra("DeviceData", dataResult);
-        context.sendBroadcast(intent);
+        broadcastResult(BluetoothLeDevice.UI_CONNECTED, gatt, dataResult);
     }
 
     private void updateUIConnected(final BluetoothGatt gatt, final BluetoothGattCharacteristic characteristic) {
@@ -325,10 +339,7 @@ public class ScannerCallback implements Handler.Callback {
             i++;
         }
 
-        Intent intent = new Intent(BluetoothLeDevice.UI_CONNECTED);
-        intent.putExtra("DeviceAddress", gatt.getDevice().getAddress());
-        intent.putExtra("DeviceData", dataResult);
-        context.sendBroadcast(intent);
+        broadcastResult(BluetoothLeDevice.UI_CONNECTED, gatt, dataResult);
     }
 
     private void updateUIDisonnected(final BluetoothGatt gatt) {
@@ -343,7 +354,18 @@ public class ScannerCallback implements Handler.Callback {
             i++;
         }
 
-        Intent intent = new Intent(BluetoothLeDevice.UI_DISCONNECTED);
+        broadcastResult(BluetoothLeDevice.UI_DISCONNECTED, gatt, dataResult);
+    }
+
+    private void broadcastResult(String action, BluetoothDevice device, String[] dataResult){
+        Intent intent = new Intent(action);
+        intent.putExtra("DeviceAddress", device.getAddress());
+        intent.putExtra("DeviceData", dataResult);
+        context.sendBroadcast(intent);
+    }
+
+    private void broadcastResult(String action, BluetoothGatt gatt, String[] dataResult){
+        Intent intent = new Intent(action);
         intent.putExtra("DeviceAddress", gatt.getDevice().getAddress());
         intent.putExtra("DeviceData", dataResult);
         context.sendBroadcast(intent);

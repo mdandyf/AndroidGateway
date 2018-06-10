@@ -10,6 +10,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
@@ -47,7 +48,8 @@ public class ExhaustivePolling {
         mProcessing = true;
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
-        executionTask.submitRunnableSingleThread(new RunEPScheduling());
+        executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
+        executionTask.submitRunnable(new RunEPScheduling());
     }
 
     private class RunEPScheduling implements Runnable {

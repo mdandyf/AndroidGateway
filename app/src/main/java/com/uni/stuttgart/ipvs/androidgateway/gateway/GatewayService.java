@@ -31,6 +31,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import java.util.ArrayList;
@@ -123,6 +124,7 @@ public class GatewayService extends Service {
 
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
+        executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
 
         status = "Created";
     }
@@ -169,6 +171,16 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public int getNumberRunningTasks() throws RemoteException {
+            return executionTask.getNumberOfTasks();
+        }
+
+        @Override
+        public int getNumberOfProcessor() throws RemoteException {
+            return executionTask.getAvailableProcessor();
+        }
+
+        @Override
         public String getCurrentStatus() throws RemoteException {
             return status;
         }
@@ -190,7 +202,7 @@ public class GatewayService extends Service {
                 mHandlerMessage = new Handler(mThread.getLooper(), gatewayCallback);
                 gatewayCallback.setmHandlerMessage(mHandlerMessage);
             } else {
-                ScannerCallback scannerCallback = new ScannerCallback(context, mProcessing);
+                ScannerCallback scannerCallback = new ScannerCallback(context, mProcessing, mBinder);
                 mHandlerMessage = new Handler(mThread.getLooper(), scannerCallback);
             }
 
@@ -270,9 +282,7 @@ public class GatewayService extends Service {
         @Override
         public void addQueueScanning(String macAddress, String name, int rssi, int typeCommand, ParcelUuid serviceUUID, long waitTime) throws RemoteException {
             UUID uuidService = null;
-            if (serviceUUID != null) {
-                uuidService = serviceUUID.getUuid();
-            }
+            if (serviceUUID != null) { uuidService = serviceUUID.getUuid(); }
             bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, uuidService, waitTime);
             queueScanning.add(bleDevice);
         }
@@ -386,7 +396,7 @@ public class GatewayService extends Service {
             };
 
             try {
-                pBluetoothGatt = executionTask.submitCallableMultiThread(callable).get();
+                pBluetoothGatt = executionTask.submitCallable(callable).get();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             } catch (ExecutionException e) {
@@ -401,14 +411,16 @@ public class GatewayService extends Service {
             mBluetoothGatt = gatt.getGatt();
             status = "Connected";
             synchronized (lock) {
-                try {
-                    broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
-                    broadcastUpdate("discovering services...");
-                    status = "Discovering";
-                    mBluetoothGatt.discoverServices();
-                    lock.notifyAll();
-                } catch (Exception e) {
-                    e.printStackTrace();
+                synchronized (mBluetoothGatt) {
+                    try {
+                        broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
+                        broadcastUpdate("discovering services...");
+                        status = "Discovering";
+                        mBluetoothGatt.discoverServices();
+                        lock.notifyAll();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
@@ -418,15 +430,17 @@ public class GatewayService extends Service {
             mBluetoothGatt = gatt.getGatt();
             status = "Disconnected";
             synchronized (lock) {
-                if (type.equals("GatewayService")) {
-                    broadcastUpdate("Disconnected from " + mBluetoothGatt.getDevice().getAddress());
-                    lock.notifyAll();
-                } else {
-                    try {
-                        mBluetoothGatt.disconnect();
-                        mBluetoothGatt.close();
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                synchronized (mBluetoothGatt) {
+                    if ((type.equals("GatewayService")) || (type.equals("ScannerCallback"))) {
+                        broadcastUpdate("Disconnected from " + mBluetoothGatt.getDevice().getAddress());
+                        lock.notifyAll();
+                    } else {
+                        try {
+                            mBluetoothGatt.disconnect();
+                            mBluetoothGatt.close();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }

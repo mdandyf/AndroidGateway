@@ -14,6 +14,8 @@ public class ExecutionTask<T> extends TaskTrackingThreadPool{
     private ExecutorService executor;
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> future;
+
+    private EExecutionType executionType;
     private int N = this.getAvailableProcessor();
     private int corePoolSize = N;
     private int maxPoolSize = N * 2;
@@ -22,6 +24,12 @@ public class ExecutionTask<T> extends TaskTrackingThreadPool{
         super(corePoolSize, maxPoolSize);
         this.corePoolSize = corePoolSize;
         this.maxPoolSize = maxPoolSize;
+        setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
+    }
+
+    public void setExecutionType(EExecutionType executionType) {
+        this.executionType = executionType;
+        setExecutor();
     }
 
     public ExecutorService getExecutor() {
@@ -44,23 +52,11 @@ public class ExecutionTask<T> extends TaskTrackingThreadPool{
         return thread;
     }
 
-    public void submitRunnableSingleThread(Runnable inputRunnable) {
-        this.executor = Executors.newSingleThreadExecutor();
+    public void submitRunnable(Runnable inputRunnable) {
         executor.submit(inputRunnable);
     }
 
-    public Future<T> submitCallableSingleThread(Callable<T> callable) {
-        this.executor = Executors.newSingleThreadExecutor();
-        return executor.submit(callable);
-    }
-
-    public void submitRunnableMultiThread(Runnable inputRunnable) {
-        this.executor = Executors.newFixedThreadPool(this.maxPoolSize);
-        executor.submit(inputRunnable);
-    }
-
-    public Future<T> submitCallableMultiThread(Callable<T> callable) {
-        this.executor = Executors.newFixedThreadPool(this.maxPoolSize);
+    public Future<T> submitCallable(Callable<T> callable) {
         return executor.submit(callable);
     }
 
@@ -108,6 +104,14 @@ public class ExecutionTask<T> extends TaskTrackingThreadPool{
 
     public int getAvailableProcessor() {
         return Runtime.getRuntime().availableProcessors();
+    }
+
+    private void setExecutor() {
+        if(this.executionType.equals(EExecutionType.SINGLE_THREAD_POOL)) {
+            this.executor = Executors.newSingleThreadExecutor();
+        } else {
+            this.executor = Executors.newFixedThreadPool(this.maxPoolSize);
+        }
     }
 
 }
