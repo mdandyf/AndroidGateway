@@ -1,0 +1,306 @@
+package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
+
+import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.AsyncTask;
+import android.os.RemoteException;
+
+import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
+import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
+import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
+// implementation of Scheduling using Exhaustive Polling
+public class ExhaustivePollingWithAHP {
+
+    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
+    private static final int SCAN_TIME_HALF = SCAN_TIME / 2; // set scanning and reading time to 10 seoonds
+    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
+
+    private IGatewayService iGatewayService;
+
+    private BluetoothDevice mDevice;
+    private boolean mScanning;
+    private boolean mConnecting;
+    private Context context;
+    private boolean mProcessing;
+    private int cycleCounter = 0;
+
+    private ExecutionTask<String> executionTask;
+    private ScheduledThreadPoolExecutor schedulerPower;
+    private long powerUsage = 0;
+    private PowerEstimator powerEstimator;
+
+    public ExhaustivePollingWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+        this.context = context;
+        this.mProcessing = mProcessing;
+        this.iGatewayService = iGatewayService;
+    }
+
+    public void stop() {
+        mProcessing = false; mConnecting = false;
+        executionTask.terminateExecutorPools();
+        unregisterBroadcastListener();
+    }
+
+    public void start() {
+        mProcessing = true; mConnecting = false;
+        registerBroadcastListener();
+        int N = Runtime.getRuntime().availableProcessors();
+
+        powerEstimator = new PowerEstimator(context);
+        executionTask = new ExecutionTask<>(N, N * 2);
+        executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
+        executionTask.submitRunnable(new RunEPScheduling());
+    }
+
+    private class RunEPScheduling implements Runnable {
+        @Override
+        public void run() {
+            while (mProcessing) {
+                // do Exhaustive Polling Part
+                cycleCounter++;
+                if (cycleCounter > 1) {
+                    broadcastClrScrn();
+                }
+                broadcastUpdate("\n");
+                broadcastUpdate("Start new cycle");
+                broadcastUpdate("Cycle number " + cycleCounter);
+                try {
+                    boolean isDataExist = iGatewayService.checkDevice(null);
+                    if (isDataExist) {
+                        List<String> devices = iGatewayService.getListActiveDevices();
+                        // search for known device listed in database
+                        for (String device : devices) {
+                            iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+                        }
+                        // do normal scanning only for half of normal scanning time
+                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
+                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+                        iGatewayService.execScanningQueue();
+                        mScanning = iGatewayService.getScanState();
+
+                        connectAHP();
+                    } else {
+                        // do normal scanning
+                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
+                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+                        iGatewayService.execScanningQueue();
+                        mScanning = iGatewayService.getScanState();
+
+                        connectSemaphore();
+                    }
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    /**
+     * =================================================================================================================================
+     * Type of connections
+     * =================================================================================================================================
+     */
+
+
+    private void connectSemaphore() {
+        try {
+            List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+
+            // do Connecting by using Semaphore
+            for (final BluetoothDevice device : scanResults) {
+                mConnecting = true;
+                mDevice = device;
+                broadcastServiceInterface("Start service interface");
+                iGatewayService.updateDatabaseDeviceState(device, "inactive");
+
+                powerUsage = 0;
+                powerEstimator.start();
+                schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
+
+                iGatewayService.doConnect(mDevice.getAddress());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void connectAHP() {
+        try {
+            Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(iGatewayService.getScanResults());
+            DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
+            mapRankedDevices = sortData.sortMapByComparatorDouble(mapRankedDevices, false);
+
+            // do Connecting by using Semaphore
+            for (Map.Entry entry : mapRankedDevices.entrySet()) {
+                BluetoothDevice device = (BluetoothDevice)  entry.getKey();
+
+                mConnecting = true;
+                mDevice = device;
+                broadcastServiceInterface("Start service interface");
+                iGatewayService.updateDatabaseDeviceState(device, "inactive");
+
+                powerUsage = 0;
+                powerEstimator.start();
+                schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
+
+                iGatewayService.doConnect(mDevice.getAddress());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // implementation of Ranking Devices based on AHP
+    private Map<BluetoothDevice, Double> doRankDeviceAHP(List<BluetoothDevice> devices) {
+        try {
+            broadcastUpdate("\n");
+            broadcastUpdate("Start ranking device with AHP algorithm...");
+
+            Map<BluetoothDevice, Double> rankedDevices = new ConcurrentHashMap<>();
+            Map<BluetoothDevice, Object[]> mapParameters = new ConcurrentHashMap<>();
+            for (BluetoothDevice device : devices) {
+                int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
+                String deviceState = iGatewayService.getDeviceState(device.getAddress());
+                String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
+                long powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());
+
+                long batteryRemaining = powerEstimator.getBatteryRemainingPercent();
+                double[] powerConstraints = iGatewayService.getPowerUsageConstraints((double) batteryRemaining);
+
+                Object[] parameters = new Object[5];
+                parameters[0] = rssi;
+                parameters[1] = deviceState;
+                parameters[2] = userChoice;
+                parameters[3] = powerUsage;
+                parameters[4] = powerConstraints;
+                mapParameters.put(device, parameters);
+            }
+
+            AHP ahp = new AHP(mapParameters);
+            AsyncTask<Void, Void, Map<BluetoothDevice, Double>> rankingTask = ahp.execute();
+            rankedDevices = rankingTask.get();
+            broadcastUpdate("Finish ranking device...");
+            return rankedDevices;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    /**
+     * =================================================================================================================================
+     * Broadcast Listener
+     * =================================================================================================================================
+     */
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (action.equals(GatewayService.DISCONNECT_COMMAND)) {
+                if(mConnecting) { stopPowerMeasure(); mConnecting = false;}
+            } else if (action.equals(GatewayService.FINISH_READ)) {
+                if(mConnecting) { stopPowerMeasure(); mConnecting = false;}
+            }
+        }
+
+    };
+
+    private boolean registerBroadcastListener() {
+        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.DISCONNECT_COMMAND));
+        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
+        return true;
+    }
+
+    private void unregisterBroadcastListener() {
+        context.unregisterReceiver(mReceiver);
+    }
+
+    /**
+     * =================================================================================================================================
+     * Device Power Usage Measurement routines
+     * =================================================================================================================================
+     */
+
+    private Runnable doMeasurePower() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    long currentNow = powerEstimator.getCurrentNow();
+                    if (currentNow < 0) { currentNow = currentNow * -1; }
+                    powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+    }
+
+    private void stopPowerMeasure() {
+        powerEstimator.stop();
+        schedulerPower.shutdownNow();
+        powerEstimator.stop();
+
+        try {
+            iGatewayService.updateDatabaseDevicePowerUsage(mDevice.getAddress(), powerUsage);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * =================================================================================================================================
+     * Other routines
+     * =================================================================================================================================
+     */
+
+    /**
+     * Clear the screen in Gateway Tab
+     */
+    private void broadcastClrScrn() {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+            context.sendBroadcast(intent);
+        }
+    }
+
+    private void broadcastUpdate(String message) {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
+            intent.putExtra("command", message);
+            context.sendBroadcast(intent);
+        }
+    }
+
+    private void broadcastServiceInterface(String message) {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
+            intent.putExtra("message", message);
+            context.sendBroadcast(intent);
+        }
+    }
+}

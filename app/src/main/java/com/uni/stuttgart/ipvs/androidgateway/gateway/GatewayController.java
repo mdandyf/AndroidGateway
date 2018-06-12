@@ -13,6 +13,8 @@ import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePolling;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePollingWithAHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePollingWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.FairExhaustivePolling;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithAHP;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithANP;
@@ -42,6 +44,8 @@ public class GatewayController extends Service {
     private Semaphore sem;
     private FairExhaustivePolling fep;
     private ExhaustivePolling ep;
+    private ExhaustivePollingWithAHP epAhp;
+    private ExhaustivePollingWithWSM epWsm;
     private RoundRobin rr;
     private PriorityBasedWithAHP ahp;
     private PriorityBasedWithANP anp;
@@ -94,6 +98,8 @@ public class GatewayController extends Service {
 
         if(fep != null) {fep.stop();}
         if(ep != null) {ep.stop();}
+        if(epAhp != null) {epAhp.stop();}
+        if(epWsm != null) {epWsm.stop();}
         if(rr != null) {rr.stop();}
         if(sem != null) {sem.stop();}
         if(ahp != null) {ahp.stop();}
@@ -137,8 +143,12 @@ public class GatewayController extends Service {
 
             //doScheduleSemaphore();
             //doScheduleRR();
-            doScheduleEP();
+            //doScheduleEP();
             //doScheduleFEP();
+
+            doScheduleEPwithAHP();
+            //doScheduleEPwithWSM();
+
             //doSchedulePriorityAHP();
             //doSchedulePriorityANP();
             //doSchedulePriorityWSM();
@@ -200,6 +210,38 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             ep = new ExhaustivePolling(context, mProcessing, iGatewayService);
             ep.start();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    //scheduling using Exhaustive Polling (EP) with Analytical Hierarchy Process
+    private void doScheduleEPwithAHP() {
+        broadcastUpdate("Start Exhaustive Polling Scheduling with AHP...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            epAhp = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService);
+            epAhp.start();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    //scheduling using Exhaustive Polling (EP) with Weighted Sum Model
+    private void doScheduleEPwithWSM() {
+        broadcastUpdate("Start Exhaustive Polling Scheduling with WSM...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            epWsm = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService);
+            epWsm.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
