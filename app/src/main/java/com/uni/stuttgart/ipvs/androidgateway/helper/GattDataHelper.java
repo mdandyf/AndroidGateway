@@ -7,11 +7,16 @@ import android.bluetooth.BluetoothGattDescriptor;
 import org.apache.commons.codec.binary.Hex;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
 
 import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT16;
 import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT8;
@@ -184,6 +189,19 @@ public class GattDataHelper {
             dec >>= numberOfBitsInAHalfByte;
         }
         return hexBuilder.toString();
+    }
+
+    public static Document parseXML(InputSource source) {
+        try {
+            DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+            dbf.setNamespaceAware(false);
+            dbf.setValidating(false);
+            DocumentBuilder db = dbf.newDocumentBuilder();
+            return db.parse(source);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
 }

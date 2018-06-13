@@ -5,7 +5,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -22,8 +21,14 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWit
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+
+import java.io.IOException;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -41,6 +46,7 @@ public class GatewayController extends Service {
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
 
+    private String algorithm;
     private Semaphore sem;
     private FairExhaustivePolling fep;
     private ExhaustivePolling ep;
@@ -141,18 +147,38 @@ public class GatewayController extends Service {
             broadcastUpdate("GatewayController & GatewayService have bound...");
             initDatabase();
 
-            //doScheduleSemaphore();
-            //doScheduleRR();
-            //doScheduleEP();
-            //doScheduleFEP();
+            try {
+                Document xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
+                NodeList list = xmlFile.getElementsByTagName("DataAlgorithm");
+                Node nodeDataAlgo = list.item(0);
+                Node nodeData = nodeDataAlgo.getFirstChild().getNextSibling();
+                Node nodeAlgo = nodeData.getFirstChild().getNextSibling();
+                algorithm = nodeAlgo.getFirstChild().getNodeValue();
 
-            doScheduleEPwithAHP();
-            //doScheduleEPwithWSM();
-
-            //doSchedulePriorityAHP();
-            //doSchedulePriorityANP();
-            //doSchedulePriorityWSM();
-            //doSchedulePriorityWPM();
+                if(algorithm.equals("sem")) {
+                    doScheduleSemaphore();
+                } else if(algorithm.equals("ep")) {
+                    doScheduleEP();
+                } else if(algorithm.equals("fep")) {
+                    doScheduleFEP();
+                } else if(algorithm.equals("rr")) {
+                    doScheduleRR();
+                } else if(algorithm.equals("epAhp")) {
+                    doScheduleEPwithAHP();
+                } else if(algorithm.equals("epWsm")) {
+                    doScheduleEPwithWSM();
+                } else if(algorithm.equals("ahp")) {
+                    doSchedulePriorityAHP();
+                } else if(algorithm.equals("anp")) {
+                    doSchedulePriorityANP();
+                } else if(algorithm.equals("wsm")) {
+                    doSchedulePriorityWSM();
+                } else if(algorithm.equals("wpm")) {
+                    doSchedulePriorityWPM();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         @Override
