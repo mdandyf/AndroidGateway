@@ -151,6 +151,17 @@ public class CharacteristicsDatabase extends SQLiteOpenHelper {
         return listUUIDs;
     }
 
+    public String getCharacteristicProperty(String macAddress, String serviceUUID, String characteristicUUID) {
+        Cursor cursor = getQuery("SELECT characteristic_property from BleCharacteristicsData WHERE mac_address=? AND service_uuid=? AND characteristic_uuid=?"
+                , new String[]{macAddress + "",serviceUUID + "",characteristicUUID + ""});
+        if (cursor.moveToFirst()) {
+            while (!cursor.isAfterLast()) {
+                return cursor.getString(cursor.getColumnIndex(CHARACRERISTIC_PROPERTY));
+            }
+        }
+        return "";
+    }
+
     public String getCharacteristicValue(String macAddress, String serviceUUID, String characteristicUUID) {
         Cursor cursor = getQuery("SELECT characteristic_value from BleCharacteristicsData WHERE mac_address=? AND service_uuid=? AND characteristic_uuid=?"
                 , new String[]{macAddress + "",serviceUUID + "",characteristicUUID + ""});

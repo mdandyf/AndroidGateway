@@ -12,6 +12,7 @@ import android.os.IBinder;
 import android.os.ParcelUuid;
 import android.os.RemoteException;
 import android.support.v4.app.ListFragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,6 +26,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import com.uni.stuttgart.ipvs.androidgateway.service.fragment.BatteryFragment;
 import com.uni.stuttgart.ipvs.androidgateway.service.fragment.HeartRateFragment;
+import com.uni.stuttgart.ipvs.androidgateway.service.fragment.UploadCloudFragment;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -130,11 +132,14 @@ public class ServiceInterface extends ListFragment {
 
                 //check if it's battery or heart sensor
                 switch(ServiceUUID) {
-                    case "180f":
+                    case "180f":        //Battery
                         launchBatteryFragment(deviceAddress, ServiceLong);
                         break;
-                    case "180d":
+                    case "180d":        //Heart
                         launchHeartRateFragment(deviceAddress, ServiceLong);
+                        break;
+                    case "fff0":        //VEMITER
+                        launchUploadCloudFragment(deviceAddress);
                         break;
                     case "1800":
                         Toast.makeText(getContext(),  "Service UUID " + ServiceUUID, Toast.LENGTH_SHORT).show();
@@ -216,7 +221,6 @@ public class ServiceInterface extends ListFragment {
 
         UUID characteristicMap;
         String characteristicName;
-        UUID sensorLocationMap;
         String sensorLocationName;
 
         GattDataLookUp gattData = new GattDataLookUp();
@@ -291,6 +295,22 @@ public class ServiceInterface extends ListFragment {
     }
 
 
+    //Handle Upload to Cloud
+    public void launchUploadCloudFragment(String macAddress) throws RemoteException {
+
+        String deviceName = iGatewayService.getDeviceName(macAddress);
+
+        //Pass Data to Cloud Fragment
+        Bundle bundle = new Bundle();
+        bundle.putString("mac", macAddress);
+        bundle.putString("name", deviceName);
+        UploadCloudFragment uploadCloudFragment = new UploadCloudFragment();
+        uploadCloudFragment.setArguments(bundle);
+        replaceFragment(R.id.main_frame, uploadCloudFragment, "Cloud");
+
+    }
+
+
     /**
      * Defines callbacks for service binding, passed to bindService()
      */
@@ -313,17 +333,27 @@ public class ServiceInterface extends ListFragment {
                     data.put("Device Address", mac);
                     data.put("Device Name", deviceName);
                     if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
+                    //Log.d("message", dataAdapter.get(0).toString());
+                    //Log.d("message", dataAdapter.get(1).toString());
 
                 }
+
+                /*//TEST
+                for(int i = 0; i<activeDevices.size(); i++) {
+                    String mac = activeDevices.get(i);
+                    String deviceName = iGatewayService.getDeviceName(mac);
+                    data.put("Device Address", mac);
+                    data.put("Device Name", deviceName);
+                    if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
+                    Log.d("message", dataAdapter.get(i).toString());
+
+                }*/
                 //if(device.getName() != null) { data.put("Device Name", device.getName()); }
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
 
             getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
-
-            //scheduler = new ScheduledThreadPoolExecutor(10);
-            //scheduler.scheduleAtFixedRate(new ServiceInterfaceRun(), 10, 5 * 1000, MILLISECONDS); // check dbase for new device every 5 seconds
         }
 
         @Override

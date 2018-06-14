@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.content.Context;
 import android.content.Intent;
+import android.database.SQLException;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -15,8 +16,10 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
+import com.uni.stuttgart.ipvs.androidgateway.MainActivity;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
@@ -33,6 +36,7 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -125,6 +129,21 @@ public class GatewayService extends Service {
         executionTask = new ExecutionTask<>(N, N * 2);
 
         status = "Created";
+
+
+        //Load Manufacturer DB
+        try {
+            manufacturerDatabase.createDataBase();
+        } catch (IOException ioe) {
+            throw new Error("Unable to create database");
+        }
+        try {
+            manufacturerDatabase.openDataBase();
+        } catch (SQLException sqle) {
+            throw sqle;
+        }
+        Toast.makeText(GatewayService.this, "Manufacturer Database Loaded Successfully", Toast.LENGTH_SHORT).show();
+
     }
 
     @Override
@@ -549,15 +568,6 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void updateDatabaseDeviceUsrChoice(String macAddress, String userChoice) throws RemoteException {
-            try {
-                bleDeviceDatabase.updateDeviceUserChoice(macAddress, userChoice);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
         public void updateDatabaseDevicePowerUsage(String macAddress, long powerUsage) throws RemoteException {
             try {
                 bleDeviceDatabase.updateDevicePowerUsage(macAddress, powerUsage);
@@ -659,11 +669,6 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public String getDeviceUsrChoice(String macAddress) throws RemoteException {
-            return bleDeviceDatabase.getDeviceUsrChoice(macAddress);
-        }
-
-        @Override
         public String getDeviceState(String macAddress) throws RemoteException {
             return bleDeviceDatabase.getDeviceState(macAddress);
         }
@@ -725,6 +730,11 @@ public class GatewayService extends Service {
         @Override
         public List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID) throws RemoteException {
             return bleCharacteristicDatabase.getCharacteristicUUIDs(macAddress, serviceUUID);
+        }
+
+        @Override
+        public String getCharacteristicProperty(String macAddress, String serviceUUID, String CharacteristicUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicProperty(macAddress, serviceUUID, CharacteristicUUID);
         }
 
         @Override

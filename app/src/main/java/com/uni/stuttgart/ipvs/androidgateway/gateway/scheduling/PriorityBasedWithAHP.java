@@ -274,7 +274,7 @@ public class PriorityBasedWithAHP {
                 for (BluetoothDevice device : devices) {
                     int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
                     String deviceState = iGatewayService.getDeviceState(device.getAddress());
-                    String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
+                    //String userChoice = iGatewayService.getDeviceUsrChoice(device.getAddress());
                     long powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());
 
                     long batteryRemaining = powerEstimator.getBatteryRemainingPercent();
@@ -283,9 +283,8 @@ public class PriorityBasedWithAHP {
                     Object[] parameters = new Object[5];
                     parameters[0] = rssi;
                     parameters[1] = deviceState;
-                    parameters[2] = userChoice;
-                    parameters[3] = powerUsage;
-                    parameters[4] = powerConstraints;
+                    parameters[2] = powerUsage;
+                    parameters[3] = powerConstraints;
                     mapParameters.put(device, parameters);
                 }
 

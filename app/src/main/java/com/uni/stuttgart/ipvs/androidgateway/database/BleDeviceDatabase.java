@@ -27,7 +27,6 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public static final String BLE_DATA = "mac_address";
     public static final String BLE_NAME = "device_name";
     public static final String BLE_RSSI = "device_rssi";
-    public static final String BLE_USER_CHOICE = "user_choice";
     public static final String BLE_STATE = "device_state";
     public static final String BLE_CRT_DATE = "create_date";
     public static final String BLE_MDF_DATE = "modified_date";
@@ -42,7 +41,7 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(
                 "create table if not exists BleDeviceData " +
-                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, adv_record blob, user_choice text, power_usage real, create_date text, modified_date text)"
+                        "(mac_address text primary key, device_name text, device_rssi integer, device_state text, adv_record blob, power_usage real, create_date text, modified_date text)"
         );
     }
 
@@ -117,27 +116,6 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
             ContentValues contentValues = new ContentValues();
             if(isDeviceExist(key)) {
                 contentValues.put("adv_record", scanRecord);
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
-                String date = sdf.format(new Date());
-                contentValues.put("modified_date", date);
-                db.update("BleDeviceData", contentValues, "mac_address=?", new String[] {key + ""});
-                status = true;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            status = false;
-        }
-
-        return status;
-    }
-
-    public boolean updateDeviceUserChoice(String key, String user_choice) {
-        boolean status = false;
-        try {
-            SQLiteDatabase db = this.getWritableDatabase();
-            ContentValues contentValues = new ContentValues();
-            if(isDeviceExist(key)) {
-                contentValues.put("user_choice", user_choice);
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
                 String date = sdf.format(new Date());
                 contentValues.put("modified_date", date);
@@ -303,19 +281,6 @@ public class BleDeviceDatabase extends SQLiteOpenHelper {
         if (cursor.moveToFirst()) {
             while (!cursor.isAfterLast()) {
                 result = cursor.getBlob(cursor.getColumnIndex(BLE_ADV_RECORD));
-                cursor.close();
-                break;
-            }
-        }
-        return result;
-    }
-
-    public String getDeviceUsrChoice(String macAddress) {
-        Cursor cursor = getQuery("SELECT user_choice from BleDeviceData WHERE mac_address=?", new String[] {macAddress});
-        String result = null;
-        if (cursor.moveToFirst()) {
-            while (!cursor.isAfterLast()) {
-                result = cursor.getString(cursor.getColumnIndex(BLE_USER_CHOICE));
                 cursor.close();
                 break;
             }

@@ -308,7 +308,7 @@ public class GatewayController extends Service {
             iGatewayService.insertDatabasePowerUsage("Case2", 20, 60, 1 * Math.pow(10, 13), 1 * Math.pow(10, 14), 1 * Math.pow(10, 14));
             iGatewayService.insertDatabasePowerUsage("Case3", 0, 20, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
 
-            //MI BAND 2
+            /*//MI BAND 2
             iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology", "0000fee1-0000-1000-8000-00805f9b34fb");
             iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology", "0000fee0-0000-1000-8000-00805f9b34fb");
             //VEMITER
@@ -316,7 +316,7 @@ public class GatewayController extends Service {
             //Simulator Battery
             iGatewayService.insertDatabaseManufacturer("0x0002", "Intel Corp.", "0000180f-0000-1000-8000-00805f9b34fb");
             //Simulaltor Heart
-            iGatewayService.insertDatabaseManufacturer("0x0002", "Intel Corp.", "0000180d-0000-1000-8000-00805f9b34fb");
+            iGatewayService.insertDatabaseManufacturer("0x0002", "Intel Corp.", "0000180d-0000-1000-8000-00805f9b34fb");*/
         } catch (RemoteException e) {
             e.printStackTrace();
         }

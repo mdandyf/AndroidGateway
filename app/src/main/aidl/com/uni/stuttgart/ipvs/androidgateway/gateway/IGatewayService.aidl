@@ -76,8 +76,6 @@ interface IGatewayService {
 
     void updateDatabaseDeviceAdvRecord(in BluetoothDevice device, in byte[] scanRecord);
 
-    void updateDatabaseDeviceUsrChoice(in String macAddress, in String userChoice);
-
     void updateDatabaseDevicePowerUsage(in String macAddress, in long powerUsage);
 
     void updateAllDeviceStates(in List<String> nearbyDevices);
@@ -95,8 +93,6 @@ interface IGatewayService {
     boolean isDeviceManufacturerKnown(in String macAddress);
 
     String getDeviceName(in String macAddress);
-
-    String getDeviceUsrChoice(in String macAddress);
 
     String getDeviceState(in String macAddress);
 
@@ -121,6 +117,8 @@ interface IGatewayService {
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 
     List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID);
+
+    String getCharacteristicProperty(String macAddress, String serviceUUID, String CharacteristicUUID);
 
     String getCharacteristicValue(String macAddress, String serviceUUID, String CharacteristicUUID);
 
