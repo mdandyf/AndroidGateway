@@ -148,6 +148,7 @@ public class GatewayController extends Service {
             initDatabase();
 
             try {
+                // read from .xml settings file
                 Document xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
                 NodeList list = xmlFile.getElementsByTagName("DataAlgorithm");
                 Node nodeDataAlgo = list.item(0);

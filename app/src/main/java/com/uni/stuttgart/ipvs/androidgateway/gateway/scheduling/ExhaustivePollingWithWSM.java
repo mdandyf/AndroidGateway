@@ -12,7 +12,6 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDev
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
