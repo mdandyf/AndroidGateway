@@ -369,7 +369,7 @@ public class ServiceInterface extends ListFragment {
 
             if (action.equals(GatewayService.FINISH_READ)) {
 
-                Toast.makeText(getContext(), "Device Added Ya MArwan", Toast.LENGTH_SHORT).show();
+                //Toast.makeText(getContext(), "Device Added Ya MArwan", Toast.LENGTH_SHORT).show();
 
                 final String macAddress = intent.getStringExtra("command");
 
