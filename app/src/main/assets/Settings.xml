@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+    <DataAlgorithm>
+        <data>
+            <currentAlgorithm>ahp</currentAlgorithm>
+        </data>
+    </DataAlgorithm>
+    <DataPowerConstraint>
+        <data>
+            <id>case1</id>
+            <batteryLevel>60</batteryLevel>
+            <batteryLevelUpper>100</batteryLevelUpper>
+            <threshold1>10^14</threshold1>
+            <threshold2>10^15</threshold2>
+            <threshold3>10^15</threshold3>
+        </data>
+        <data>
+            <id>case2</id>
+            <batteryLevel>20</batteryLevel>
+            <batteryLevelUpper>60</batteryLevelUpper>
+            <threshold1>10^13</threshold1>
+            <threshold2>10^14</threshold2>
+            <threshold3>10^14</threshold3>
+        </data>
+        <data>
+            <id>case3</id>
+            <batteryLevel>0</batteryLevel>
+            <batteryLevelUpper>20</batteryLevelUpper>
+            <threshold1>10^12</threshold1>
+            <threshold2>10^13</threshold2>
+            <threshold3>10^13</threshold3>
+        </data>
+    </DataPowerConstraint>
+    <DataManufacturer>
+        <data>
+            <id>0x0157</id>
+            <name>Anhui Huami Information Technology</name>
+        </data>
+        <data>
+            <id>0x0401</id>
+            <name>Vemiter Lamp Service</name>
+        </data>
+        <data>
+            <id>0x0001</id>
+            <name>Nokia Mobile Phones</name>
+        </data>
+    </DataManufacturer>
+</root>

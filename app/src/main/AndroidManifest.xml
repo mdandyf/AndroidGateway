@@ -62,7 +62,6 @@
         <service android:name=".gateway.GatewayController" />-->
         <service android:name=".gateway.GatewayService" android:launchMode="singleTop" android:enabled="true" />
         <service android:name=".gateway.GatewayController" android:launchMode="singleTop" android:enabled="true"/>
-        <service android:name=".gateway.PowerEstimator" android:launchMode="singleTop" android:enabled="true" />
 
 
     </application>

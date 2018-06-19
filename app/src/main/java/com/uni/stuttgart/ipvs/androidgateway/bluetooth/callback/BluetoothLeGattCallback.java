@@ -277,7 +277,6 @@ public class BluetoothLeGattCallback extends BluetoothGattCallback {
     @Override
     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
         super.onDescriptorWrite(gatt, descriptor, status);
-
         mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 1, 9, 0, gatt));
 
         if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {

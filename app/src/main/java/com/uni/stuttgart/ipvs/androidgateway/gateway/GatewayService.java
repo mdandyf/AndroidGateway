@@ -15,6 +15,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Xml;
 
 import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
@@ -25,14 +26,23 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
-import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -98,10 +108,10 @@ public class GatewayService extends Service {
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
-    private PowerUsageDatabase blePowerUsageDatabase = new PowerUsageDatabase(this);
     private ManufacturerDatabase manufacturerDatabase = new ManufacturerDatabase(this);
 
     private String status;
+    private XmlPullParser parser;
 
     @Override
     public void onCreate() {
@@ -123,6 +133,15 @@ public class GatewayService extends Service {
 
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
+        executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
+
+        try {
+            parser = GattDataHelper.parseXML(getAssets().open("Settings.xml"));
+        } catch (XmlPullParserException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         status = "Created";
     }
@@ -169,26 +188,45 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public int getNumberRunningTasks() throws RemoteException {
+            return executionTask.getNumberOfTasks();
+        }
+
+        @Override
+        public int getNumberOfProcessor() throws RemoteException {
+            return executionTask.getAvailableProcessor();
+        }
+
+        @Override
         public String getCurrentStatus() throws RemoteException {
             return status;
         }
 
         @Override
         public void setHandler(PMessageHandler messageHandler, String threadName, String type) throws RemoteException {
-            if(mThread != null && mThread.isAlive()) { mThread.interrupt(); }
+
+            if (mHandlerMessage == null) {
+                // no quit section
+            } else {
+                mThread.interrupt();
+                mThread.quit();
+            }
             mThread = new HandlerThread(threadName);
             mThread.start();
-            if(type.equals("Gateway")) {
+
+            if (type.equals("Gateway")) {
                 GatewayCallback gatewayCallback = new GatewayCallback(context, mProcessing, mBinder);
                 mHandlerMessage = new Handler(mThread.getLooper(), gatewayCallback);
                 gatewayCallback.setmHandlerMessage(mHandlerMessage);
             } else {
-                ScannerCallback scannerCallback = new ScannerCallback(context, mProcessing);
+                ScannerCallback scannerCallback = new ScannerCallback(context, mProcessing, mBinder);
                 mHandlerMessage = new Handler(mThread.getLooper(), scannerCallback);
             }
 
             mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-            if(mBluetoothGattCallback != null) {mBluetoothGattCallback.setHandlerMessage(mHandlerMessage);};
+            if (mBluetoothGattCallback != null) {
+                mBluetoothGattCallback.setHandlerMessage(mHandlerMessage);
+            }
         }
 
         @Override
@@ -222,11 +260,11 @@ public class GatewayService extends Service {
 
         @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
-            // only known devices that will be connected or processed
-            if(scanResults.size() > 0) {
-                for(Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext();) {
+            // only known devices that will be processed
+            if (scanResults.size() > 0) {
+                for (Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext(); ) {
                     BluetoothDevice device = iterator.next();
-                    if(!isDeviceManufacturerKnown(device.getAddress())) {
+                    if (!isDeviceManufacturerKnown(device.getAddress())) {
                         updateDatabaseDeviceState(device, "inactive");
                         iterator.remove();
                     }
@@ -275,7 +313,7 @@ public class GatewayService extends Service {
                         int type = bleDevice.getType();
                         if (type == BluetoothLeDevice.SCANNING) {
                             //step scan new BLE devices
-                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing scanning method");
+                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
                             mScanning = true;
                             broadcastUpdate("Scanning bluetooth...");
                             Log.d(TAG, "Start scanning");
@@ -284,7 +322,7 @@ public class GatewayService extends Service {
                         } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
                             // step scan for known BLE devices
                             Log.d(TAG, "Start scanning for known BLE device ");
-                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing find LE device method");
+                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
                             if (bleDevice.getMacAddress() != null) {
                                 // find specific macAddress
                                 mScanning = false;
@@ -314,13 +352,13 @@ public class GatewayService extends Service {
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
                             broadcastUpdate("Stop scanning bluetooth...");
-                            broadcastUpdate("Found " + getScanResults().size() + " device(s)");
+                            broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
                         } else if (type == BluetoothLeDevice.STOP_SCAN) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Thread " +  Thread.currentThread().getId() + " firing stop scan method");
+                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
                             broadcastUpdate("Stop scanning...");
-                        } else if(type == BluetoothLeDevice.WAIT_THREAD) {
+                        } else if (type == BluetoothLeDevice.WAIT_THREAD) {
                             sleepThread(bleDevice.getWaitTime());
                         }
                     }
@@ -375,7 +413,7 @@ public class GatewayService extends Service {
             };
 
             try {
-                pBluetoothGatt = executionTask.submitCallableMultiThread(callable).get();
+                pBluetoothGatt = executionTask.submitCallable(callable).get();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             } catch (ExecutionException e) {
@@ -390,14 +428,16 @@ public class GatewayService extends Service {
             mBluetoothGatt = gatt.getGatt();
             status = "Connected";
             synchronized (lock) {
-                try {
-                    broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
-                    broadcastUpdate("discovering services...");
-                    status = "Discovering";
-                    mBluetoothGatt.discoverServices();
-                    lock.notifyAll();
-                } catch (Exception e) {
-                    e.printStackTrace();
+                synchronized (mBluetoothGatt) {
+                    try {
+                        broadcastUpdate("connected to " + mBluetoothGatt.getDevice().getAddress());
+                        broadcastUpdate("discovering services...");
+                        status = "Discovering";
+                        mBluetoothGatt.discoverServices();
+                        lock.notifyAll();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
@@ -407,15 +447,17 @@ public class GatewayService extends Service {
             mBluetoothGatt = gatt.getGatt();
             status = "Disconnected";
             synchronized (lock) {
-                if (type.equals("GatewayService")) {
-                    broadcastUpdate("Disconnected from " + mBluetoothGatt.getDevice().getAddress());
-                    lock.notifyAll();
-                } else {
-                    try {
-                        mBluetoothGatt.disconnect();
-                        mBluetoothGatt.close();
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                synchronized (mBluetoothGatt) {
+                    if ((type.equals("GatewayService")) || (type.equals("ScannerCallback"))) {
+                        broadcastUpdate("Disconnected from " + mBluetoothGatt.getDevice().getAddress());
+                        lock.notifyAll();
+                    } else {
+                        try {
+                            mBluetoothGatt.disconnect();
+                            mBluetoothGatt.close();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             }
@@ -494,7 +536,6 @@ public class GatewayService extends Service {
             bleDeviceDatabase.deleteAllData();
             bleServicesDatabase.deleteAllData();
             bleCharacteristicDatabase.deleteAllData();
-            blePowerUsageDatabase.deleteAllData();
         }
 
         @Override
@@ -607,20 +648,19 @@ public class GatewayService extends Service {
 
         @Override
         public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
-
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
             List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
 
-            if(structures != null && structures.size() > 0) {
-                Map<String, Object>  mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
+            if (structures != null && structures.size() > 0) {
+                Map<String, Object> mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
 
-                if(mapListAdvertisement.containsKey("CompanyId")) {
+                if (mapListAdvertisement.containsKey("CompanyId")) {
                     int compId = (int) mapListAdvertisement.get("CompanyId");
                     String compIdString = GattDataHelper.decToHex(compId);
-                    compIdString = compIdString.substring(4,8);
+                    compIdString = compIdString.substring(4, 8);
                     compIdString = "0x" + compIdString;
                     Log.d(TAG, "Company Id: " + compIdString);
-                    return manufacturerDatabase.isManufacturerExist(compIdString);
+                    return checkManufacturer(compIdString);
                 } else {
                     // if device has no manufacturer id
                     return false;
@@ -663,20 +703,50 @@ public class GatewayService extends Service {
 
         @Override
         public String getManufacturerName(String mfr_id) throws RemoteException {
-            return manufacturerDatabase.getManufacturerName(mfr_id);
-        }
-
-        @Override
-        public void insertDatabasePowerUsage(String idCase, double batteryLevel, double batteryLevelUpper, double powerUsage1, double powerUsage2, double powerUsage3) throws RemoteException {
-            blePowerUsageDatabase.insertData(idCase, batteryLevel, batteryLevelUpper, (long) powerUsage1, (long) powerUsage2, (long) powerUsage3);
+           return manufacturerDatabase.getManufacturerName(mfr_id);
         }
 
         @Override
         public double[] getPowerUsageConstraints(double batteryLevel) throws RemoteException {
             double[] powerConstraint = new double[3];
-            powerConstraint[0] = blePowerUsageDatabase.getPowerConstraint1(batteryLevel);
-            powerConstraint[1] = blePowerUsageDatabase.getPowerConstraint2(batteryLevel);
-            powerConstraint[2] = blePowerUsageDatabase.getPowerConstraint3(batteryLevel);
+            int currentLevel = (int) batteryLevel;
+            Document xmlFile = null;
+
+            try {
+                xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
+                NodeList list = xmlFile.getElementsByTagName("DataPowerConstraint");
+                Node node = list.item(0);
+
+                Node nodeData = node.getFirstChild().getNextSibling();
+                Node batLvlDown = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                int batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
+                Node batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+                int batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+
+                if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
+                   powerConstraint = getPowerConstraint(batLvlUp);
+                } else {
+                    Node nodeData2 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                    batLvlDown = nodeData2.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                    batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
+                    batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+                    batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+
+                    if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
+                        powerConstraint = getPowerConstraint(batLvlUp);
+                    } else {
+                        Node nodeData3 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                        batLvlDown = nodeData3.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                        batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+
+                        powerConstraint = getPowerConstraint(batLvlUp);
+                    }
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
             return powerConstraint;
         }
 
@@ -725,6 +795,43 @@ public class GatewayService extends Service {
     };
 
     /**
+     * Some routines about XML Parser for Power Constraint and Threshold
+     */
+
+    private double[] getPowerConstraint(Node batLvlUp) {
+        double[] powerConstraint = new double[3];
+        Node th1 = batLvlUp.getNextSibling().getNextSibling().getFirstChild();
+        String value = th1.getNodeValue();
+        int index = value.indexOf("^");
+        int cn = Integer.valueOf(value.substring(0, index));
+        int pw = Integer.valueOf(value.substring(index+1));
+        double threshold1 = Math.pow(cn, pw);
+
+        Node th2 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
+        String value2 = th2.getNodeValue();
+        index = value2.indexOf("^");
+        cn = Integer.valueOf(value2.substring(0, index));
+        pw = Integer.valueOf(value2.substring(index+1));
+        double threshold2 = Math.pow(cn, pw);
+
+        Node th3 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
+        String value3 = th3.getNodeValue();
+        index = value3.indexOf("^");
+        cn = Integer.valueOf(value3.substring(0, index));
+        pw = Integer.valueOf(value3.substring(index+1));
+        double threshold3 = Math.pow(cn, pw);
+
+        powerConstraint[0] = threshold1;
+        powerConstraint[1] = threshold2;
+        powerConstraint[2] = threshold3;
+
+        return powerConstraint;
+    }
+
+
+
+
+    /**
      * Some routines section
      */
 
@@ -752,6 +859,7 @@ public class GatewayService extends Service {
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
         }
+        mThread.quit();
         stopService(mIntent);
         stopSelf();
     }

@@ -72,9 +72,10 @@ public class FairExhaustivePolling {
         public void run() {
             try {
                 iGatewayService.setProcessing(mProcessing);
+                cycleCounter++;
+                if(cycleCounter > 1) {broadcastClrScrn();}
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");
-                cycleCounter++;
                 broadcastUpdate("Cycle number " + cycleCounter);
                 // do polling slaves part
                 boolean isDataExist = iGatewayService.checkDevice(null);
@@ -189,19 +190,6 @@ public class FairExhaustivePolling {
         }
     }
 
-    private Runnable doConnecting(final String macAddress) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    iGatewayService.doConnect(macAddress);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
-        };
-    }
-
     private void waitThread(int time) {
         if (!!mProcessing) {
             try {
@@ -209,6 +197,16 @@ public class FairExhaustivePolling {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    /**
+     * Clear the screen in Gateway Tab
+     */
+    private void broadcastClrScrn() {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+            context.sendBroadcast(intent);
         }
     }
 

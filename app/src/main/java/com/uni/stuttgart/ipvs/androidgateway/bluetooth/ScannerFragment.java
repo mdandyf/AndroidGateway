@@ -184,12 +184,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
         if (!mScanning) {
             final String macAddress = (String) v.getTag();
             Toast.makeText(context, "Connecting to " + macAddress, Toast.LENGTH_SHORT).show();
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    connectLeDevice(macAddress);
-                }
-            }).start();
+            connectLeDevice(macAddress);
         } else {
             Toast.makeText(context, "Scanning is running, Please wait!", Toast.LENGTH_SHORT).show();
         }
@@ -366,9 +361,7 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
 
     private List<String> getListFromArray(String[] input) {
         List<String> result = new ArrayList<>();
-        for(int i = 0; i < input.length; i++) {
-            result.add(input[i]);
-        }
+        for(int i = 0; i < input.length; i++) { result.add(input[i]); }
         return result;
     }
 
