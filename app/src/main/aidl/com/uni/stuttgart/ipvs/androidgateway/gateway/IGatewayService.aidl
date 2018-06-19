@@ -111,8 +111,6 @@ interface IGatewayService {
 
     String getManufacturerName(in String mfr_id);
 
-    void insertDatabasePowerUsage(in String idCase, in double batteryLevel, in double batteryLevelUpper, in double powerUsage1, in double powerUsage2, in double powerUsage3);
-
     double[] getPowerUsageConstraints(in double batteryLevel);
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);

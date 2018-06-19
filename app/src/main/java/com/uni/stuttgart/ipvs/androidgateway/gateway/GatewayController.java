@@ -373,9 +373,6 @@ public class GatewayController extends Service {
             broadcastUpdate("Initialize database...");
             broadcastUpdate("\n");
             iGatewayService.initializeDatabase();
-            iGatewayService.insertDatabasePowerUsage("Case1", 60, 100, 1 * Math.pow(10, 14), 1 * Math.pow(10, 15), 1 * Math.pow(10, 15));
-            iGatewayService.insertDatabasePowerUsage("Case2", 20, 60, 1 * Math.pow(10, 13), 1 * Math.pow(10, 14), 1 * Math.pow(10, 14));
-            iGatewayService.insertDatabasePowerUsage("Case3", 0, 20, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
             iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology");
             iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service");
             iGatewayService.insertDatabaseManufacturer("0x0001", "Nokia Mobile Phones");

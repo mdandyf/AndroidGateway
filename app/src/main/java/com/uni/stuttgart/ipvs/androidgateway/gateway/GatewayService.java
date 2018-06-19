@@ -15,6 +15,7 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Xml;
 
 import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
@@ -25,7 +26,6 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
-import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
@@ -34,6 +34,15 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -99,10 +108,10 @@ public class GatewayService extends Service {
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
-    private PowerUsageDatabase blePowerUsageDatabase = new PowerUsageDatabase(this);
     private ManufacturerDatabase manufacturerDatabase = new ManufacturerDatabase(this);
 
     private String status;
+    private XmlPullParser parser;
 
     @Override
     public void onCreate() {
@@ -125,6 +134,14 @@ public class GatewayService extends Service {
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
         executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
+
+        try {
+            parser = GattDataHelper.parseXML(getAssets().open("Settings.xml"));
+        } catch (XmlPullParserException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         status = "Created";
     }
@@ -519,7 +536,6 @@ public class GatewayService extends Service {
             bleDeviceDatabase.deleteAllData();
             bleServicesDatabase.deleteAllData();
             bleCharacteristicDatabase.deleteAllData();
-            blePowerUsageDatabase.deleteAllData();
         }
 
         @Override
@@ -644,7 +660,7 @@ public class GatewayService extends Service {
                     compIdString = compIdString.substring(4, 8);
                     compIdString = "0x" + compIdString;
                     Log.d(TAG, "Company Id: " + compIdString);
-                    return manufacturerDatabase.isManufacturerExist(compIdString);
+                    return checkManufacturer(compIdString);
                 } else {
                     // if device has no manufacturer id
                     return false;
@@ -687,20 +703,50 @@ public class GatewayService extends Service {
 
         @Override
         public String getManufacturerName(String mfr_id) throws RemoteException {
-            return manufacturerDatabase.getManufacturerName(mfr_id);
-        }
-
-        @Override
-        public void insertDatabasePowerUsage(String idCase, double batteryLevel, double batteryLevelUpper, double powerUsage1, double powerUsage2, double powerUsage3) throws RemoteException {
-            blePowerUsageDatabase.insertData(idCase, batteryLevel, batteryLevelUpper, (long) powerUsage1, (long) powerUsage2, (long) powerUsage3);
+           return manufacturerDatabase.getManufacturerName(mfr_id);
         }
 
         @Override
         public double[] getPowerUsageConstraints(double batteryLevel) throws RemoteException {
             double[] powerConstraint = new double[3];
-            powerConstraint[0] = blePowerUsageDatabase.getPowerConstraint1(batteryLevel);
-            powerConstraint[1] = blePowerUsageDatabase.getPowerConstraint2(batteryLevel);
-            powerConstraint[2] = blePowerUsageDatabase.getPowerConstraint3(batteryLevel);
+            int currentLevel = (int) batteryLevel;
+            Document xmlFile = null;
+
+            try {
+                xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
+                NodeList list = xmlFile.getElementsByTagName("DataPowerConstraint");
+                Node node = list.item(0);
+
+                Node nodeData = node.getFirstChild().getNextSibling();
+                Node batLvlDown = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                int batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
+                Node batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+                int batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+
+                if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
+                   powerConstraint = getPowerConstraint(batLvlUp);
+                } else {
+                    Node nodeData2 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                    batLvlDown = nodeData2.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                    batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
+                    batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+                    batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+
+                    if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
+                        powerConstraint = getPowerConstraint(batLvlUp);
+                    } else {
+                        Node nodeData3 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                        batLvlDown = nodeData3.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                        batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+
+                        powerConstraint = getPowerConstraint(batLvlUp);
+                    }
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
             return powerConstraint;
         }
 
@@ -747,6 +793,43 @@ public class GatewayService extends Service {
             }
         }
     };
+
+    /**
+     * Some routines about XML Parser for Power Constraint and Threshold
+     */
+
+    private double[] getPowerConstraint(Node batLvlUp) {
+        double[] powerConstraint = new double[3];
+        Node th1 = batLvlUp.getNextSibling().getNextSibling().getFirstChild();
+        String value = th1.getNodeValue();
+        int index = value.indexOf("^");
+        int cn = Integer.valueOf(value.substring(0, index));
+        int pw = Integer.valueOf(value.substring(index+1));
+        double threshold1 = Math.pow(cn, pw);
+
+        Node th2 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
+        String value2 = th2.getNodeValue();
+        index = value2.indexOf("^");
+        cn = Integer.valueOf(value2.substring(0, index));
+        pw = Integer.valueOf(value2.substring(index+1));
+        double threshold2 = Math.pow(cn, pw);
+
+        Node th3 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
+        String value3 = th3.getNodeValue();
+        index = value3.indexOf("^");
+        cn = Integer.valueOf(value3.substring(0, index));
+        pw = Integer.valueOf(value3.substring(index+1));
+        double threshold3 = Math.pow(cn, pw);
+
+        powerConstraint[0] = threshold1;
+        powerConstraint[1] = threshold2;
+        powerConstraint[2] = threshold3;
+
+        return powerConstraint;
+    }
+
+
+
 
     /**
      * Some routines section

@@ -3,13 +3,19 @@ package com.uni.stuttgart.ipvs.androidgateway.helper;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.util.Xml;
 
 import org.apache.commons.codec.binary.Hex;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -201,6 +207,18 @@ public class GattDataHelper {
         } catch (Exception e) {
             e.printStackTrace();
             return null;
+        }
+    }
+
+    public static XmlPullParser parseXML(InputStream in) throws XmlPullParserException, IOException {
+        try {
+            XmlPullParser parser = Xml.newPullParser();
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+            parser.setInput(in, null);
+            parser.nextTag();
+            return parser;
+        } finally {
+            in.close();
         }
     }
 
