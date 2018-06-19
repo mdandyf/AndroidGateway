@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
@@ -62,7 +63,6 @@ public class BatteryFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 getActivity().onBackPressed();
-                mHandler.removeCallbacks(updateData);
             }
         });
 
@@ -105,7 +105,6 @@ public class BatteryFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mHandler.removeCallbacks(updateData);
     }
 
 
@@ -114,11 +113,10 @@ public class BatteryFragment extends Fragment {
 
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
-          myService = IGatewayService.Stub.asInterface(service);
+            myService = IGatewayService.Stub.asInterface(service);
 
-            if(myService != null){
-                updateData.run();
-            }
+            getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
+
 
         }
 
@@ -126,34 +124,8 @@ public class BatteryFragment extends Fragment {
         public void onServiceDisconnected(ComponentName componentName) {
                 isBound = false;
                 myService = null;
+            getActivity().unregisterReceiver(mReceiver);
             Toast.makeText(getContext(), "Gateway Service Disconnected", Toast.LENGTH_SHORT).show();
-        }
-    };
-
-
-    private Runnable updateData = new Runnable() {
-        @Override
-        public void run() {
-
-            //Update Characteristic Value
-            String batteryValueLong = null;
-
-            try {
-                batteryValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, characteristicUUIDLong);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-            String batteryValue = batteryValueLong.substring(3,5);
-
-            //Convert HEX to DEC
-            int batteryPercent = Integer.parseInt(batteryValue, 16);
-
-            valueText.setText(batteryPercent + " %");
-            batteryBar.setProgress(batteryPercent);
-
-            Toast.makeText(getContext(), "Value Updated", Toast.LENGTH_SHORT).show();
-
-            mHandler.postDelayed(this, 1000);
         }
     };
 
@@ -161,11 +133,42 @@ public class BatteryFragment extends Fragment {
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
 
         @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
+        public void onReceive(Context context, final Intent intent) {
+            final String action = intent.getAction();
+
             if (action.equals(GatewayService.FINISH_READ)) {
-                //unregisterReceiver(mReceiver);
+
+                final String macAddress = intent.getStringExtra("command");
+
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        //Update Characteristic Value
+                        String batteryValueLong = null;
+
+                        try {
+                            batteryValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, characteristicUUIDLong);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                        String batteryValue = batteryValueLong.substring(3,5);
+
+                        //Convert HEX to DEC
+                        int batteryPercent = Integer.parseInt(batteryValue, 16);
+
+                        valueText.setText(batteryPercent + " %");
+                        batteryBar.setProgress(batteryPercent);
+
+                        Toast.makeText(getContext(), "Value Updated", Toast.LENGTH_SHORT).show();
+
+                    }
+                });
+
             }
         }
     };
+
+
+
 }

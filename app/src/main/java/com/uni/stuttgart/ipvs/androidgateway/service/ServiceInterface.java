@@ -132,10 +132,10 @@ public class ServiceInterface extends ListFragment {
 
                 //check if it's battery or heart sensor
                 switch(ServiceUUID) {
-                    case "180f":        //Battery
+                    case "180f":        //Battery Service
                         launchBatteryFragment(deviceAddress, ServiceLong);
                         break;
-                    case "180d":        //Heart
+                    case "180d":        //Heart Service
                         launchHeartRateFragment(deviceAddress, ServiceLong);
                         break;
                     case "fff0":        //VEMITER
@@ -187,8 +187,6 @@ public class ServiceInterface extends ListFragment {
 
         //Convert HEX to DEC
         int batteryPercent = Integer.parseInt(batteryValue, 16);
-
-           //Toast.makeText(getContext(), serviceUUID + "/" + batterycharacteristicUUID , Toast.LENGTH_SHORT).show();
 
             //Mapping
             UUID serviceMap = UUID.fromString(serviceUUID);
@@ -370,6 +368,8 @@ public class ServiceInterface extends ListFragment {
             final String action = intent.getAction();
 
             if (action.equals(GatewayService.FINISH_READ)) {
+
+                Toast.makeText(getContext(), "Device Added Ya MArwan", Toast.LENGTH_SHORT).show();
 
                 final String macAddress = intent.getStringExtra("command");
 

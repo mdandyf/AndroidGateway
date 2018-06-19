@@ -34,8 +34,6 @@ public class UploadCloudFragment extends Fragment {
     private TextView macText;
     private Button uploadBtn;
 
-    //private Handler mHandler = new Handler();
-
     //Service Atts
     private IGatewayService myService;
     boolean isBound = false;
@@ -43,8 +41,6 @@ public class UploadCloudFragment extends Fragment {
     //Firebase
     private FirebaseDatabase mDatabase;
     DatabaseReference mDeviceReference;
-    DatabaseReference mServiceReference;
-    DatabaseReference mCharacteristicReference;
 
     @Override
     public void onAttach(Context context) {
@@ -67,7 +63,6 @@ public class UploadCloudFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 getActivity().onBackPressed();
-                //mHandler.removeCallbacks(updateData);
             }
         });
 
@@ -83,8 +78,6 @@ public class UploadCloudFragment extends Fragment {
         //Firebase
         mDatabase = FirebaseDatabase.getInstance();
         mDeviceReference = mDatabase.getReference("devices");
-        mServiceReference = mDeviceReference.child("services");
-        mCharacteristicReference = mServiceReference.child("characteristics");
 
 
         //Retrieve Initial Data
@@ -101,6 +94,11 @@ public class UploadCloudFragment extends Fragment {
         uploadBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                try {
+                    UploadDeviceData(macAddress);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
                 Toast.makeText(getContext(), "Data Uploaded to Cloud", Toast.LENGTH_SHORT).show();
             }
         });
@@ -116,7 +114,6 @@ public class UploadCloudFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        //mHandler.removeCallbacks(updateData);
     }
 
 
@@ -127,13 +124,6 @@ public class UploadCloudFragment extends Fragment {
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
 
-            if(myService != null){
-                try {
-                    getDeviceData(macAddress);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
             Toast.makeText(getContext(), "Gateway Service Connected", Toast.LENGTH_SHORT).show();
 
         }
@@ -147,49 +137,50 @@ public class UploadCloudFragment extends Fragment {
     };
 
 
-    public void getDeviceData(String macAddress) throws RemoteException {
+    public void UploadDeviceData(String macAddress) throws RemoteException {
 
-        //Services
-        List<ParcelUuid>  listServiceUUID = myService.getServiceUUIDs(macAddress);
+        if (myService != null) {
 
-        //array of services
-        String[] stringServiceUUIDs = new String[listServiceUUID.size()];
-        //populate
-        for(int i = 0; i<listServiceUUID.size();i++) {
-            stringServiceUUIDs[i] =  listServiceUUID.get(i).toString();
-        }
 
-        //Loop on services to get characteristics of each
-        for(String service : stringServiceUUIDs){
-            //Characteristics of this Service
-            List<ParcelUuid>  listCharacteristicUUID = myService.getCharacteristicUUIDs(macAddress, service);
-            //array of characteristics
-            String[] stringCharacteristicUUIDs = new String[listCharacteristicUUID.size()];
+            //Services
+            List<ParcelUuid> listServiceUUID = myService.getServiceUUIDs(macAddress);
+
+            //array of services
+            String[] stringServiceUUIDs = new String[listServiceUUID.size()];
             //populate
-            for(int i = 0; i<listCharacteristicUUID.size();i++) {
-                stringCharacteristicUUIDs[i] =  listCharacteristicUUID.get(i).toString();
+            for (int i = 0; i < listServiceUUID.size(); i++) {
+                stringServiceUUIDs[i] = listServiceUUID.get(i).toString();
             }
 
-            //Loop on characteristics to get property, value of each
-            for(String characteristic : stringCharacteristicUUIDs){
-                String property = myService.getCharacteristicProperty(macAddress, service, characteristic);
-                String value = myService.getCharacteristicValue(macAddress, service, characteristic);
+            //Loop on services to get characteristics of each
+            for (String service : stringServiceUUIDs) {
+                //Characteristics of this Service
+                List<ParcelUuid> listCharacteristicUUID = myService.getCharacteristicUUIDs(macAddress, service);
+                //array of characteristics
+                String[] stringCharacteristicUUIDs = new String[listCharacteristicUUID.size()];
+                //populate
+                for (int i = 0; i < listCharacteristicUUID.size(); i++) {
+                    stringCharacteristicUUIDs[i] = listCharacteristicUUID.get(i).toString();
+                }
 
-                //Upload firebase this service with its characteristics
-                //mac
-                    //service
-                        //characteristic
-                            //property
-                            //value
+                //Loop on characteristics to get property, value of each
+                for (String characteristic : stringCharacteristicUUIDs) {
+                    String property = myService.getCharacteristicProperty(macAddress, service, characteristic);
+                    String value = myService.getCharacteristicValue(macAddress, service, characteristic);
 
-                mDeviceReference.setValue(macAddress);
-                mServiceReference.setValue(service);
-                mCharacteristicReference.setValue(characteristic);
+                    //Upload to firebase this service with its characteristics
+                    mDeviceReference.child(macAddress).child("services").child(service).child("characteristics").
+                            child(characteristic).child("property").setValue(property);
 
+                    mDeviceReference.child(macAddress).child("services").child(service).child("characteristics").
+                            child(characteristic).child("value").setValue(value);
+
+                }
             }
+
+        }else {
+            Toast.makeText(getContext(), "No Data Available", Toast.LENGTH_SHORT).show();
         }
-
-
     }
 
 

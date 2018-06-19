@@ -46,8 +46,6 @@ public class HeartRateFragment extends Fragment {
 
     private GattDataLookUp gattData = new GattDataLookUp();
 
-    private Handler mHandler = new Handler();
-
     //Service Atts
     private IGatewayService myService;
     boolean isBound = false;
@@ -113,7 +111,7 @@ public class HeartRateFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        getActivity().unregisterReceiver(mReceiver);
+
     }
 
     //Service Connection
@@ -123,10 +121,6 @@ public class HeartRateFragment extends Fragment {
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
 
-            /*if(myService != null){
-                updateData.run();
-            }*/
-
             getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
 
         }
@@ -135,6 +129,7 @@ public class HeartRateFragment extends Fragment {
         public void onServiceDisconnected(ComponentName componentName) {
             isBound = false;
             myService = null;
+            getActivity().unregisterReceiver(mReceiver);
             Toast.makeText(getContext(), "Gateway Service Disconnected", Toast.LENGTH_SHORT).show();
         }
     };
