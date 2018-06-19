@@ -27,7 +27,6 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattC
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
-import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
@@ -103,7 +102,6 @@ public class GatewayService extends Service {
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
     private PowerUsageDatabase blePowerUsageDatabase = new PowerUsageDatabase(this);
-    private ManufacturerDatabase manufacturerDatabase = new ManufacturerDatabase(this);
 
     private String status;
 
@@ -129,20 +127,6 @@ public class GatewayService extends Service {
         executionTask = new ExecutionTask<>(N, N * 2);
 
         status = "Created";
-
-
-        //Load Manufacturer DB
-        try {
-            manufacturerDatabase.createDataBase();
-        } catch (IOException ioe) {
-            throw new Error("Unable to create database");
-        }
-        try {
-            manufacturerDatabase.openDataBase();
-        } catch (SQLException sqle) {
-            throw sqle;
-        }
-        Toast.makeText(GatewayService.this, "Manufacturer Database Loaded Successfully", Toast.LENGTH_SHORT).show();
 
     }
 
@@ -635,7 +619,7 @@ public class GatewayService extends Service {
                     compIdString = "0x" + compIdString;
                     Log.d(TAG, "Company Id: " + compIdString);
 
-                    deviceKnown = manufacturerDatabase.isManufacturerExist(compIdString);
+                    deviceKnown = false;
 
                     if(deviceKnown){
                         //check Service if known
@@ -644,7 +628,7 @@ public class GatewayService extends Service {
                             UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
                             for(UUID uuid : arrayUUIDs){
                                 Log.d(TAG, "Device UUID: " + uuid.toString());
-                                deviceKnown =  manufacturerDatabase.isManufacturerServiceExist(compIdString, uuid.toString());
+                                deviceKnown =  false;
 
                                 Log.d(TAG, "DeviceKnown: " + deviceKnown);
                             }
@@ -680,32 +664,32 @@ public class GatewayService extends Service {
 
         @Override
         public void insertDatabaseManufacturer(String manfId, String manfName, String serviceUUID) throws RemoteException {
-            manufacturerDatabase.insertData(manfId, manfName, serviceUUID);
+
         }
 
         @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
-            return manufacturerDatabase.isManufacturerExist(mfr_id);
+            return false;
         }
 
         @Override
         public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
-            return manufacturerDatabase.isManufacturerServiceExist(mfr_id, serviceUUID);
+            return false;
         }
 
         @Override
         public List<String> getListManufacturers() throws RemoteException {
-            return manufacturerDatabase.getListManufacturers();
+            return null;
         }
 
         @Override
         public String getManufacturerName(String mfr_id) throws RemoteException {
-            return manufacturerDatabase.getManufacturerName(mfr_id);
+            return null;
         }
 
         @Override
         public List<ParcelUuid> getManufacturerServices(String mfr_id) throws RemoteException {
-            return manufacturerDatabase.getManufacturerServices(mfr_id);
+            return null;
         }
 
         @Override

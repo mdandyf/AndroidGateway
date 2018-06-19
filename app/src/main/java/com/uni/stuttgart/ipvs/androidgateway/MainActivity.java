@@ -15,7 +15,6 @@ import android.widget.TabHost;
 import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.ScannerFragment;
-import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayFragment;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 
