@@ -111,7 +111,7 @@ public class GatewayService extends Service {
     private ManufacturerDatabase manufacturerDatabase = new ManufacturerDatabase(this);
 
     private String status;
-    private XmlPullParser parser;
+    private Document xmlDocument;
 
     @Override
     public void onCreate() {
@@ -136,9 +136,7 @@ public class GatewayService extends Service {
         executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
 
         try {
-            parser = GattDataHelper.parseXML(getAssets().open("Settings.xml"));
-        } catch (XmlPullParserException e) {
-            e.printStackTrace();
+            xmlDocument = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -710,11 +708,9 @@ public class GatewayService extends Service {
         public double[] getPowerUsageConstraints(double batteryLevel) throws RemoteException {
             double[] powerConstraint = new double[3];
             int currentLevel = (int) batteryLevel;
-            Document xmlFile = null;
 
             try {
-                xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
-                NodeList list = xmlFile.getElementsByTagName("DataPowerConstraint");
+                NodeList list = xmlDocument.getElementsByTagName("DataPowerConstraint");
                 Node node = list.item(0);
 
                 Node nodeData = node.getFirstChild().getNextSibling();
@@ -743,7 +739,7 @@ public class GatewayService extends Service {
                     }
                 }
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
 
