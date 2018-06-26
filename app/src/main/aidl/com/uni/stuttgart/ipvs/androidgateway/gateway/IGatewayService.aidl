@@ -9,7 +9,6 @@ import ParcelUuid;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PHandlerThread;
-//import Runnable;
 
 interface IGatewayService {
     /**
@@ -21,6 +20,10 @@ interface IGatewayService {
 
     void basicTypes(int anInt, long aLong, boolean aBoolean, float aFloat,
             double aDouble, String aString);
+
+    int getNumberRunningTasks();
+
+    int getNumberOfProcessor();
 
     String getCurrentStatus();
 
@@ -76,6 +79,8 @@ interface IGatewayService {
 
     void updateDatabaseDeviceAdvRecord(in BluetoothDevice device, in byte[] scanRecord);
 
+    void updateDatabaseDeviceUsrChoice(in String macAddress, in String userChoice);
+
     void updateDatabaseDevicePowerUsage(in String macAddress, in long powerUsage);
 
     void updateAllDeviceStates(in List<String> nearbyDevices);
@@ -107,10 +112,6 @@ interface IGatewayService {
     List<String> getListManufacturers();
 
     String getManufacturerName(in String mfr_id);
-
-    List<ParcelUuid> getManufacturerServices(in String mfr_id);
-
-    void insertDatabasePowerUsage(in String idCase, in double batteryLevel, in double batteryLevelUpper, in double powerUsage1, in double powerUsage2, in double powerUsage3);
 
     double[] getPowerUsageConstraints(in double batteryLevel);
 

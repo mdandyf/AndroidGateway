@@ -1,20 +1,20 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm;
 
 import android.bluetooth.BluetoothDevice;
-import android.os.AsyncTask;
 
-import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.IMatrixComputation;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.MatrixComputation;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
-
-    private Map<BluetoothDevice, Object[]> mapInput;
-    private Map<BluetoothDevice, Double> mapOutput;
-    private Map<BluetoothDevice, Long> mapPowerUsage;
+public class AHP implements Callable<Map<BluetoothDevice, Double>> {
+    private List<BluetoothDevice> listDevices;
+    private IGatewayService iGatewayService;
+    private long batteryRemaining;
 
     private double[][] matrix3x3;
     private double[][] matrix3x3Standardize;
@@ -28,19 +28,89 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
 
     private double[] matrixAHPWeight;
     private double[] rssiMatrix;
-    private double[] userChoiceMatrix;
     private double[] deviceStateMatrix;
     private double[] powerUsageMatrix;
 
-    /**
-     * =======================================================================================================================
-     * Preparation Section
-     * =======================================================================================================================
-     */
+    private Map<BluetoothDevice, Double> mapOutput;
 
-    public AHP(Map<BluetoothDevice, Object[]> mapInput) {
-        this.mapInput = mapInput;
+    public AHP(List<BluetoothDevice> listDevices, IGatewayService iGatewayService, long batteryRemaining) {
+        this.listDevices = listDevices;
+        this.iGatewayService = iGatewayService;
+        this.batteryRemaining = batteryRemaining;
+    }
 
+    @Override
+    public Map<BluetoothDevice, Double> call() throws Exception {
+        mapOutput = new ConcurrentHashMap<>();
+
+        if(listDevices.size() == 1) {
+            mapOutput.put(listDevices.get(0), 0.0);
+            return mapOutput;
+        }
+
+        initializeMatrix();
+
+        processing();
+
+        sorting();
+
+        return mapOutput;
+    }
+
+    //process calculation of AHP on each device
+    private void processing() {
+        try {
+            for(BluetoothDevice device : listDevices) {
+
+                // get device parameters
+                int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
+                String deviceState = iGatewayService.getDeviceState(device.getAddress());
+                long powerUsage = iGatewayService.getDevicePowerUsage(device.getAddress());
+                double batteryPercent = (double) batteryRemaining;
+                double[] powerConstraints = iGatewayService.getPowerUsageConstraints(batteryPercent);
+
+                double devicePercentage = 0;
+
+                // calculate percentage RSSI
+                if(rssi != 0 && rssi > -80) {
+                    devicePercentage = rssiMatrix[0];
+                } else {
+                    devicePercentage = rssiMatrix[1];
+                }
+
+                // calculate percentage DeviceState
+                if("active".equals(deviceState)) {
+                    devicePercentage = devicePercentage + deviceStateMatrix[0];
+                } else {
+                    devicePercentage = devicePercentage + deviceStateMatrix[1];
+                }
+
+                //calculate percentage PowerUsage
+                if(powerUsage > powerConstraints[0]) {
+                    devicePercentage = devicePercentage + powerUsageMatrix[0];
+                } else if((powerUsage >= powerConstraints[1]) && (powerUsage < powerConstraints[0])) {
+                    devicePercentage = devicePercentage + powerUsageMatrix[1];
+                } else if(powerUsage < powerConstraints[2]) {
+                    devicePercentage = devicePercentage + powerUsageMatrix[2];
+                }
+
+                mapOutput.put(device, devicePercentage);
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // sort data after processing based on the percentage
+    private void sorting() {
+        //sort data
+        DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
+        mapOutput = sortData.sortMapByComparatorDouble(mapOutput, false);
+    }
+
+    // initializing matrix data for AHP calculation
+    private void initializeMatrix() {
         // set Matrix AHP Weight
         MatrixComputation matrixComputeAHP = new MatrixComputation(3,3);
         double[][] matrix = matrixComputeAHP.getMatrixIdentity();
@@ -91,72 +161,5 @@ public class AHP extends AsyncTask<Void, Void, Map<BluetoothDevice, Double>> {
         this.matrix3x3Weight = matrixComputePU.getMatrixWeight(matrix3x3Standardize);
         this.matrix3x3SubWeight = matrixComputePU.getMatrixSubWeight(matrix3x3Weight, matrixAHPWeight[2]);
         this.powerUsageMatrix = this.matrix3x3SubWeight;
-    }
-
-    /**
-     * =======================================================================================================================
-     * Calculate Number of Percentage of a device to be connected
-     * =======================================================================================================================
-     */
-
-    @Override
-    protected Map<BluetoothDevice, Double> doInBackground(Void... voids) {
-        // Looping to all available devices
-        if(mapInput != null && mapInput.size() > 0) {
-            for(Map.Entry entry : mapInput.entrySet()) {
-                BluetoothDevice device = (BluetoothDevice) entry.getKey();
-                Object[] values = (Object[]) entry.getValue();
-                int rssi = 0; String state = ""; String userChoice="";long powerUsage = 0;int counter = 0;double[] powerConstraints = new double[3];
-                for(Object value : values) {
-                    counter++;
-                    if(counter == 1) {
-                        rssi = (Integer) value;
-                    } else if(counter == 2) {
-                        state = (String) value;
-                    } else if(counter == 3) {
-                        userChoice = (String) value;
-                    } else if(counter == 4) {
-                        powerUsage = (Long) value;
-                    } else if(counter == 5) {
-                        powerConstraints = (double[]) value;
-                    }
-                }
-
-                double devicePercentage = 0;
-
-                // calculate percentage RSSI
-                if(rssi != 0 && rssi > -80) {
-                    devicePercentage = rssiMatrix[0];
-                } else {
-                    devicePercentage = rssiMatrix[1];
-                }
-
-                // calculate percentage DeviceState
-                if("active".equals(state)) {
-                    devicePercentage = devicePercentage + deviceStateMatrix[0];
-                } else {
-                    devicePercentage = devicePercentage + deviceStateMatrix[1];
-                }
-
-                //calculate percentage PowerUsage
-                if(powerUsage > powerConstraints[0]) {
-                    devicePercentage = devicePercentage + powerUsageMatrix[0];
-                } else if((powerUsage >= powerConstraints[1]) && (powerUsage < powerConstraints[0])) {
-                    devicePercentage = devicePercentage + powerUsageMatrix[1];
-                } else if(powerUsage < powerConstraints[2]) {
-                    devicePercentage = devicePercentage + powerUsageMatrix[2];
-                }
-
-                mapOutput.put(device, devicePercentage);
-            }
-        }
-        return mapOutput;
-    }
-
-    @Override
-    protected void onPreExecute() {
-        super.onPreExecute();
-        mapOutput  = new ConcurrentHashMap<>();
-        mapPowerUsage = new ConcurrentHashMap<>();
     }
 }

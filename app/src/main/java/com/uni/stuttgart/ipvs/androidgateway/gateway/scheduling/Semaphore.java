@@ -11,6 +11,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
@@ -51,7 +52,8 @@ public class Semaphore {
         mProcessing = true;
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N*2);
-        executionTask.submitRunnableSingleThread(new SemaphoreSchedulling());
+        executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
+        executionTask.submitRunnable(new SemaphoreSchedulling());
     }
 
     private class SemaphoreSchedulling implements Runnable {
@@ -59,9 +61,10 @@ public class Semaphore {
         @Override
         public void run() {
             while (mProcessing) {
+                cycleCounter++;
+                if(cycleCounter > 1) {broadcastClrScrn();}
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle...");
-                cycleCounter++;
                 broadcastUpdate("Cycle number " + cycleCounter);
                 try {
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
@@ -74,17 +77,13 @@ public class Semaphore {
 
                     if (!mProcessing) { return; }
 
-                    waitThread(100);
                     List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
 
                     // do Semaphore for Connecting method
                     for (final BluetoothDevice device : scanResults) {
                         // only known manufacturer that will be used to connect
-                        boolean isMfgExist = processMfgChoice(device.getAddress());
-                        if(isMfgExist) {
-                            broadcastServiceInterface("Start service interface");
-                            iGatewayService.doConnect(device.getAddress());
-                        }
+                        broadcastServiceInterface("Start service interface");
+                        iGatewayService.doConnect(device.getAddress());
 
                         if (!mProcessing) { return; }
 
@@ -96,11 +95,13 @@ public class Semaphore {
         }
     }
 
-    private void waitThread(int time) {
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+    /**
+     * Clear the screen in Gateway Tab
+     */
+    private void broadcastClrScrn() {
+        if (mProcessing) {
+            final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+            context.sendBroadcast(intent);
         }
     }
 
@@ -110,16 +111,6 @@ public class Semaphore {
             intent.putExtra("command", message);
             context.sendBroadcast(intent);
         }
-    }
-
-    private boolean processMfgChoice(String macAddress) {
-        boolean isMfgExist = false;
-        try {
-            isMfgExist = iGatewayService.isDeviceManufacturerKnown(macAddress);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-        return isMfgExist;
     }
 
     private void broadcastServiceInterface(String message) {

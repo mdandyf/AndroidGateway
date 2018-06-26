@@ -179,6 +179,7 @@ public class GatewayFragment extends Fragment {
         }
 
         startGatewayService();
+        setMenuVisibility();
 
         super.onActivityResult(requestCode, resultCode, data);
     }

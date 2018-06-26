@@ -5,7 +5,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -13,6 +12,8 @@ import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePolling;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePollingWithAHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePollingWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.FairExhaustivePolling;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithAHP;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithANP;
@@ -20,8 +21,14 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWit
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+
+import java.io.IOException;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -39,9 +46,12 @@ public class GatewayController extends Service {
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
 
+    private String algorithm;
     private Semaphore sem;
     private FairExhaustivePolling fep;
     private ExhaustivePolling ep;
+    private ExhaustivePollingWithAHP epAhp;
+    private ExhaustivePollingWithWSM epWsm;
     private RoundRobin rr;
     private PriorityBasedWithAHP ahp;
     private PriorityBasedWithANP anp;
@@ -94,6 +104,8 @@ public class GatewayController extends Service {
 
         if(fep != null) {fep.stop();}
         if(ep != null) {ep.stop();}
+        if(epAhp != null) {epAhp.stop();}
+        if(epWsm != null) {epWsm.stop();}
         if(rr != null) {rr.stop();}
         if(sem != null) {sem.stop();}
         if(ahp != null) {ahp.stop();}
@@ -135,14 +147,39 @@ public class GatewayController extends Service {
             broadcastUpdate("GatewayController & GatewayService have bound...");
             initDatabase();
 
-            //doScheduleSemaphore();
-            //doScheduleRR();
-            //doScheduleEP();
-            doScheduleFEP();
-            //doSchedulePriorityAHP();
-            //doSchedulePriorityANP();
-            //doSchedulePriorityWSM();
-            //doSchedulePriorityWPM();
+            try {
+                // read from .xml settings file
+                Document xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
+                NodeList list = xmlFile.getElementsByTagName("DataAlgorithm");
+                Node nodeDataAlgo = list.item(0);
+                Node nodeData = nodeDataAlgo.getFirstChild().getNextSibling();
+                Node nodeAlgo = nodeData.getFirstChild().getNextSibling();
+                algorithm = nodeAlgo.getFirstChild().getNodeValue();
+
+                if(algorithm.equals("sem")) {
+                    doScheduleSemaphore();
+                } else if(algorithm.equals("ep")) {
+                    doScheduleEP();
+                } else if(algorithm.equals("fep")) {
+                    doScheduleFEP();
+                } else if(algorithm.equals("rr")) {
+                    doScheduleRR();
+                } else if(algorithm.equals("epAhp")) {
+                    doScheduleEPwithAHP();
+                } else if(algorithm.equals("epWsm")) {
+                    doScheduleEPwithWSM();
+                } else if(algorithm.equals("ahp")) {
+                    doSchedulePriorityAHP();
+                } else if(algorithm.equals("anp")) {
+                    doSchedulePriorityANP();
+                } else if(algorithm.equals("wsm")) {
+                    doSchedulePriorityWSM();
+                } else if(algorithm.equals("wpm")) {
+                    doSchedulePriorityWPM();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         @Override
@@ -200,6 +237,38 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             ep = new ExhaustivePolling(context, mProcessing, iGatewayService);
             ep.start();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    //scheduling using Exhaustive Polling (EP) with Analytical Hierarchy Process
+    private void doScheduleEPwithAHP() {
+        broadcastUpdate("Start Exhaustive Polling Scheduling with AHP...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            epAhp = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService);
+            epAhp.start();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    //scheduling using Exhaustive Polling (EP) with Weighted Sum Model
+    private void doScheduleEPwithWSM() {
+        broadcastUpdate("Start Exhaustive Polling Scheduling with WSM...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            epWsm = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService);
+            epWsm.start();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -304,19 +373,9 @@ public class GatewayController extends Service {
             broadcastUpdate("Initialize database...");
             broadcastUpdate("\n");
             iGatewayService.initializeDatabase();
-            iGatewayService.insertDatabasePowerUsage("Case1", 60, 100, 1 * Math.pow(10, 14), 1 * Math.pow(10, 15), 1 * Math.pow(10, 15));
-            iGatewayService.insertDatabasePowerUsage("Case2", 20, 60, 1 * Math.pow(10, 13), 1 * Math.pow(10, 14), 1 * Math.pow(10, 14));
-            iGatewayService.insertDatabasePowerUsage("Case3", 0, 20, 1 * Math.pow(10, 12), 1 * Math.pow(10, 13), 1 * Math.pow(10, 13));
-
-            /*//MI BAND 2
             iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology", "0000fee1-0000-1000-8000-00805f9b34fb");
-            iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology", "0000fee0-0000-1000-8000-00805f9b34fb");
-            //VEMITER
             iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service", "0000fff0-0000-1000-8000-00805f9b34fb");
-            //Simulator Battery
-            iGatewayService.insertDatabaseManufacturer("0x0002", "Intel Corp.", "0000180f-0000-1000-8000-00805f9b34fb");
-            //Simulaltor Heart
-            iGatewayService.insertDatabaseManufacturer("0x0002", "Intel Corp.", "0000180d-0000-1000-8000-00805f9b34fb");*/
+            iGatewayService.insertDatabaseManufacturer("0x0001", "Nokia Mobile Phones", "0000180d-0000-1000-8000-00805f9b34fb");
         } catch (RemoteException e) {
             e.printStackTrace();
         }

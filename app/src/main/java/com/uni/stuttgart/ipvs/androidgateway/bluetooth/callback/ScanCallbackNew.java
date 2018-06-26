@@ -7,6 +7,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
+import android.os.ParcelUuid;
 import android.support.annotation.RequiresApi;
 import android.util.Log;
 import android.widget.Toast;
