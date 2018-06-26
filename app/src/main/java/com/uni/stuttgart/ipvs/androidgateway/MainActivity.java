@@ -58,7 +58,6 @@ public class MainActivity extends AppCompatActivity {
         IntentFilter filter = new IntentFilter(GatewayService.START_SERVICE_INTERFACE);
         registerReceiver(mReceiver, filter);
 
-
     }
 
     @Override

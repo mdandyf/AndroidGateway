@@ -1,9 +1,12 @@
 package com.uni.stuttgart.ipvs.androidgateway.helper;
 
+import android.app.Activity;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.util.Xml;
+
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PManufacturer;
 
 import org.apache.commons.codec.binary.Hex;
 import org.json.JSONArray;
@@ -12,9 +15,11 @@ import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -211,15 +216,52 @@ public class GattDataHelper {
     }
 
     public static XmlPullParser parseXML(InputStream in) throws XmlPullParserException, IOException {
-        try {
-            XmlPullParser parser = Xml.newPullParser();
+       //try {
+            XmlPullParserFactory parserFactory;
+            parserFactory = XmlPullParserFactory.newInstance();
+
+            XmlPullParser parser = parserFactory.newPullParser();
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
             parser.setInput(in, null);
             parser.nextTag();
             return parser;
-        } finally {
+       /*}
+        finally {
             in.close();
+        }*/
+    }
+
+    public static ArrayList<PManufacturer> processParsing(XmlPullParser parser) throws XmlPullParserException, IOException {
+        ArrayList<PManufacturer> manufacturers = new ArrayList<>();
+        int eventType = parser.getEventType();
+        PManufacturer currentManufacturer = null;
+
+        while(eventType != XmlPullParser.END_DOCUMENT){
+            String eltName = null;
+
+            switch (eventType){
+                case XmlPullParser.START_TAG:
+                    eltName = parser.getName();
+
+                    if("manufacturer".equalsIgnoreCase(eltName)){
+                        currentManufacturer = new PManufacturer();
+                        manufacturers.add(currentManufacturer);
+                    } else if(currentManufacturer != null) {
+                        if("id".equalsIgnoreCase(eltName)){
+                            currentManufacturer.id = parser.nextText();
+                        } else if ("name".equalsIgnoreCase(eltName)){
+                            currentManufacturer.name = parser.nextText();
+                        } else if ("service".equalsIgnoreCase(eltName)){
+                            currentManufacturer.service = parser.nextText();
+                        }
+                    }
+                    break;
+            }
+
+            eventType = parser.next();
         }
+
+        return manufacturers;
     }
 
 }

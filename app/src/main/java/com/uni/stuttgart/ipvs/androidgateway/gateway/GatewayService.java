@@ -28,8 +28,6 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattC
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
-import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
-import com.uni.stuttgart.ipvs.androidgateway.database.PowerUsageDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
@@ -44,6 +42,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -113,10 +112,11 @@ public class GatewayService extends Service {
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
-    private ManufacturerDatabase manufacturerDatabase = new ManufacturerDatabase(this);
 
     private String status;
     private Document xmlDocument;
+    private XmlPullParser mfrParser;
+    private List<PManufacturer> manufacturers;
 
     @Override
     public void onCreate() {
@@ -145,6 +145,17 @@ public class GatewayService extends Service {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        //Get Manufacturers List from XML File
+        try {
+            mfrParser = GattDataHelper.parseXML(getAssets().open("data.xml"));
+            manufacturers = GattDataHelper.processParsing(mfrParser);
+            } catch (XmlPullParserException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
 
         status = "Created";
 
@@ -594,15 +605,6 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void updateDatabaseDeviceUsrChoice(String macAddress, String userChoice) throws RemoteException {
-            try {
-                bleDeviceDatabase.updateDeviceUserChoice(macAddress, userChoice);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
         public void updateDatabaseDevicePowerUsage(String macAddress, long powerUsage) throws RemoteException {
             try {
                 bleDeviceDatabase.updateDevicePowerUsage(macAddress, powerUsage);
@@ -653,37 +655,45 @@ public class GatewayService extends Service {
         @Override
         public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
 
-            boolean deviceKnown = false;
+            boolean deviceKnown;
 
+            //Get Device Advertisement
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
             List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
 
             if (structures != null && structures.size() > 0) {
                 Map<String, Object> mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
 
+                //Check for mfrID
                 if (mapListAdvertisement.containsKey("CompanyId")) {
+
                     int compId = (int) mapListAdvertisement.get("CompanyId");
-                    String compIdString = GattDataHelper.decToHex(compId);
-                    compIdString = compIdString.substring(4, 8);
-                    compIdString = "0x" + compIdString;
-                    Log.d(TAG, "Company Id: " + compIdString);
-                    //return checkManufacturer(compIdString);
+                    String mfrId = GattDataHelper.decToHex(compId);
+                    mfrId = mfrId.substring(4, 8);
+                    mfrId = "0x" + mfrId;
+                    Log.d(TAG, "Company Id: " + mfrId);
 
-                    deviceKnown = false;
+                    deviceKnown =  checkManufacturer(mfrId);
 
+                    //Device mfrId is Known, then check for serviceUUID
                     if(deviceKnown){
-                        //check Service if known
+
+                        //Check Service if known
                         if(mapListAdvertisement.containsKey("DeviceUUID")){
 
                             UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
+
                             for(UUID uuid : arrayUUIDs){
                                 Log.d(TAG, "Device UUID: " + uuid.toString());
-                                deviceKnown =  false;
-
+                                deviceKnown =  checkManufacturerService(mfrId, uuid.toString());
                                 Log.d(TAG, "DeviceKnown: " + deviceKnown);
                             }
+                        }else{
+                            // service is not known
+                            return false;
                         }
                     }else {
+                        //device not known
                         return false;
                     }
                 } else {
@@ -694,6 +704,7 @@ public class GatewayService extends Service {
                 // if device has no scan record
                 return false;
             }
+
             return deviceKnown;
         }
 
@@ -713,23 +724,36 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void insertDatabaseManufacturer(String manfId, String manfName) throws RemoteException {
-            manufacturerDatabase.insertData(manfId, manfName);
-        }
-
-        @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
-            return manufacturerDatabase.isManufacturerExist(mfr_id);
+            //return manufacturerDatabase.isManufacturerExist(mfr_id);
+
+            for(int i = 0 ; i < manufacturers.size(); i++) {
+                if(mfr_id.equalsIgnoreCase(manufacturers.get(i).id)){
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         @Override
-        public List<String> getListManufacturers() throws RemoteException {
-            return manufacturerDatabase.getListManufacturers();
+        public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
+            //return manufacturerDatabase.isManufacturerServiceExist(mfr_id, serviceUUID);
+
+            for(int i = 0 ; i < manufacturers.size(); i++) {
+                if(mfr_id.equalsIgnoreCase(manufacturers.get(i).id)){
+                    if (serviceUUID.equalsIgnoreCase(manufacturers.get(i).service)){
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         @Override
-        public String getManufacturerName(String mfr_id) throws RemoteException {
-           return manufacturerDatabase.getManufacturerName(mfr_id);
+        public List<PManufacturer> getListManufacturers() throws RemoteException {
+            return manufacturers;
         }
 
         @Override

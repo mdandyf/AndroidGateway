@@ -102,7 +102,6 @@ public class GatewayFragment extends Fragment {
         } else {
             startGatewayService();
         }
-
         return view;
     }
 

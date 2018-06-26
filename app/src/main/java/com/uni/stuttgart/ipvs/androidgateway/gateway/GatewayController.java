@@ -9,6 +9,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
+import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePolling;
@@ -27,8 +28,14 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -181,6 +188,7 @@ public class GatewayController extends Service {
                 e.printStackTrace();
             }
         }
+
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
@@ -373,9 +381,6 @@ public class GatewayController extends Service {
             broadcastUpdate("Initialize database...");
             broadcastUpdate("\n");
             iGatewayService.initializeDatabase();
-            iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology", "0000fee1-0000-1000-8000-00805f9b34fb");
-            iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service", "0000fff0-0000-1000-8000-00805f9b34fb");
-            iGatewayService.insertDatabaseManufacturer("0x0001", "Nokia Mobile Phones", "0000180d-0000-1000-8000-00805f9b34fb");
         } catch (RemoteException e) {
             e.printStackTrace();
         }

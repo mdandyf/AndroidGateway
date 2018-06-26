@@ -1,13 +1,6 @@
 // PManufacturer.aidl
-package com.uni.stuttgart.ipvs.androidgateway;
+package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
 // Declare any non-default types here with import statements
 
-interface PManufacturer {
-    /**
-     * Demonstrates some basic types that you can use as parameters
-     * and return values in AIDL.
-     */
-    void basicTypes(int anInt, long aLong, boolean aBoolean, float aFloat,
-            double aDouble, String aString);
-}
+parcelable PManufacturer;

@@ -9,8 +9,10 @@ import ParcelUuid;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PHandlerThread;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PManufacturer;
 
 interface IGatewayService {
+
     /**
      * Demonstrates some basic types that you can use as parameters
      * and return values in AIDL.
@@ -79,8 +81,6 @@ interface IGatewayService {
 
     void updateDatabaseDeviceAdvRecord(in BluetoothDevice device, in byte[] scanRecord);
 
-    void updateDatabaseDeviceUsrChoice(in String macAddress, in String userChoice);
-
     void updateDatabaseDevicePowerUsage(in String macAddress, in long powerUsage);
 
     void updateAllDeviceStates(in List<String> nearbyDevices);
@@ -103,15 +103,11 @@ interface IGatewayService {
 
     long getDevicePowerUsage(in String macAddress);
 
-    void insertDatabaseManufacturer(in String manfId, in String manfName, in String serviceUUID);
-
     boolean checkManufacturer(in String mfr_id);
 
     boolean checkManufacturerService(in String mfr_id, in String serviceUUID);
 
-    List<String> getListManufacturers();
-
-    String getManufacturerName(in String mfr_id);
+    List<PManufacturer> getListManufacturers();
 
     double[] getPowerUsageConstraints(in double batteryLevel);
 
