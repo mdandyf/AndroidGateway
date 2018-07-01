@@ -725,7 +725,6 @@ public class GatewayService extends Service {
 
         @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
-            //return manufacturerDatabase.isManufacturerExist(mfr_id);
 
             for(int i = 0 ; i < manufacturers.size(); i++) {
                 if(mfr_id.equalsIgnoreCase(manufacturers.get(i).id)){
@@ -738,7 +737,6 @@ public class GatewayService extends Service {
 
         @Override
         public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
-            //return manufacturerDatabase.isManufacturerServiceExist(mfr_id, serviceUUID);
 
             for(int i = 0 ; i < manufacturers.size(); i++) {
                 if(mfr_id.equalsIgnoreCase(manufacturers.get(i).id)){
