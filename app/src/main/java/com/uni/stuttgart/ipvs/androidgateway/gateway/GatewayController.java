@@ -376,11 +376,11 @@ public class GatewayController extends Service {
             iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology");
             iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service");
             iGatewayService.insertDatabaseManufacturer("0x0001", "Nokia Mobile Phones");
+            iGatewayService.insertDatabaseManufacturer("0xffff", "Testing Devices");
         } catch (RemoteException e) {
             e.printStackTrace();
         }
     }
-
     private void setWakeLock() {
         if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
     }

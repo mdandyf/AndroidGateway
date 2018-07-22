@@ -2,7 +2,7 @@
 <root>
     <DataAlgorithm>
         <data>
-            <currentAlgorithm>ahp</currentAlgorithm>
+            <currentAlgorithm>ep</currentAlgorithm>
         </data>
     </DataAlgorithm>
     <DataPowerConstraint>
@@ -33,16 +33,16 @@
     </DataPowerConstraint>
     <DataManufacturer>
         <data>
-            <id>0x0157</id>
-            <name>Anhui Huami Information Technology</name>
-        </data>
-        <data>
             <id>0x0401</id>
             <name>Vemiter Lamp Service</name>
         </data>
         <data>
             <id>0x0001</id>
             <name>Nokia Mobile Phones</name>
+        </data>
+        <data>
+            <id>0xffff</id>
+            <name>Testing Device</name>
         </data>
     </DataManufacturer>
 </root>
