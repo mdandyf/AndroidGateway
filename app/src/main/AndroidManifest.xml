@@ -55,6 +55,12 @@
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name" />
+
+        <activity
+            android:name=".FuzzyActivity"
+            android:label="@string/app_name"
+            android:exported="true"/>
+
         <activity
             android:name=".settings.SettingsActivity"
             android:label="@string/title_activity_settings" />
