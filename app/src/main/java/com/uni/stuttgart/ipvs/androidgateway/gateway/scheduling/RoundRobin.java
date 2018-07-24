@@ -52,7 +52,9 @@ public class RoundRobin {
     }
 
     public void stop() {
-
+        mProcessing = false;
+        future.cancel(true);
+        scheduler.shutdownNow();
     }
 
     public void start() {
@@ -125,15 +127,16 @@ public class RoundRobin {
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(100);
                     processConnecting.interruptThread();
-                }
-            } catch (RemoteException e)
 
-            {
-                e.printStackTrace();
             }
-        }
+        } catch(RemoteException e)
 
+        {
+            e.printStackTrace();
+        }
     }
+
+}
 
     private Runnable doConnecting(final String macAddress) {
         return new Runnable() {
