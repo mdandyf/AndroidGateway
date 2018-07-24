@@ -25,6 +25,10 @@ interface IGatewayService {
 
     int getNumberOfProcessor();
 
+    void setCycleCounter(in int cycleCounter);
+
+    int getCycleCounter();
+
     String getCurrentStatus();
 
     void setHandler(in PMessageHandler messageHandler, in String threadName, in String type);

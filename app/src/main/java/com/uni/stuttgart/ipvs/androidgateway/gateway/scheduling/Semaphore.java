@@ -15,6 +15,7 @@ import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -67,6 +68,7 @@ public class Semaphore {
                 broadcastUpdate("Start new cycle...");
                 broadcastUpdate("Cycle number " + cycleCounter);
                 try {
+                    iGatewayService.setCycleCounter(cycleCounter);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
@@ -80,7 +82,7 @@ public class Semaphore {
                     List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
 
                     // do Semaphore for Connecting method
-                    for (final BluetoothDevice device : scanResults) {
+                    for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                         // only known manufacturer that will be used to connect
                         broadcastServiceInterface("Start service interface");
                         iGatewayService.doConnect(device.getAddress());

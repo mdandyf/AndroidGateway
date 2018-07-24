@@ -22,6 +22,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWit
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -59,7 +60,6 @@ public class GatewayController extends Service {
     private PriorityBasedWithWPM wpm;
 
     private Runnable runnablePeriodic;
-    private Thread threadPeriodic;
 
     @Override
     public void onCreate() {
@@ -113,7 +113,7 @@ public class GatewayController extends Service {
         if(wsm != null) {wsm.stop();}
         if(wpm != null) {wpm.stop();}
 
-        if(threadPeriodic != null) {threadPeriodic.interrupt();}
+
         if(mConnection != null) {unbindService(mConnection); }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         return false;
@@ -146,6 +146,18 @@ public class GatewayController extends Service {
             mProcessing = true;
             broadcastUpdate("GatewayController & GatewayService have bound...");
             initDatabase();
+
+            ThreadTrackingPriority thread1 = new ThreadTrackingPriority(Thread.MIN_PRIORITY);
+            thread1.newThread(runnablePeriodic).start();
+
+            ThreadTrackingPriority thread2 = new ThreadTrackingPriority(Thread.MAX_PRIORITY);
+            thread2.newThread(runnablePeriodic).start();
+
+
+            thread1.interruptThread();
+            thread2.interruptThread();
+
+
 
             try {
                 // read from .xml settings file
@@ -376,11 +388,11 @@ public class GatewayController extends Service {
             iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology");
             iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service");
             iGatewayService.insertDatabaseManufacturer("0x0001", "Nokia Mobile Phones");
+            iGatewayService.insertDatabaseManufacturer("0xffff", "Testing Devices");
         } catch (RemoteException e) {
             e.printStackTrace();
         }
     }
-
     private void setWakeLock() {
         if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
     }

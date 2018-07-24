@@ -14,6 +14,7 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
@@ -73,6 +74,7 @@ public class FairExhaustivePolling {
             try {
                 iGatewayService.setProcessing(mProcessing);
                 cycleCounter++;
+                iGatewayService.setCycleCounter(cycleCounter);
                 if(cycleCounter > 1) {broadcastClrScrn();}
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");
@@ -148,7 +150,7 @@ public class FairExhaustivePolling {
             broadcastUpdate("Maximum connection time is " + maxConnectTime / 1000 + " s");
 
             // do Round Robin part for connection
-            for (BluetoothDevice device : scanResults) {
+            for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                 try {
                     broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
