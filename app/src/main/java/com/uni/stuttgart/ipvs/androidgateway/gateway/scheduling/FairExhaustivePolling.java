@@ -74,6 +74,7 @@ public class FairExhaustivePolling {
             try {
                 iGatewayService.setProcessing(mProcessing);
                 cycleCounter++;
+                iGatewayService.setCycleCounter(cycleCounter);
                 if(cycleCounter > 1) {broadcastClrScrn();}
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");

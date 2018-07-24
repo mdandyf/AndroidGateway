@@ -2,7 +2,7 @@
 <root>
     <DataAlgorithm>
         <data>
-            <currentAlgorithm>ep</currentAlgorithm>
+            <currentAlgorithm>epWsm</currentAlgorithm>
         </data>
     </DataAlgorithm>
     <DataPowerConstraint>
@@ -45,4 +45,12 @@
             <name>Testing Device</name>
         </data>
     </DataManufacturer>
+    <DataTime>
+        <data>
+            <ProcessingTime>60000</ProcessingTime>
+            <ScanningTime>10000</ScanningTime>
+            <ScanningTime2>5000</ScanningTime2>
+            <unit>ms</unit>
+        </data>
+    </DataTime>
 </root>

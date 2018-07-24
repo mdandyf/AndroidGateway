@@ -69,6 +69,7 @@ public class RoundRobin {
         public void run() {
             try {
                 cycleCounter++;
+                iGatewayService.setCycleCounter(cycleCounter);
                 if (cycleCounter > 1) {
                     broadcastClrScrn();
                 }
