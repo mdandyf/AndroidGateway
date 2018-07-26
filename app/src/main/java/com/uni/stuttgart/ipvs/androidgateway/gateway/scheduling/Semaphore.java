@@ -13,7 +13,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +73,6 @@ public class Semaphore {
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                     iGatewayService.execScanningQueue();
 
-                    iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
 
                     if (!mProcessing) { return; }

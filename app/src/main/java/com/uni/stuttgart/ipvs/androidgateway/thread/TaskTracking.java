@@ -6,10 +6,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class TaskTrackingThreadPool extends ThreadPoolExecutor {
+public class TaskTracking extends ThreadPoolExecutor {
     private AtomicInteger mTaskCount = new AtomicInteger(0);
+    protected AtomicInteger mThreadCount = new AtomicInteger(0);
 
-    public TaskTrackingThreadPool(int corePoolSize, int maxPoolSize) {
+    public TaskTracking(int corePoolSize, int maxPoolSize) {
         super(corePoolSize, maxPoolSize, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
     }
 
@@ -28,4 +29,11 @@ public class TaskTrackingThreadPool extends ThreadPoolExecutor {
     public int getNumberOfTasks() {
         return mTaskCount.get();
     }
+
+    public int getNumberOfThreads() {return mThreadCount.get();}
+
+    public int getAvailableProcessor() {
+        return Runtime.getRuntime().availableProcessors();
+    }
+
 }

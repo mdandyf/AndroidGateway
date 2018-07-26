@@ -40,7 +40,7 @@ public class ExhaustivePollingWithAHP {
     private int cycleCounter = 0;
 
     private ExecutionTask<String> executionTask;
-    private ScheduledThreadPoolExecutor schedulerPower;
+    private Thread threadPowerMeasure;
     private long powerUsage = 0;
     private PowerEstimator powerEstimator;
 
@@ -53,17 +53,15 @@ public class ExhaustivePollingWithAHP {
     public void stop() {
         mProcessing = false; mConnecting = false;
         executionTask.terminateExecutorPools();
-        unregisterBroadcastListener();
     }
 
     public void start() {
         mProcessing = true; mConnecting = false;
-        registerBroadcastListener();
         int N = Runtime.getRuntime().availableProcessors();
 
         powerEstimator = new PowerEstimator(context);
         executionTask = new ExecutionTask<>(N, N * 2);
-        executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
+        executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
         executionTask.submitRunnable(new RunEPScheduling());
     }
 
@@ -73,9 +71,7 @@ public class ExhaustivePollingWithAHP {
             while (mProcessing) {
                 // do Exhaustive Polling Part
                 cycleCounter++;
-                if (cycleCounter > 1) {
-                    broadcastClrScrn();
-                }
+                if (cycleCounter > 1) { broadcastClrScrn(); }
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");
                 broadcastUpdate("Cycle number " + cycleCounter);
@@ -134,9 +130,11 @@ public class ExhaustivePollingWithAHP {
 
                 powerUsage = 0;
                 powerEstimator.start();
-                schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
+                threadPowerMeasure = executionTask.executeRunnableInThread(doMeasurePower(), "Thread Power" + device.getAddress(), Thread.MIN_PRIORITY);
 
                 iGatewayService.doConnect(mDevice.getAddress());
+
+                stopPowerMeasure();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -145,7 +143,16 @@ public class ExhaustivePollingWithAHP {
 
     private void connectAHP() {
         try {
-            Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(iGatewayService.getScanResults());
+            List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+
+            if(scanResults.size() != 0) {
+                broadcastUpdate("Start ranking device with AHP algorithm...");
+            } else {
+                broadcastUpdate("No nearby device(s) available...");
+                return;
+            }
+
+            Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(scanResults);
             DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
             mapRankedDevices = sortData.sortMapByComparatorDouble(mapRankedDevices, false);
 
@@ -160,10 +167,13 @@ public class ExhaustivePollingWithAHP {
 
                 powerUsage = 0;
                 powerEstimator.start();
-                schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
+                threadPowerMeasure = executionTask.executeRunnableInThread(doMeasurePower(), "Thread Power" + device.getAddress(), Thread.MIN_PRIORITY);
 
                 iGatewayService.doConnect(mDevice.getAddress());
+
+                stopPowerMeasure();
             }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -182,61 +192,32 @@ public class ExhaustivePollingWithAHP {
         return result;
     }
 
-
-    /**
-     * =================================================================================================================================
-     * Broadcast Listener
-     * =================================================================================================================================
-     */
-
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (action.equals(GatewayService.DISCONNECT_COMMAND)) {
-                if(mConnecting) { stopPowerMeasure(); mConnecting = false;}
-            } else if (action.equals(GatewayService.FINISH_READ)) {
-                if(mConnecting) { stopPowerMeasure(); mConnecting = false;}
-            }
-        }
-
-    };
-
-    private boolean registerBroadcastListener() {
-        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.DISCONNECT_COMMAND));
-        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
-        return true;
-    }
-
-    private void unregisterBroadcastListener() {
-        context.unregisterReceiver(mReceiver);
-    }
-
     /**
      * =================================================================================================================================
      * Device Power Usage Measurement routines
      * =================================================================================================================================
      */
 
-    private Runnable doMeasurePower() {
+    private synchronized Runnable doMeasurePower() {
         return new Runnable() {
             @Override
             public void run() {
-                try {
-                    long currentNow = powerEstimator.getCurrentNow();
-                    if (currentNow < 0) { currentNow = currentNow * -1; }
-                    powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
-                } catch (Exception e) {
-                    e.printStackTrace();
+                while(mConnecting) {
+                    try {
+                        long currentNow = powerEstimator.getCurrentNow();
+                        if (currentNow < 0) { currentNow = currentNow * -1; }
+                        powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
+                        if(!mConnecting) {threadPowerMeasure.interrupt();break;}
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         };
     }
 
-    private void stopPowerMeasure() {
-        powerEstimator.stop();
-        schedulerPower.shutdownNow();
+    private synchronized void stopPowerMeasure() {
+        mConnecting = false;
         powerEstimator.stop();
 
         try {

@@ -10,7 +10,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -29,19 +28,12 @@ public class RoundRobin {
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> future;
     private IGatewayService iGatewayService;
-    private PowerEstimator mServicePE;
 
-    private boolean mBoundPE;
     private boolean mScanning;
     private Context context;
     private boolean mProcessing;
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
-    private long powerUsage = 0;
-
-    private ThreadTrackingPriority process;
-    private ThreadTrackingPriority processConnecting;
-    private ThreadTrackingPriority processPowerMeasurement;
 
     private ExecutionTask<String> executionTask;
 
@@ -70,9 +62,7 @@ public class RoundRobin {
             try {
                 cycleCounter++;
                 iGatewayService.setCycleCounter(cycleCounter);
-                if (cycleCounter > 1) {
-                    broadcastClrScrn();
-                }
+                if (cycleCounter > 1) { broadcastClrScrn(); }
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle...");
                 broadcastUpdate("Cycle number " + cycleCounter);
@@ -115,8 +105,7 @@ public class RoundRobin {
                 // do connecting by Round Robin
                 for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                     broadcastServiceInterface("Start service interface");
-                    processConnecting = new ThreadTrackingPriority(10);
-                    processConnecting.newThread(doConnecting(device.getAddress())).start();
+                    Thread connectingThread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Connecting Thread " + device.getAddress(), Thread.MAX_PRIORITY);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -127,11 +116,9 @@ public class RoundRobin {
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(100);
-                    processConnecting.interruptThread();
-
+                    executionTask.interruptThread(connectingThread);
             }
         } catch(RemoteException e)
-
         {
             e.printStackTrace();
         }
