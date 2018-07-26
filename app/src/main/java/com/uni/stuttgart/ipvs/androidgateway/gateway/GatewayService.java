@@ -178,6 +178,9 @@ public class GatewayService extends Service {
     private final IGatewayService.Stub mBinder = new IGatewayService.Stub() {
 
         private int cycleCounter = 0;
+        private Map<String, double[]> powerConstraint = new HashMap<>();
+        private Map<String, Integer> timerSettings = new HashMap<>();
+        private String timeUnit = null;
 
         @Override
         public int getPid() throws RemoteException {
@@ -191,6 +194,11 @@ public class GatewayService extends Service {
         @Override
         public int getNumberRunningTasks() throws RemoteException {
             return executionTask.getNumberOfTasks();
+        }
+
+        @Override
+        public int getNumberOfThreads() throws RemoteException {
+            return executionTask.getNumberOfThreads();
         }
 
         @Override
@@ -718,45 +726,60 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void setPowerUsageConstraints(String dataName, double[] data) throws RemoteException {
+            if(powerConstraint.size() > 3) {
+                powerConstraint = new HashMap<>();
+            } else {
+                powerConstraint.put(dataName, data);
+            }
+        }
+
+        @Override
         public double[] getPowerUsageConstraints(double batteryLevel) throws RemoteException {
-            double[] powerConstraint = new double[3];
             int currentLevel = (int) batteryLevel;
+            double[] powerUsageConstraints = new double[3];
 
-            try {
-                NodeList list = xmlDocument.getElementsByTagName("DataPowerConstraint");
-                Node node = list.item(0);
+            for(Map.Entry entry : powerConstraint.entrySet()) {
+                String key = (String) entry.getKey();
+                double[] data = (double[]) entry.getValue();
 
-                Node nodeData = node.getFirstChild().getNextSibling();
-                Node batLvlDown = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                int batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
-                Node batLvlUp = batLvlDown.getNextSibling().getNextSibling();
-                int batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+                String batLevelString = key.substring(0, key.indexOf(","));
+                String batLevelUpString = key.substring(key.indexOf(",")+1);
+
+                int batLevel = Integer.valueOf(batLevelString);
+                int batLevelUp = Integer.valueOf(batLevelUpString);
 
                 if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
-                   powerConstraint = getPowerConstraint(batLvlUp);
-                } else {
-                    Node nodeData2 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                    batLvlDown = nodeData2.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                    batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
-                    batLvlUp = batLvlDown.getNextSibling().getNextSibling();
-                    batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
-
-                    if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
-                        powerConstraint = getPowerConstraint(batLvlUp);
-                    } else {
-                        Node nodeData3 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                        batLvlDown = nodeData3.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                        batLvlUp = batLvlDown.getNextSibling().getNextSibling();
-
-                        powerConstraint = getPowerConstraint(batLvlUp);
-                    }
+                   powerUsageConstraints = data;
+                   break;
                 }
-
-            } catch (Exception e) {
-                e.printStackTrace();
             }
 
-            return powerConstraint;
+            return powerUsageConstraints;
+        }
+
+        @Override
+        public void setTimeSettings(String dataName, int data) throws RemoteException {
+            if(timerSettings.size() > 4) {
+                timerSettings = new HashMap<>();
+            } else {
+                timerSettings.put(dataName, data);
+            }
+        }
+
+        @Override
+        public int getTimeSettings(String type) throws RemoteException {
+            return timerSettings.get(type);
+        }
+
+        @Override
+        public void setTimeUnit(String unit) throws RemoteException {
+            timeUnit = unit;
+        }
+
+        @Override
+        public String getTimeUnit() throws RemoteException {
+            return timeUnit;
         }
 
         @Override

@@ -28,11 +28,12 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 // implementation of Scheduling using Exhaustive Polling
 public class ExhaustivePollingWithWSM {
 
-    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
-    private static final int SCAN_TIME_HALF = SCAN_TIME / 2; // set scanning and reading time to 10 seoonds
-    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
-
     private IGatewayService iGatewayService;
+
+    private int SCAN_TIME; // set scanning and reading time to 10 seoonds
+    private int SCAN_TIME_HALF; // set scanning and reading time half of original scan time
+    private int PROCESSING_TIME; // set processing time to 60 seconds
+
 
     private BluetoothDevice mDevice;
     private boolean mScanning;
@@ -50,6 +51,13 @@ public class ExhaustivePollingWithWSM {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        try {
+            this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
+            this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
+            this.PROCESSING_TIME = iGatewayService.getTimeSettings("ProcessingTime");
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
     public void stop() {

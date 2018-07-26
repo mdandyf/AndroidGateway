@@ -25,9 +25,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class PriorityBasedWithAHP {
 
-    private static final int SCAN_TIME = 10000; // set scanning to 10 seoonds
-    private static final int SCAN_TIME_OTHER = SCAN_TIME/2; // set scanning time to half of previous scan time
-    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
+    private int SCAN_TIME; // set scanning to 10 seoonds
+    private int SCAN_TIME_OTHER; // set scanning time to half of previous scan time
+    private int PROCESSING_TIME; // set processing time to 60 seconds
 
     private ScheduledThreadPoolExecutor schedulerPower;
     private ScheduledThreadPoolExecutor scheduler;
@@ -52,6 +52,13 @@ public class PriorityBasedWithAHP {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        try {
+            this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
+            this.SCAN_TIME_OTHER = iGatewayService.getTimeSettings("ScanningTime2");
+            this.PROCESSING_TIME = iGatewayService.getTimeSettings("ProcessingTime");
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
     public void stop() {

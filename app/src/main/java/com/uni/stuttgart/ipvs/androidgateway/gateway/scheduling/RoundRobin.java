@@ -22,8 +22,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 // Implementation of Round Robin Scheduling Gateway Controller
 public class RoundRobin {
 
-    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
-    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
+    private int SCAN_TIME; // set scanning and reading time to 10 seoonds
+    private int SCAN_TIME_HALF;
+    private int PROCESSING_TIME; // set processing time to 60 seconds
 
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> future;
@@ -41,6 +42,13 @@ public class RoundRobin {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        try {
+            this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
+            this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
+            this.PROCESSING_TIME = iGatewayService.getTimeSettings("ProcessingTime");
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
     public void stop() {

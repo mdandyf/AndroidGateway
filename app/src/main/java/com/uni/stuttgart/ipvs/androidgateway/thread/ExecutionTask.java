@@ -52,10 +52,6 @@ public class ExecutionTask<T> extends TaskTracking {
         return executor;
     }
 
-    public ScheduledThreadPoolExecutor getScheduler() {
-        return scheduler;
-    }
-
     public ScheduledFuture<?> getFuture() {
         return future;
     }
@@ -95,6 +91,10 @@ public class ExecutionTask<T> extends TaskTracking {
     /**
      * Section Scheduled ThreadPool Task Execution
      */
+
+    public ScheduledThreadPoolExecutor getScheduler() {
+        return scheduler;
+    }
 
     public ScheduledThreadPoolExecutor scheduleWithThreadPoolExecutor(Runnable runnable, long initDelay, long repeat, TimeUnit timeUnit) {
         scheduler = new ScheduledThreadPoolExecutor(this.corePoolSize);

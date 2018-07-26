@@ -25,7 +25,6 @@ public class PowerEstimator {
 
     private ExecutionTask<String> executionTask;
     private ScheduledThreadPoolExecutor scheduler;
-    private ScheduledFuture<?> future;
 
     private BatteryManager batteryManager;
     private Context context;
@@ -59,14 +58,12 @@ public class PowerEstimator {
         // start scheduler to measure battery properties
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N*2);
-        scheduler = executionTask.scheduleWithThreadPoolExecutor(new ReadPowerData(), 0, 100, TimeUnit.MILLISECONDS);
-        future = executionTask.getFuture();
+        executionTask.scheduleWithThreadPoolExecutor(new ReadPowerData(), 0, 100, TimeUnit.MILLISECONDS);
     }
 
     public void stop() {
         // stop the scheduler
-        future.cancel(true);
-        scheduler.shutdownNow();
+        executionTask.terminateScheduler();
     }
 
     public long getCurrentAvg() {

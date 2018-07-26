@@ -23,13 +23,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
 public class FairExhaustivePolling {
-    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
-    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
-
-    private ScheduledThreadPoolExecutor scheduler;
-    private ScheduledThreadPoolExecutor scheduler2;
-    private ScheduledFuture<?> future;
-    private ScheduledFuture<?> future2;
+    private int SCAN_TIME; // set scanning and reading time to 10 seoonds
+    private int SCAN_TIME_HALF; // set scanning and reading time to half
+    private int PROCESSING_TIME; // set processing time to 60 seconds
 
     private IGatewayService iGatewayService;
 
@@ -39,32 +35,33 @@ public class FairExhaustivePolling {
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
 
-    private Thread thread;
     private ExecutionTask<String> executionTask;
 
     public FairExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        try {
+            this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
+            this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
+            this.PROCESSING_TIME = iGatewayService.getTimeSettings("ProcessingTime");
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
     public void start() {
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
 
-        scheduler = executionTask.scheduleWithThreadPoolExecutor(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
-        future = executionTask.getFuture();
-
-        scheduler2 = executionTask.scheduleWithThreadPoolExecutor(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS);
-        future2 = executionTask.getFuture();
+        executionTask.scheduleWithThreadPoolExecutor(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
+        executionTask.scheduleWithThreadPoolExecutor(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS);
     }
 
     public void stop() {
         mProcessing = false;
-        future.cancel(true);
-        future2.cancel(true);
-        scheduler.shutdownNow();
-        scheduler2.shutdownNow();
+        executionTask.stopScheduler();
+        executionTask.terminateScheduler();
     }
 
     private class FEPStartScanning implements Runnable {
@@ -87,7 +84,7 @@ public class FairExhaustivePolling {
                     }
                     // do normal scanning only for half of normal scanning time
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME / 2);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
                 } else {
@@ -119,7 +116,6 @@ public class FairExhaustivePolling {
             }
 
             if (!mProcessing) {
-                future.cancel(true);
                 return;
             }
         }
@@ -135,7 +131,6 @@ public class FairExhaustivePolling {
             }
 
             if (!mProcessing) {
-                future.cancel(true);
                 return;
             }
 
@@ -162,7 +157,6 @@ public class FairExhaustivePolling {
                         // set timer to xx seconds
                         waitThread(maxConnectTime);
                         if (!mProcessing) {
-                            future.cancel(true);
                             return;
                         }
                         broadcastUpdate("Wait time finished, disconnected...");
@@ -179,7 +173,6 @@ public class FairExhaustivePolling {
         @Override
         public void run() {
             if (!mProcessing) {
-                future2.cancel(true);
                 return;
             }
             broadcastUpdate("Update all device states...");
