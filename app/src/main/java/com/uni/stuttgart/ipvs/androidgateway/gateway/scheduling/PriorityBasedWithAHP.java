@@ -14,7 +14,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
 import java.util.Map;
@@ -26,9 +25,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class PriorityBasedWithAHP {
 
-    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
-    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
-    private static final int NUMBER_OF_MAX_CONNECT_DEVICES = 10; // set max 10 devices connect before listening to disconnection time
+    private int SCAN_TIME; // set scanning to 10 seoonds
+    private int SCAN_TIME_OTHER; // set scanning time to half of previous scan time
+    private int PROCESSING_TIME; // set processing time to 60 seconds
 
     private ScheduledThreadPoolExecutor schedulerPower;
     private ScheduledThreadPoolExecutor scheduler;
@@ -36,41 +35,45 @@ public class PriorityBasedWithAHP {
     private ScheduledFuture<?> future;
     private ScheduledFuture<?> future2;
 
-    private Thread sleepThread;
     private IGatewayService iGatewayService;
     private PowerEstimator powerEstimator;
 
     private boolean mScanning;
     private Context context;
     private boolean mProcessing;
-    private boolean isBroadcastRegistered;
 
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
     private long powerUsage = 0;
-    private int connectCounter = 0;
 
-    private ThreadTrackingPriority processConnecting;
     private ExecutionTask<String> executionTask;
 
     public PriorityBasedWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        try {
+            this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
+            this.SCAN_TIME_OTHER = iGatewayService.getTimeSettings("ScanningTime2");
+            this.PROCESSING_TIME = iGatewayService.getTimeSettings("ProcessingTime");
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
     public void stop() {
-        future.cancel(true);future2.cancel(true);
-        scheduler.shutdownNow();scheduler2.shutdownNow();
+        future.cancel(true);
+        future2.cancel(true);
+        scheduler.shutdownNow();
+        scheduler2.shutdownNow();
     }
 
     public void start() {
         try {
-            isBroadcastRegistered = false;
             powerEstimator = new PowerEstimator(context);
 
             int N = Runtime.getRuntime().availableProcessors();
-            executionTask = new ExecutionTask<>(N, N*2);
+            executionTask = new ExecutionTask<>(N, N * 2);
             scheduler = executionTask.scheduleWithThreadPoolExecutor(new FPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
             future = executionTask.getFuture();
 
@@ -88,7 +91,7 @@ public class PriorityBasedWithAHP {
             try {
                 cycleCounter++;
                 iGatewayService.setCycleCounter(cycleCounter);
-                if(cycleCounter > 1) {broadcastClrScrn();}
+                if (cycleCounter > 1) { broadcastClrScrn(); }
                 broadcastUpdate("Start new cycle");
 
                 broadcastUpdate("Cycle number " + cycleCounter);
@@ -97,11 +100,13 @@ public class PriorityBasedWithAHP {
                 if (isDataExist) {
 
                     List<String> devices = iGatewayService.getListActiveDevices();
-                    for (String device : devices) { iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0); }
+                    for (String device : devices) {
+                        iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+                    }
 
                     // do normal scanning only for half of normal scanning time
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME / 2);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_OTHER);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                     iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
@@ -204,23 +209,15 @@ public class PriorityBasedWithAHP {
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 int remainingTime = PROCESSING_TIME - SCAN_TIME;
 
-                if(mapRankedDevices.size() > 0) {
+                if (mapRankedDevices.size() > 0) {
                     broadcastUpdate("\n");
                     maxConnectTime = remainingTime / mapRankedDevices.size();
                     broadcastUpdate("Connecting to " + mapRankedDevices.size() + " device(s)");
                     broadcastUpdate("Maximum connection time for all devices is " + maxConnectTime / 1000 + " s");
                     broadcastUpdate("\n");
 
-                    if(mapRankedDevices.size() > NUMBER_OF_MAX_CONNECT_DEVICES) {
-                        // if more than 10 devices, try to listen to disconnect time before finish waiting
-                        // (ignoring maxConnectTime)
-                        isBroadcastRegistered = registerBroadcastListener();
-                        connect(mapRankedDevices, remainingTime);
-                        if(isBroadcastRegistered) {unregisterBroadcastListener();}
-                    } else {
-                        // if less than 10 devices, waiting time is based on maxConnectTime
-                        connect(mapRankedDevices, remainingTime);
-                    }
+                    connect(mapRankedDevices, remainingTime);
+
                 } else {
                     broadcastUpdate("No nearby device(s) available");
                     return;
@@ -242,10 +239,8 @@ public class PriorityBasedWithAHP {
                     powerUsage = 0;
                     powerEstimator.start();
 
-                    processConnecting = new ThreadTrackingPriority(10);
-                    processConnecting.newThread(doConnecting(device.getAddress())).start();
-
                     schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
+                    Thread connectingThread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Thread Connecting " + device.getAddress(), Thread.MAX_PRIORITY);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -254,10 +249,12 @@ public class PriorityBasedWithAHP {
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(10);
-                    processConnecting.interruptThread();
+
+                    executionTask.interruptThread(connectingThread);
 
                     schedulerPower.shutdownNow();
                     powerEstimator.stop();
+
                     iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
                 }
             } catch (Exception e) {
@@ -300,28 +297,6 @@ public class PriorityBasedWithAHP {
         }
     }
 
-    /**
-     * =================================================================================================================================
-     * Broadcast Listener
-     * =================================================================================================================================
-     */
-
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (action.equals(GatewayService.DISCONNECT_COMMAND)) {
-                String message = intent.getStringExtra("command");
-                if(sleepThread != null && !sleepThread.isInterrupted()) {sleepThread.interrupt();}
-            } else if (action.equals(GatewayService.FINISH_READ)) {
-                String message = intent.getStringExtra("command");
-                if(sleepThread != null && !sleepThread.isInterrupted()) {sleepThread.interrupt();}
-            }
-        }
-
-    };
-
 
     /**
      * =================================================================================================================================
@@ -329,23 +304,15 @@ public class PriorityBasedWithAHP {
      * =================================================================================================================================
      */
 
-    private boolean registerBroadcastListener() {
-        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.DISCONNECT_COMMAND));
-        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
-        return true;
-    }
-
-    private void unregisterBroadcastListener() {
-        context.unregisterReceiver(mReceiver);
-    }
-
     private Runnable doMeasurePower() {
         return new Runnable() {
             @Override
             public void run() {
                 try {
                     long currentNow = powerEstimator.getCurrentNow();
-                    if (currentNow < 0) { currentNow = currentNow * -1; }
+                    if (currentNow < 0) {
+                        currentNow = currentNow * -1;
+                    }
                     powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -369,7 +336,6 @@ public class PriorityBasedWithAHP {
 
     private void waitThread(long time) {
         try {
-            sleepThread = Thread.currentThread();
             Thread.sleep(time);
         } catch (InterruptedException e) {
             e.printStackTrace();

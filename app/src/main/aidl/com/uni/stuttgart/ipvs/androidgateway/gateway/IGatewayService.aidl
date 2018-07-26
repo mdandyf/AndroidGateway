@@ -23,6 +23,8 @@ interface IGatewayService {
 
     int getNumberRunningTasks();
 
+    int getNumberOfThreads();
+
     int getNumberOfProcessor();
 
     void setCycleCounter(in int cycleCounter);
@@ -115,7 +117,17 @@ interface IGatewayService {
 
     String getManufacturerName(in String mfr_id);
 
+    void setPowerUsageConstraints(in String dataName, in double[] data);
+
     double[] getPowerUsageConstraints(in double batteryLevel);
+
+    void setTimeSettings(in String dataName, in int data);
+
+    int getTimeSettings(in String type);
+
+    void setTimeUnit(in String unit);
+
+    String getTimeUnit();
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 

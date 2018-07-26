@@ -13,7 +13,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,8 +21,9 @@ import java.util.Map;
 // implementation of Semaphore Scheduling Gateway Controller
 
 public class Semaphore {
-    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
-    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
+    private int SCAN_TIME; // set scanning and reading time to 10 seoonds
+    private int SCAN_TIME_HALF;
+    private int PROCESSING_TIME; // set processing time to 60 seconds
 
     private IGatewayService iGatewayService;
     private PowerEstimator mServicePE;
@@ -42,6 +42,13 @@ public class Semaphore {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        try {
+            this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
+            this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
+            this.PROCESSING_TIME = iGatewayService.getTimeSettings("ProcessingTime");
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
     
     public void stop() {
@@ -74,7 +81,6 @@ public class Semaphore {
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
                     iGatewayService.execScanningQueue();
 
-                    iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
 
                     if (!mProcessing) { return; }

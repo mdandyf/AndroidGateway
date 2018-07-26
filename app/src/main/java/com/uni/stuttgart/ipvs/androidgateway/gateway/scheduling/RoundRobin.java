@@ -10,7 +10,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -23,25 +22,19 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 // Implementation of Round Robin Scheduling Gateway Controller
 public class RoundRobin {
 
-    private static final int SCAN_TIME = 10000; // set scanning and reading time to 10 seoonds
-    private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
+    private int SCAN_TIME; // set scanning and reading time to 10 seoonds
+    private int SCAN_TIME_HALF;
+    private int PROCESSING_TIME; // set processing time to 60 seconds
 
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> future;
     private IGatewayService iGatewayService;
-    private PowerEstimator mServicePE;
 
-    private boolean mBoundPE;
     private boolean mScanning;
     private Context context;
     private boolean mProcessing;
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
-    private long powerUsage = 0;
-
-    private ThreadTrackingPriority process;
-    private ThreadTrackingPriority processConnecting;
-    private ThreadTrackingPriority processPowerMeasurement;
 
     private ExecutionTask<String> executionTask;
 
@@ -49,6 +42,13 @@ public class RoundRobin {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        try {
+            this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
+            this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
+            this.PROCESSING_TIME = iGatewayService.getTimeSettings("ProcessingTime");
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
     public void stop() {
@@ -70,9 +70,7 @@ public class RoundRobin {
             try {
                 cycleCounter++;
                 iGatewayService.setCycleCounter(cycleCounter);
-                if (cycleCounter > 1) {
-                    broadcastClrScrn();
-                }
+                if (cycleCounter > 1) { broadcastClrScrn(); }
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle...");
                 broadcastUpdate("Cycle number " + cycleCounter);
@@ -115,8 +113,7 @@ public class RoundRobin {
                 // do connecting by Round Robin
                 for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                     broadcastServiceInterface("Start service interface");
-                    processConnecting = new ThreadTrackingPriority(10);
-                    processConnecting.newThread(doConnecting(device.getAddress())).start();
+                    Thread connectingThread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Connecting Thread " + device.getAddress(), Thread.MAX_PRIORITY);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -127,11 +124,9 @@ public class RoundRobin {
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(100);
-                    processConnecting.interruptThread();
-
+                    executionTask.interruptThread(connectingThread);
             }
         } catch(RemoteException e)
-
         {
             e.printStackTrace();
         }
