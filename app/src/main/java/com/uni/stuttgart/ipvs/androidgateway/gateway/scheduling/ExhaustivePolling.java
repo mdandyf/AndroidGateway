@@ -14,6 +14,7 @@ import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -65,6 +66,7 @@ public class ExhaustivePolling {
                 broadcastUpdate("Start new cycle");
                 broadcastUpdate("Cycle number " + cycleCounter);
                 try {
+                    iGatewayService.setCycleCounter(cycleCounter);
                     boolean isDataExist = iGatewayService.checkDevice(null);
                     if (isDataExist) {
                         List<String> devices = iGatewayService.getListActiveDevices();
@@ -90,7 +92,7 @@ public class ExhaustivePolling {
                     List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
 
                     // do Connecting by using Semaphore
-                    for (final BluetoothDevice device : scanResults) {
+                    for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                         broadcastServiceInterface("Start service interface");
                         iGatewayService.doConnect(device.getAddress());
                     }

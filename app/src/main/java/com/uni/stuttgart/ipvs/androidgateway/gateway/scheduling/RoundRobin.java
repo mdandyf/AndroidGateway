@@ -12,6 +12,8 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -50,7 +52,9 @@ public class RoundRobin {
     }
 
     public void stop() {
-
+        mProcessing = false;
+        future.cancel(true);
+        scheduler.shutdownNow();
     }
 
     public void start() {
@@ -65,7 +69,10 @@ public class RoundRobin {
         public void run() {
             try {
                 cycleCounter++;
-                if(cycleCounter > 1) {broadcastClrScrn();}
+                iGatewayService.setCycleCounter(cycleCounter);
+                if (cycleCounter > 1) {
+                    broadcastClrScrn();
+                }
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle...");
                 broadcastUpdate("Cycle number " + cycleCounter);
@@ -76,7 +83,10 @@ public class RoundRobin {
                 mScanning = iGatewayService.getScanState();
                 waitThread(100);
 
-                if(!mProcessing) {future.cancel(false);return;}
+                if (!mProcessing) {
+                    future.cancel(false);
+                    return;
+                }
                 connect();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -93,29 +103,41 @@ public class RoundRobin {
                     int remainingTime = PROCESSING_TIME - SCAN_TIME;
                     maxConnectTime = remainingTime / scanResults.size();
                     broadcastUpdate("Maximum connection time is " + maxConnectTime / 1000 + " s");
-                } else {return;}
+                } else {
+                    return;
+                }
 
-                if(!mProcessing) {future.cancel(false);return;}
+                if (!mProcessing) {
+                    future.cancel(false);
+                    return;
+                }
 
                 // do connecting by Round Robin
-                for (final BluetoothDevice device : scanResults) {
+                for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                     broadcastServiceInterface("Start service interface");
                     processConnecting = new ThreadTrackingPriority(10);
                     processConnecting.newThread(doConnecting(device.getAddress())).start();
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if(!mProcessing) {future.cancel(false);return;}
+                    if (!mProcessing) {
+                        future.cancel(false);
+                        return;
+                    }
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(100);
                     processConnecting.interruptThread();
-                }
-            } catch (RemoteException e) {
-                e.printStackTrace();
+
             }
+        } catch(RemoteException e)
+
+        {
+            e.printStackTrace();
         }
     }
+
+}
 
     private Runnable doConnecting(final String macAddress) {
         return new Runnable() {

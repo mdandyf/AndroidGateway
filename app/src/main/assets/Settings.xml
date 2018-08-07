@@ -2,7 +2,7 @@
 <root>
     <DataAlgorithm>
         <data>
-            <currentAlgorithm>fep</currentAlgorithm>
+            <currentAlgorithm>ahp</currentAlgorithm>
         </data>
     </DataAlgorithm>
     <DataPowerConstraint>
@@ -31,4 +31,12 @@
             <threshold3>10^13</threshold3>
         </data>
     </DataPowerConstraint>
+    <DataTime>
+        <data>
+            <ProcessingTime>60000</ProcessingTime>
+            <ScanningTime>10000</ScanningTime>
+            <ScanningTime2>5000</ScanningTime2>
+            <unit>ms</unit>
+        </data>
+    </DataTime>
 </root>

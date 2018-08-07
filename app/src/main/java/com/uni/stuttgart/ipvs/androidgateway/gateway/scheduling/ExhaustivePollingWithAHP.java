@@ -80,6 +80,7 @@ public class ExhaustivePollingWithAHP {
                 broadcastUpdate("Start new cycle");
                 broadcastUpdate("Cycle number " + cycleCounter);
                 try {
+                    iGatewayService.setCycleCounter(cycleCounter);
                     boolean isDataExist = iGatewayService.checkDevice(null);
                     if (isDataExist) {
                         List<String> devices = iGatewayService.getListActiveDevices();

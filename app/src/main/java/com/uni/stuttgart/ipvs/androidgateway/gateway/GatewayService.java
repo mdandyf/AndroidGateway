@@ -193,6 +193,9 @@ public class GatewayService extends Service {
      */
 
     private final IGatewayService.Stub mBinder = new IGatewayService.Stub() {
+
+        private int cycleCounter = 0;
+
         @Override
         public int getPid() throws RemoteException {
             return Process.myPid();
@@ -210,6 +213,16 @@ public class GatewayService extends Service {
         @Override
         public int getNumberOfProcessor() throws RemoteException {
             return executionTask.getAvailableProcessor();
+        }
+
+        @Override
+        public void setCycleCounter(int cycleCounter) throws RemoteException {
+            this.cycleCounter = cycleCounter;
+        }
+
+        @Override
+        public int getCycleCounter() throws RemoteException {
+            return this.cycleCounter;
         }
 
         @Override
