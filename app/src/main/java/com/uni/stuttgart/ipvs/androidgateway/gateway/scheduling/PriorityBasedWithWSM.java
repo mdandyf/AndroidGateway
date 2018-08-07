@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.RemoteException;
+import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
@@ -16,6 +17,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,10 +32,11 @@ public class PriorityBasedWithWSM {
     private int SCAN_TIME; // set scanning and reading time to 10 seoonds
     private int SCAN_TIME_HALF; // set scanning and reading time half of original scan time
     private int PROCESSING_TIME; // set processing time to 60 seconds
+    private int TIME_MEASURE_POWER = 500; // measure power every 0.5 seconds
 
-    private ScheduledThreadPoolExecutor schedulerPower;
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledThreadPoolExecutor scheduler2;
+    private ScheduledThreadPoolExecutor schedulerPowerMeasure;
     private ScheduledFuture<?> future;
     private ScheduledFuture<?> future2;
 
@@ -43,6 +46,7 @@ public class PriorityBasedWithWSM {
     private boolean mScanning;
     private Context context;
     private boolean mProcessing;
+    private boolean mConnecting;
 
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
@@ -64,6 +68,7 @@ public class PriorityBasedWithWSM {
     }
 
     public void stop() {
+        mConnecting = false;
         future.cancel(true);
         future2.cancel(true);
         scheduler.shutdownNow();
@@ -72,6 +77,7 @@ public class PriorityBasedWithWSM {
 
     public void start() {
         try {
+            mConnecting = false;
             powerEstimator = new PowerEstimator(context);
 
             int N = Runtime.getRuntime().availableProcessors();
@@ -169,27 +175,27 @@ public class PriorityBasedWithWSM {
                 }
 
                 // do connecting by Round Robin
-                for (final BluetoothDevice device : scanResults) {
+                for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
+                    mConnecting = true;
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
                     broadcastServiceInterface("Start service interface");
 
-                    powerUsage = 0;
-                    powerEstimator.start();
+                    startStopPowerMeasure(device, "Start");
 
-                    schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
                     PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
+                    schedulerPowerMeasure = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, TIME_MEASURE_POWER, TimeUnit.MILLISECONDS);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if (!mProcessing) { return; }
+                    if (!mProcessing) {
+                        return;
+                    }
 
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
 
-                    schedulerPower.shutdownNow();
-                    powerEstimator.stop();
-
-                    iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
+                    schedulerPowerMeasure.shutdownNow();
+                    startStopPowerMeasure(device, "Stop");
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -222,7 +228,7 @@ public class PriorityBasedWithWSM {
                     broadcastUpdate("Maximum connection time for all devices is " + maxConnectTime / 1000 + " s");
                     broadcastUpdate("\n");
 
-                    connect(mapRankedDevices, remainingTime);
+                    connect(mapRankedDevices);
 
                 } else {
                     broadcastUpdate("No nearby device(s) available");
@@ -236,30 +242,29 @@ public class PriorityBasedWithWSM {
         }
 
         // implementation of connect after ranking the devices
-        private void connect(Map<BluetoothDevice, Double> mapRankedDevices, int remainingTime) {
+        private void connect(Map<BluetoothDevice, Double> mapRankedDevices) {
             try {
                 for (Map.Entry entry : mapRankedDevices.entrySet()) {
+                    mConnecting = true;
                     BluetoothDevice device = (BluetoothDevice) entry.getKey();
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
-                    powerUsage = 0;
-                    powerEstimator.start();
+                    startStopPowerMeasure(device, "Start");
 
-                    schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
-                    Thread connectingThread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Thread Connecting " + device.getAddress(), Thread.MAX_PRIORITY);
+                    PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
+                    schedulerPowerMeasure = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, TIME_MEASURE_POWER, TimeUnit.MILLISECONDS);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if (!mProcessing) { return; }
+                    if (!mProcessing) {
+                        return;
+                    }
 
                     broadcastUpdate("Wait time finished, disconnected...");
-                    iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
-                    waitThread(10);
-                    executionTask.interruptThread(connectingThread);
+                    iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
 
-                    schedulerPower.shutdownNow();
-                    powerEstimator.stop();
-                    iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
+                    schedulerPowerMeasure.shutdownNow();
+                    startStopPowerMeasure(device, "Stop");
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -308,7 +313,7 @@ public class PriorityBasedWithWSM {
      * =================================================================================================================================
      */
 
-    private Runnable doMeasurePower() {
+    private synchronized Runnable doMeasurePower() {
         return new Runnable() {
             @Override
             public void run() {
@@ -318,6 +323,9 @@ public class PriorityBasedWithWSM {
                         currentNow = currentNow * -1;
                     }
                     powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
+                    if (!mConnecting) {
+                        schedulerPowerMeasure.shutdownNow();return;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -325,17 +333,23 @@ public class PriorityBasedWithWSM {
         };
     }
 
-    private Runnable doConnecting(final String macAddress) {
-        return new Runnable() {
-            @Override
-            public void run() {
+    private synchronized void startStopPowerMeasure(BluetoothDevice mDevice, String type) {
+        switch (type) {
+            case "Start":
+                powerUsage = 0;
+                powerEstimator.start();
+                break;
+            case "Stop":
+                mConnecting = false;
+                powerEstimator.stop();
+
                 try {
-                    iGatewayService.doConnect(macAddress);
+                    iGatewayService.updateDatabaseDevicePowerUsage(mDevice.getAddress(), powerUsage);
                 } catch (RemoteException e) {
                     e.printStackTrace();
                 }
-            }
-        };
+                break;
+        }
     }
 
     private void waitThread(long time) {

@@ -6,6 +6,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.MatrixComputation;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -60,7 +61,7 @@ public class AHP implements Callable<Map<BluetoothDevice, Double>> {
     //process calculation of AHP on each device
     private void processing() {
         try {
-            for(BluetoothDevice device : listDevices) {
+            for(BluetoothDevice device : new ArrayList<BluetoothDevice>(listDevices)) {
 
                 // get device parameters
                 int rssi = iGatewayService.getDeviceRSSI(device.getAddress());

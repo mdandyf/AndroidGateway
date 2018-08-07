@@ -154,11 +154,11 @@ public class FairExhaustivePolling {
                 if (devices.contains(device.getAddress())) {
                     try {
                         PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
+
                         // set timer to xx seconds
                         waitThread(maxConnectTime);
-                        if (!mProcessing) {
-                            return;
-                        }
+                        if (!mProcessing) { return; }
+
                         broadcastUpdate("Wait time finished, disconnected...");
                         iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
                     } catch (RemoteException e) {

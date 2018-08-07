@@ -1,5 +1,12 @@
 package com.uni.stuttgart.ipvs.androidgateway.thread;
 
+import android.annotation.TargetApi;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
+import android.content.Context;
+import android.os.Build;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -148,6 +155,23 @@ public class ExecutionTask<T> extends TaskTracking {
         } else {
             this.executor = Executors.newFixedThreadPool(this.maxPoolSize);
         }
+    }
+
+    /**
+     * Section Task Execution using Job Scheduler
+     */
+
+    @TargetApi(Build.VERSION_CODES.M)
+    public void scheduleJob(Context context, Class<?> className, long initDelay, long repeat) {
+        ComponentName serviceComponent = new ComponentName(context, className);
+        JobInfo.Builder builder = new JobInfo.Builder(0, serviceComponent);
+        builder.setMinimumLatency(initDelay); // wait at least
+        builder.setOverrideDeadline(repeat); // maximum delay
+        //builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED); // require unmetered network
+        builder.setRequiresDeviceIdle(true); // device should be idle
+        builder.setRequiresCharging(false); // we don't care if the device is charging or not
+        JobScheduler jobScheduler = context.getSystemService(JobScheduler.class);
+        jobScheduler.schedule(builder.build());
     }
 
 }
