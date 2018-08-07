@@ -259,5 +259,7 @@ public class BluetoothLeScanProcess {
         } else {
             mBluetoothAdapter.stopLeScan(callbackOld);
         }
+
+
     }
 }

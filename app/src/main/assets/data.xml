@@ -3,16 +3,21 @@
     <manufacturer>
         <id>0x0157</id>
         <name>Anhui Huami Information Technology</name>
-        <service>0000fee1-0000-1000-8000-00805f9b34fb</service>
+        <service>0000fee0-0000-1000-8000-00805f9b34fb</service>
     </manufacturer>
     <manufacturer>
         <id>0x0401</id>
         <name>Vemiter Lamp Service</name>
-        <service>0000fff0-0000-1000-8000-00805f9b34fb</service>
+        <service>0000fff1-0000-1000-8000-00805f9b34fb</service>
     </manufacturer>
     <manufacturer>
         <id>0x0001</id>
         <name>Nokia Mobile Phones</name>
+        <service>0000180d-0000-1000-8000-00805f9b34fb</service>
+    </manufacturer>
+    <manufacturer>
+        <id>0x0002</id>
+        <name>Intel Corp.</name>
         <service>0000180d-0000-1000-8000-00805f9b34fb</service>
     </manufacturer>
 </manufacturers>

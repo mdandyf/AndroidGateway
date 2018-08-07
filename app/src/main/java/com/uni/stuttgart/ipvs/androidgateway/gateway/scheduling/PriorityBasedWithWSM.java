@@ -193,6 +193,7 @@ public class PriorityBasedWithWSM {
             try {
                 /*registerBroadcast(); // start listening to disconnected Gatt and or finished read data*/
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+
                 Map<BluetoothDevice, Double> mapRankedDevices;
                 if (scanResults.size() != 0) {
                     broadcastUpdate("\n");

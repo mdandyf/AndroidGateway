@@ -80,7 +80,8 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.FINISH_READ";
     public static final String START_NEW_CYCLE =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_NEW_CYCLE";
-
+    /*public static final String STOP_SCAN =
+            "com..uni-stuttgart.ipvs.androidgateway.gateway.STOP_SCAN";*/
     private Intent mIntent;
     private Context context;
 
@@ -289,16 +290,16 @@ public class GatewayService extends Service {
         @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
             // only known devices that will be processed
-            if (scanResults.size() > 0) {
-                for (Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext(); ) {
-                    BluetoothDevice device = iterator.next();
-                    if (!isDeviceManufacturerKnown(device.getAddress())) {
-                        updateDatabaseDeviceState(device, "inactive");
-                        iterator.remove();
+            synchronized (scanResults) {
+                if (scanResults.size() > 0) {
+                    for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
+                        if (!isDeviceManufacturerKnown(device.getAddress())) {
+                            updateDatabaseDeviceState(device, "inactive");
+                            scanResults.remove(device);
+                        }
                     }
                 }
             }
-
             return scanResults;
         }
 
@@ -380,12 +381,13 @@ public class GatewayService extends Service {
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
                             broadcastUpdate("Stop scanning bluetooth...");
-                            broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
+                            //broadcastCommand("Devices after scan: " + getScanResults().size()+ "", STOP_SCAN);
                         } else if (type == BluetoothLeDevice.STOP_SCAN) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
                             broadcastUpdate("Stop scanning...");
+                            //broadcastCommand("Devices after scan: " + getScanResults().size()+ "", STOP_SCAN);
                         } else if (type == BluetoothLeDevice.WAIT_THREAD) {
                             sleepThread(bleDevice.getWaitTime());
                         }

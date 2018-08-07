@@ -4,6 +4,8 @@ import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.os.RemoteException;
+import android.util.Log;
+import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;

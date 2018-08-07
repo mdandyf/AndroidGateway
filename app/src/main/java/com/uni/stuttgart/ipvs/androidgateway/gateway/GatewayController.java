@@ -1,9 +1,11 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Binder;
 import android.os.IBinder;
@@ -23,19 +25,18 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWit
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -53,7 +54,9 @@ public class GatewayController extends Service {
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
 
-    private String algorithm;
+    private MapeAlgorithm mapeAlgorithm;
+
+
     private Semaphore sem;
     private FairExhaustivePolling fep;
     private ExhaustivePolling ep;
@@ -66,7 +69,15 @@ public class GatewayController extends Service {
     private PriorityBasedWithWPM wpm;
 
     private Runnable runnablePeriodic;
-    private Thread threadPeriodic;
+    private Runnable runnableMape;
+    private Runnable runnableAlgorithm;
+    private Thread mapeThread;
+    private Thread algorithmThread;
+
+
+    private final String[] algorithm = {null};
+    private final boolean[] isAlgorithmChanged = {false};
+    private ExecutionTask<Void> executionTask = null;
 
     @Override
     public void onCreate() {
@@ -84,6 +95,8 @@ public class GatewayController extends Service {
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockController");
 
+        //registerReceiver(scanReceiver, new IntentFilter(GatewayService.STOP_SCAN));
+
         return START_STICKY;
     }
 
@@ -92,6 +105,7 @@ public class GatewayController extends Service {
         super.onDestroy();
         mProcessing = false;
         if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
+        //unregisterReceiver(scanReceiver);
         stopService(mIntent);
         stopSelf();
     }
@@ -120,7 +134,6 @@ public class GatewayController extends Service {
         if(wsm != null) {wsm.stop();}
         if(wpm != null) {wpm.stop();}
 
-        if(threadPeriodic != null) {threadPeriodic.interrupt();}
         if(mConnection != null) {unbindService(mConnection); }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         return false;
@@ -154,39 +167,39 @@ public class GatewayController extends Service {
             broadcastUpdate("GatewayController & GatewayService have bound...");
             initDatabase();
 
+
+            //MARWAN
+
+            //Choose First Algorithm
+            // read from .xml settings file
+            Document xmlFile = null;
             try {
-                // read from .xml settings file
-                Document xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
+                xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
                 NodeList list = xmlFile.getElementsByTagName("DataAlgorithm");
                 Node nodeDataAlgo = list.item(0);
                 Node nodeData = nodeDataAlgo.getFirstChild().getNextSibling();
                 Node nodeAlgo = nodeData.getFirstChild().getNextSibling();
-                algorithm = nodeAlgo.getFirstChild().getNodeValue();
-
-                if(algorithm.equals("sem")) {
-                    doScheduleSemaphore();
-                } else if(algorithm.equals("ep")) {
-                    doScheduleEP();
-                } else if(algorithm.equals("fep")) {
-                    doScheduleFEP();
-                } else if(algorithm.equals("rr")) {
-                    doScheduleRR();
-                } else if(algorithm.equals("epAhp")) {
-                    doScheduleEPwithAHP();
-                } else if(algorithm.equals("epWsm")) {
-                    doScheduleEPwithWSM();
-                } else if(algorithm.equals("ahp")) {
-                    doSchedulePriorityAHP();
-                } else if(algorithm.equals("anp")) {
-                    doSchedulePriorityANP();
-                } else if(algorithm.equals("wsm")) {
-                    doSchedulePriorityWSM();
-                } else if(algorithm.equals("wpm")) {
-                    doSchedulePriorityWPM();
-                }
+                algorithm[0] = nodeAlgo.getFirstChild().getNodeValue();
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            executionTask = new ExecutionTask<Void>(1,2);
+            executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
+
+            //isAlgorithmChanged[0] = false;
+
+            //Schedule algorithm thread
+            runnableAlgorithm = doSchedulingAlgorithm();
+
+            algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
+
+            //MAPE
+            runnableMape = doMAPEAlgorithm();
+            //REPEAT MAPE EVERY 1 MINUTE
+            executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
+
+
         }
 
 
@@ -362,6 +375,104 @@ public class GatewayController extends Service {
     }
 
 
+    //MARWAN
+
+    private synchronized Runnable doSchedulingAlgorithm() {
+
+        return  new Runnable() {
+            @Override
+            public void run() {
+
+                if(algorithm[0].equals("ep")) {
+                    doScheduleEP();
+                } else if(algorithm[0].equals("fep")) {
+                    doScheduleFEP();
+                } else if(algorithm[0].equals("epAhp")) {
+                    doScheduleEPwithAHP();
+                } else if(algorithm[0].equals("epWsm")) {
+                    doScheduleEPwithWSM();
+                } else if(algorithm[0].equals("ahp")) {
+                    doSchedulePriorityAHP();
+                } else if(algorithm[0].equals("wsm")) {
+                    doSchedulePriorityWSM();
+                }
+
+                //isAlgorithmChanged[0] = false;
+            }
+        };
+
+    }
+
+
+
+
+
+
+    private synchronized Runnable doMAPEAlgorithm() {
+
+        return new Runnable() {
+            @Override
+            public void run() {
+
+                //int mod;
+
+            try {
+
+                /*if(algorithm[0].equalsIgnoreCase("fep") || algorithm[0].equalsIgnoreCase("ahp") || algorithm[0].equalsIgnoreCase("wsm")){
+                    mod = 1;
+                }else {
+                    mod = 10;
+                }*/
+
+
+
+                //READ DEVICES FROM NON VOLATILE MEMORY
+
+                //while (true) {
+
+                    /*if (((iGatewayService.getCycleCounter() % mod) == 0) && (iGatewayService.getCycleCounter() > 1)
+                            && (iGatewayService.getScanState() == false)
+                            ){*/
+
+                        broadcastUpdate("Available Devices: " + iGatewayService.getScanResults().size());
+                        broadcastUpdate("Evaluating new MAPE Algorithm...");
+
+                        Log.d("devices", "Available Devices: " + iGatewayService.getScanResults().size());
+
+                        mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService);
+                        algorithm[0] = mapeAlgorithm.startMape();
+                        broadcastUpdate("Changing Algorithm...");
+                        broadcastUpdate("New Algorithm Is : " + algorithm[0]);
+
+                        Log.d("newAlgorithm", "New Algorithm Is : " + algorithm[0]);
+
+                        if(fep != null) {fep.stop();}
+                        if(ep != null) {ep.stop();}
+                        if(epAhp != null) {epAhp.stop();}
+                        if(epWsm != null) {epWsm.stop();}
+                        if(ahp != null) {ahp.stop();}
+                        if(wsm != null) {wsm.stop();}
+
+                        algorithmThread.interrupt();
+                        //isAlgorithmChanged[0] = true;
+                        algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
+
+                        mapeThread.interrupt();
+                    /*}
+                        else{continue;}*/
+
+               // }
+            }
+            catch (RemoteException e) {
+                e.printStackTrace();
+            }
+
+            }
+        };
+
+    }
+
+
 
     /**
      * End of Algorithm Section
@@ -371,6 +482,22 @@ public class GatewayController extends Service {
      * ============================================================================================================================= *
      * ============================================================================================================================= *
      */
+
+
+/*    private final BroadcastReceiver scanReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(GatewayService.STOP_SCAN)) {
+
+                mapeThread = executionTask.executeRunnableInThread(execMapeAlgorithm(), "MAPE Thread", Thread.MIN_PRIORITY);
+
+            }
+        }
+    };*/
+
+
 
     /**
      * Start Method Routine

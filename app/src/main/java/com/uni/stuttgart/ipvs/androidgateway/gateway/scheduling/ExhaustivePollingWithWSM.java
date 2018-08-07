@@ -47,6 +47,7 @@ public class ExhaustivePollingWithWSM {
     private long powerUsage = 0;
     private PowerEstimator powerEstimator;
 
+
     public ExhaustivePollingWithWSM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;
@@ -149,6 +150,7 @@ public class ExhaustivePollingWithWSM {
     private void connectWSM() {
         try {
             List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+
             Map<BluetoothDevice, Double> mapRankedDevices;
             if(scanResults.size() != 0) {
                 broadcastUpdate("Start ranking device with WSM algorithm...");

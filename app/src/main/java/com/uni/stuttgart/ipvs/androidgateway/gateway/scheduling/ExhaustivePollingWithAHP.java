@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.RemoteException;
+import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
@@ -146,6 +147,7 @@ public class ExhaustivePollingWithAHP {
     private void connectAHP() {
         try {
             Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(iGatewayService.getScanResults());
+
             DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
             mapRankedDevices = sortData.sortMapByComparatorDouble(mapRankedDevices, false);
 

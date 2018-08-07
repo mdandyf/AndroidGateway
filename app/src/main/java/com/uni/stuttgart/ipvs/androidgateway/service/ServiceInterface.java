@@ -335,18 +335,6 @@ public class ServiceInterface extends ListFragment {
                     //Log.d("message", dataAdapter.get(1).toString());
 
                 }
-
-                /*//TEST
-                for(int i = 0; i<activeDevices.size(); i++) {
-                    String mac = activeDevices.get(i);
-                    String deviceName = iGatewayService.getDeviceName(mac);
-                    data.put("Device Address", mac);
-                    data.put("Device Name", deviceName);
-                    if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
-                    Log.d("message", dataAdapter.get(i).toString());
-
-                }*/
-                //if(device.getName() != null) { data.put("Device Name", device.getName()); }
             } catch (RemoteException e) {
                 e.printStackTrace();
             }

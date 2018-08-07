@@ -34,6 +34,7 @@ public class ExhaustivePolling {
     private int cycleCounter = 0;
     private ExecutionTask<String> executionTask;
 
+
     public ExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService) {
         this.context = context;
         this.mProcessing = mProcessing;

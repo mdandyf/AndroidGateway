@@ -15,15 +15,15 @@ VAR_OUTPUT				// Define output variable
 END_VAR
 
 FUZZIFY battery_level			// Fuzzify input variable 'battery_level': {'low', 'average' , 'high'}
-	TERM low := (0, 0) (20, 1) (40, 0);
-	TERM average := (30, 0) (50, 1) (70, 0);
-	TERM high := (60, 0) (80, 1) (100, 0);
+	TERM low := (0, 1) (20, 1) (40, 0);
+	TERM average := (20, 0) (50, 1) (80, 0);
+	TERM high := (60, 0) (80, 1) (100, 1);
 END_FUZZIFY
 
 FUZZIFY devices_number			// Fuzzify input variable 'devices_number': { 'few', 'medium' , 'many' }
-	TERM few := (0, 0) (2, 1) (4, 0);
-    TERM medium := (3, 0) (5, 1) (7, 0);
-    TERM many := (6, 0) (8, 1) (10, 0);
+	TERM few := (0, 1) (2, 1) (4, 0);
+    TERM medium := (2, 0) (5, 1) (8, 0);
+    TERM many := (6, 0) (8, 1) (10, 1);
 END_FUZZIFY
 
 DEFUZZIFY priority_degree			// Defzzzify output variable 'priority_degree' : {'lowest','low','below_average','above_average', 'high', 'highest' }
