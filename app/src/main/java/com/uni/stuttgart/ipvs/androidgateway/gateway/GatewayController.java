@@ -59,7 +59,6 @@ public class GatewayController extends Service {
     private PriorityBasedWithWSM wsm;
     private PriorityBasedWithWPM wpm;
 
-    private Runnable runnablePeriodic;
     private Document xmlFile;
 
     @Override

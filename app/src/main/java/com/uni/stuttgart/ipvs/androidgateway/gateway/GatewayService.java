@@ -92,6 +92,7 @@ public class GatewayService extends Service {
     private BluetoothLeScanProcess mBluetoothLeScanProcess;
     private BluetoothLeGattCallback mBluetoothGattCallback;
     private List<BluetoothDevice> scanResults;
+    private List<BluetoothDevice> scanResultsNV;
     private List<BluetoothGatt> listBluetoothGatt;
     private Map<BluetoothGatt, BluetoothLeGattCallback> mapGattCallback;
     private BluetoothGatt mBluetoothGatt;
@@ -104,6 +105,7 @@ public class GatewayService extends Service {
     private boolean mScanning;
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
+    private PowerEstimator powerEstimator;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
@@ -126,10 +128,12 @@ public class GatewayService extends Service {
         bleDevice = new BluetoothLeDevice();
         bleGatt = new BluetoothLeGatt();
         lock = new Object();
+        powerEstimator = new PowerEstimator(this);
 
         listBluetoothGatt = new ArrayList<>();
         mapGattCallback = new HashMap<>();
         scanResults = new ArrayList<>();
+        scanResultsNV = new ArrayList<>();
 
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
@@ -278,19 +282,28 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void setScanResultNonVolatile(List<BluetoothDevice> scanResult) throws RemoteException {
+            scanResultsNV = scanResult;
+        }
+
+        @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
             // only known devices that will be processed
             if (scanResults.size() > 0) {
-                for (Iterator<BluetoothDevice> iterator = scanResults.iterator(); iterator.hasNext(); ) {
-                    BluetoothDevice device = iterator.next();
+                for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                     if (!isDeviceManufacturerKnown(device.getAddress())) {
                         updateDatabaseDeviceState(device, "inactive");
-                        iterator.remove();
+                        scanResults.remove(device);
                     }
                 }
             }
 
             return scanResults;
+        }
+
+        @Override
+        public List<BluetoothDevice> getScanResultsNonVolatile() throws RemoteException {
+            return scanResultsNV;
         }
 
         @Override
@@ -824,44 +837,65 @@ public class GatewayService extends Service {
                 sendBroadcast(intent);
             }
         }
+
+        @Override
+        public void broadcastServiceInterface(String message) throws RemoteException {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
+                intent.putExtra("message", message);
+                context.sendBroadcast(intent);
+            }
+        }
+
+        @Override
+        public void broadcastClearScreen(String message) throws RemoteException {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+                context.sendBroadcast(intent);
+            }
+        }
+
+        @Override
+        public void startPowerEstimator() throws RemoteException {
+            powerEstimator.start();
+        }
+
+        @Override
+        public void stopPowerEstimator() throws RemoteException {
+            powerEstimator.stop();
+        }
+
+        @Override
+        public long getPowerEstimatorData(String type) throws RemoteException {
+            long result = 0;
+            switch (type) {
+                case "currentAvg":
+                    result = powerEstimator.getCurrentAvg();
+                    break;
+                case "currentNow":
+                    result = powerEstimator.getCurrentNow();
+                    break;
+                case "batteryPercent":
+                    result = powerEstimator.getBatteryPercentage();
+                    break;
+                case "batteryRemaining":
+                    result = powerEstimator.getBatteryRemaining();
+                    break;
+                case "batteryRemainingEnergy":
+                    result = powerEstimator.getBatteryRemainingEnergy();
+                    break;
+                case "batteryRemainingPercent":
+                    result = powerEstimator.getBatteryRemainingPercent();
+                case "voltageAvg":
+                    result = powerEstimator.getVoltageAvg();
+                    break;
+                case "voltageNow":
+                    result = powerEstimator.getVoltageNow();
+                    break;
+            }
+            return result;
+        }
     };
-
-    /**
-     * Some routines about XML Parser for Power Constraint and Threshold
-     */
-
-    private double[] getPowerConstraint(Node batLvlUp) {
-        double[] powerConstraint = new double[3];
-        Node th1 = batLvlUp.getNextSibling().getNextSibling().getFirstChild();
-        String value = th1.getNodeValue();
-        int index = value.indexOf("^");
-        int cn = Integer.valueOf(value.substring(0, index));
-        int pw = Integer.valueOf(value.substring(index+1));
-        double threshold1 = Math.pow(cn, pw);
-
-        Node th2 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
-        String value2 = th2.getNodeValue();
-        index = value2.indexOf("^");
-        cn = Integer.valueOf(value2.substring(0, index));
-        pw = Integer.valueOf(value2.substring(index+1));
-        double threshold2 = Math.pow(cn, pw);
-
-        Node th3 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
-        String value3 = th3.getNodeValue();
-        index = value3.indexOf("^");
-        cn = Integer.valueOf(value3.substring(0, index));
-        pw = Integer.valueOf(value3.substring(index+1));
-        double threshold3 = Math.pow(cn, pw);
-
-        powerConstraint[0] = threshold1;
-        powerConstraint[1] = threshold2;
-        powerConstraint[2] = threshold3;
-
-        return powerConstraint;
-    }
-
-
-
 
     /**
      * Some routines section

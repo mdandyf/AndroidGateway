@@ -3,6 +3,7 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
+import android.os.IBinder;
 import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;

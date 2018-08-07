@@ -45,7 +45,11 @@ interface IGatewayService {
 
     void setScanResult(in List<BluetoothDevice> scanResult);
 
+    void setScanResultNonVolatile(in List<BluetoothDevice> scanResult);
+
     List<BluetoothDevice> getScanResults();
+
+    List<BluetoothDevice> getScanResultsNonVolatile();
 
     void setCurrentGatt(in PBluetoothGatt gatt);
 
@@ -140,5 +144,15 @@ interface IGatewayService {
     void broadcastUpdate(in String message);
 
     void broadcastCommand(in String message, in String action);
+
+    void broadcastServiceInterface(in String message);
+
+    void broadcastClearScreen(in String message);
+
+    void startPowerEstimator();
+
+    void stopPowerEstimator();
+
+    long getPowerEstimatorData(in String type);
 
 }

@@ -69,7 +69,7 @@ public class ExhaustivePollingWithAHP {
 
         powerEstimator = new PowerEstimator(context);
         executionTask = new ExecutionTask<>(N, N * 2);
-        executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
+        executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
         executionTask.submitRunnable(new RunEPScheduling());
     }
 
@@ -111,159 +111,159 @@ public class ExhaustivePollingWithAHP {
                         connectSemaphore();
                     }
 
+
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
+
         }
-    }
 
-    /**
-     * =================================================================================================================================
-     * Type of connections
-     * =================================================================================================================================
-     */
+        /**
+         * =================================================================================================================================
+         * Type of connections
+         * =================================================================================================================================
+         */
 
+        private void connectSemaphore() {
+            try {
+                List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
 
-    private void connectSemaphore() {
-        try {
-            List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                // do Connecting by using Semaphore
+                for (final BluetoothDevice device : scanResults) {
+                    mConnecting = true;
+                    mDevice = device;
+                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
-            // do Connecting by using Semaphore
-            for (final BluetoothDevice device : scanResults) {
-                mConnecting = true;
-                mDevice = device;
-                broadcastServiceInterface("Start service interface");
-                iGatewayService.updateDatabaseDeviceState(device, "inactive");
+                    powerUsage = 0;
+                    powerEstimator.start();
+                    threadPowerMeasure = executionTask.executeRunnableInThread(doMeasurePower(), "Thread Power" + device.getAddress(), Thread.MIN_PRIORITY);
 
-                powerUsage = 0;
-                powerEstimator.start();
-                threadPowerMeasure = executionTask.executeRunnableInThread(doMeasurePower(), "Thread Power" + device.getAddress(), Thread.MIN_PRIORITY);
+                    iGatewayService.doConnect(mDevice.getAddress());
 
-                iGatewayService.doConnect(mDevice.getAddress());
-
-                stopPowerMeasure();
+                    stopPowerMeasure();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
-    }
 
-    private void connectAHP() {
-        try {
-            List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+        private void connectAHP() {
+            try {
+                List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
 
-            if(scanResults.size() != 0) {
-                broadcastUpdate("Start ranking device with AHP algorithm...");
-            } else {
-                broadcastUpdate("No nearby device(s) available...");
-                return;
+                if(scanResults.size() != 0) {
+                    broadcastUpdate("Start ranking device with AHP algorithm...");
+                } else {
+                    broadcastUpdate("No nearby device(s) available...");
+                    return;
+                }
+
+                Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(scanResults);
+
+                // do Connecting by using Semaphore
+                for (Map.Entry entry : mapRankedDevices.entrySet()) {
+                    BluetoothDevice device = (BluetoothDevice)  entry.getKey();
+
+                    mConnecting = true;
+                    mDevice = device;
+                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.updateDatabaseDeviceState(device, "inactive");
+
+                    powerUsage = 0;
+                    powerEstimator.start();
+                    threadPowerMeasure = executionTask.executeRunnableInThread(doMeasurePower(), "Thread Power" + device.getAddress(), Thread.MIN_PRIORITY);
+
+                    iGatewayService.doConnect(mDevice.getAddress());
+
+                    stopPowerMeasure();
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+        }
 
-            Map<BluetoothDevice, Double> mapRankedDevices = doRankDeviceAHP(scanResults);
-            DataSorterHelper<BluetoothDevice> sortData = new DataSorterHelper<>();
-            mapRankedDevices = sortData.sortMapByComparatorDouble(mapRankedDevices, false);
-
-            // do Connecting by using Semaphore
-            for (Map.Entry entry : mapRankedDevices.entrySet()) {
-                BluetoothDevice device = (BluetoothDevice)  entry.getKey();
-
-                mConnecting = true;
-                mDevice = device;
-                broadcastServiceInterface("Start service interface");
-                iGatewayService.updateDatabaseDeviceState(device, "inactive");
-
-                powerUsage = 0;
-                powerEstimator.start();
-                threadPowerMeasure = executionTask.executeRunnableInThread(doMeasurePower(), "Thread Power" + device.getAddress(), Thread.MIN_PRIORITY);
-
-                iGatewayService.doConnect(mDevice.getAddress());
-
-                stopPowerMeasure();
+        // implementation of Ranking Devices based on AHP
+        private Map<BluetoothDevice, Double> doRankDeviceAHP(List<BluetoothDevice> devices) {
+            Map<BluetoothDevice, Double> result = new ConcurrentHashMap<>();
+            try {
+                AHP ahp = new AHP(devices, iGatewayService, powerEstimator.getBatteryRemainingPercent());
+                broadcastUpdate("Sorting devices by their priorities...");
+                result = ahp.call();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-        } catch (Exception e) {
-            e.printStackTrace();
+            return result;
         }
-    }
 
-    // implementation of Ranking Devices based on AHP
-    private Map<BluetoothDevice, Double> doRankDeviceAHP(List<BluetoothDevice> devices) {
-        Map<BluetoothDevice, Double> result = new ConcurrentHashMap<>();
-        try {
-            AHP ahp = new AHP(devices, iGatewayService, powerEstimator.getBatteryRemainingPercent());
-            broadcastUpdate("Sorting devices by their priorities...");
-            result = ahp.call();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return result;
-    }
+        /**
+         * =================================================================================================================================
+         * Device Power Usage Measurement routines
+         * =================================================================================================================================
+         */
 
-    /**
-     * =================================================================================================================================
-     * Device Power Usage Measurement routines
-     * =================================================================================================================================
-     */
-
-    private synchronized Runnable doMeasurePower() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                while(mConnecting) {
-                    try {
-                        long currentNow = powerEstimator.getCurrentNow();
-                        if (currentNow < 0) { currentNow = currentNow * -1; }
-                        powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
-                        if(!mConnecting) {threadPowerMeasure.interrupt();break;}
-                    } catch (Exception e) {
-                        e.printStackTrace();
+        private synchronized Runnable doMeasurePower() {
+            return new Runnable() {
+                @Override
+                public void run() {
+                    while(mConnecting) {
+                        try {
+                            long currentNow = powerEstimator.getCurrentNow();
+                            if (currentNow < 0) { currentNow = currentNow * -1; }
+                            powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
+                            if(!mConnecting) {threadPowerMeasure.interrupt();break;}
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
+            };
+        }
+
+        private synchronized void stopPowerMeasure() {
+            mConnecting = false;
+            powerEstimator.stop();
+
+            try {
+                iGatewayService.updateDatabaseDevicePowerUsage(mDevice.getAddress(), powerUsage);
+            } catch (RemoteException e) {
+                e.printStackTrace();
             }
-        };
-    }
-
-    private synchronized void stopPowerMeasure() {
-        mConnecting = false;
-        powerEstimator.stop();
-
-        try {
-            iGatewayService.updateDatabaseDevicePowerUsage(mDevice.getAddress(), powerUsage);
-        } catch (RemoteException e) {
-            e.printStackTrace();
         }
-    }
 
-    /**
-     * =================================================================================================================================
-     * Other routines
-     * =================================================================================================================================
-     */
+        /**
+         * =================================================================================================================================
+         * Other routines
+         * =================================================================================================================================
+         */
 
-    /**
-     * Clear the screen in Gateway Tab
-     */
-    private void broadcastClrScrn() {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
-            context.sendBroadcast(intent);
+        /**
+         * Clear the screen in Gateway Tab
+         */
+        private void broadcastClrScrn() {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+                context.sendBroadcast(intent);
+            }
         }
-    }
 
-    private void broadcastUpdate(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
-            intent.putExtra("command", message);
-            context.sendBroadcast(intent);
+        private void broadcastUpdate(String message) {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
+                intent.putExtra("command", message);
+                context.sendBroadcast(intent);
+            }
         }
-    }
 
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
-            context.sendBroadcast(intent);
+        private void broadcastServiceInterface(String message) {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
+                intent.putExtra("message", message);
+                context.sendBroadcast(intent);
+            }
         }
     }
 }

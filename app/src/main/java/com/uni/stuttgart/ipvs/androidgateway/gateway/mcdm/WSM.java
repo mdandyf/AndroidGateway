@@ -6,6 +6,7 @@ import android.os.AsyncTask;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -34,7 +35,7 @@ public class WSM implements Callable<Map<BluetoothDevice, Double>> {
             return mapOutput;
         }
 
-        for(BluetoothDevice device : listDevices) {
+        for(BluetoothDevice device : new ArrayList<BluetoothDevice>(listDevices)) {
             // get device parameters
             int rssi = iGatewayService.getDeviceRSSI(device.getAddress());
             String deviceState = iGatewayService.getDeviceState(device.getAddress());
