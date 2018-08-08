@@ -95,22 +95,30 @@ public class ExhaustivePollingWithWSM {
                         List<String> devices = iGatewayService.getListActiveDevices();
                         // search for known device listed in database
                         for (String device : devices) {
-                            iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+                            //iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+
+                            iGatewayService.startScanKnownDevices(device);
                         }
                         // do normal scanning only for half of normal scanning time
-                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
-                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-                        iGatewayService.execScanningQueue();
+                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
+                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+                        //iGatewayService.execScanningQueue();
+
+                        iGatewayService.startScan(SCAN_TIME_HALF);
+                        iGatewayService.stopScan();
                         mScanning = iGatewayService.getScanState();
 
                         connectWSM();
                     } else {
                         // do normal scanning
-                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                        iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-                        iGatewayService.execScanningQueue();
+                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
+                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+                        //iGatewayService.execScanningQueue();
+
+                        iGatewayService.startScan(SCAN_TIME);
+                        iGatewayService.stopScan();
                         mScanning = iGatewayService.getScanState();
 
                         connectSemaphore();

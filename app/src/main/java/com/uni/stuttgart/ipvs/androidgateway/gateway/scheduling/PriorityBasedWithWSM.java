@@ -111,14 +111,19 @@ public class PriorityBasedWithWSM {
 
                     List<String> devices = iGatewayService.getListActiveDevices();
                     for (String device : devices) {
-                        iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+                        //iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+
+                        iGatewayService.startScanKnownDevices(device);
                     }
 
                     // do normal scanning only for half of normal scanning time
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                    /*iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                    iGatewayService.execScanningQueue();
+                    iGatewayService.execScanningQueue();*/
+
+                    iGatewayService.startScan(SCAN_TIME_HALF);
+                    iGatewayService.stopScanning();
                     mScanning = iGatewayService.getScanState();
 
                     if (!mProcessing) {
@@ -135,10 +140,13 @@ public class PriorityBasedWithWSM {
                     connectFP();
                 } else {
                     // do normal scanning
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                    /*iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                    iGatewayService.execScanningQueue();
+                    iGatewayService.execScanningQueue();*/
+
+                    iGatewayService.startScan(SCAN_TIME);
+                    iGatewayService.stopScanning();
                     mScanning = iGatewayService.getScanState();
 
                     if (!mProcessing) {

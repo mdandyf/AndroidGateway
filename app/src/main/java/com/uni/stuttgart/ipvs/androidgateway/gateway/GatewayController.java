@@ -1,6 +1,7 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway;
 
 import android.app.Service;
+import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -27,7 +28,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -36,6 +36,7 @@ import org.xml.sax.InputSource;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -127,8 +128,10 @@ public class GatewayController extends Service {
     @Override
     public boolean onUnbind(Intent intent) {
         try {
-            iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-            iGatewayService.execScanningQueue();
+            //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+            //iGatewayService.execScanningQueue();
+
+            iGatewayService.stopScan();
         } catch (RemoteException e) {
             e.printStackTrace();
         }
@@ -211,7 +214,7 @@ public class GatewayController extends Service {
 
                 // input data algorithm
                 Map<String, Object> alg = readXMLFile(xmlFile, "DataAlgorithm");
-                String algorithm = (String) alg.get("algorithm");
+                algorithm[0] = (String) alg.get("algorithm");
 
                 // input data powerConstraint
                 Map<String, Object> pwr = readXMLFile(xmlFile, "DataPowerConstraint");
@@ -234,37 +237,14 @@ public class GatewayController extends Service {
                         iGatewayService.setTimeSettings(key, data);
                     }
                 }
-
-
-                if (algorithm.equals("sem")) {
-                    doScheduleSemaphore();
-                } else if (algorithm.equals("ep")) {
-                    doScheduleEP();
-                } else if (algorithm.equals("fep")) {
-                    doScheduleFEP();
-                } else if (algorithm.equals("rr")) {
-                    doScheduleRR();
-                } else if (algorithm.equals("epAhp")) {
-                    doScheduleEPwithAHP();
-                } else if (algorithm.equals("epWsm")) {
-                    doScheduleEPwithWSM();
-                } else if (algorithm.equals("ahp")) {
-                    doSchedulePriorityAHP();
-                } else if (algorithm.equals("anp")) {
-                    doSchedulePriorityANP();
-                } else if (algorithm.equals("wsm")) {
-                    doSchedulePriorityWSM();
-                } else if (algorithm.equals("wpm")) {
-                    doSchedulePriorityWPM();
-                }
-
-
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
 
+
+            //MARWAN
             executionTask = new ExecutionTask<Void>(1,2);
             executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
 
@@ -534,10 +514,11 @@ public class GatewayController extends Service {
                             && (iGatewayService.getScanState() == false)
                             ){*/
 
-                        broadcastUpdate("Available Devices: " + iGatewayService.getScanResults().size());
-                        broadcastUpdate("Evaluating new MAPE Algorithm...");
+                        //List<BluetoothDevice> deviceList = iGatewayService.getScanResultsNonVolatile();
 
-                        Log.d("devices", "Available Devices: " + iGatewayService.getScanResults().size());
+
+                        broadcastUpdate("Available Devices: " + iGatewayService.getScanResultsNonVolatile());
+                        broadcastUpdate("Evaluating new MAPE Algorithm...");
 
                         mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService);
                         algorithm[0] = mapeAlgorithm.startMape();
@@ -556,14 +537,12 @@ public class GatewayController extends Service {
                         algorithmThread.interrupt();
                         //isAlgorithmChanged[0] = true;
                         algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
-
-                        mapeThread.interrupt();
                     /*}
                         else{continue;}*/
 
                // }
             }
-            catch (RemoteException e) {
+            catch (Exception e) {
                 e.printStackTrace();
             }
 

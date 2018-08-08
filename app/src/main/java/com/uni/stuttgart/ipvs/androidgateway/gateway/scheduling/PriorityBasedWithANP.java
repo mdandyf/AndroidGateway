@@ -95,13 +95,16 @@ public class PriorityBasedWithANP {
                 if (isDataExist) {
 
                     List<String> devices = iGatewayService.getListActiveDevices();
-                    for (String device : devices) { iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0); }
+                    for (String device : devices) { iGatewayService.startScanKnownDevices(device);/*iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);*/ }
 
                     // do normal scanning only for half of normal scanning time
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                    /*iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME / 2);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                    iGatewayService.execScanningQueue();
+                    iGatewayService.execScanningQueue();*/
+
+                    iGatewayService.startScan(SCAN_TIME / 2);
+                    iGatewayService.stopScanning();
                     mScanning = iGatewayService.getScanState();
 
                     waitThread(100);
@@ -113,11 +116,14 @@ public class PriorityBasedWithANP {
                     connectFP();
                 } else {
                     // do normal scanning
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+                    /*iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
                     iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
+                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);*/
 
-                    iGatewayService.execScanningQueue();
+                    iGatewayService.startScan(SCAN_TIME);
+                    iGatewayService.stopScanning();
+
+                    //iGatewayService.execScanningQueue();
                     mScanning = iGatewayService.getScanState();
 
                     if (!mProcessing) {

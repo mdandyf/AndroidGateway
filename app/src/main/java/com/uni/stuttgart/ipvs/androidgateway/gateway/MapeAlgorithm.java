@@ -67,9 +67,13 @@ public class MapeAlgorithm {
         try {
 
             //GET CURRENT NUMBER OF CONNECTIBLE DEVICES
-            List<BluetoothDevice> activeDevices = iGatewayService.getScanResults();
+            List<BluetoothDevice> activeDevices = iGatewayService.getScanResultsNonVolatile();
+
+            Log.d("mape", "MAPE Devices: " + activeDevices.size()+"");
 
             deviceInput = activeDevices.size();
+
+
 
             if(deviceInput > 10){
                 deviceInput = 10;

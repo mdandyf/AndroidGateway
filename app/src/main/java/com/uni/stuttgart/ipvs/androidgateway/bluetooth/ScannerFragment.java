@@ -228,8 +228,11 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
 
         try {
             iGatewayService.setHandler(null, "mScannerHandler", "Scanner");
-            iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-            iGatewayService.execScanningQueue();
+            //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
+            //iGatewayService.execScanningQueue();
+
+            iGatewayService.startScan(10000);
+
             setMenuVisibility();
             new Handler().postDelayed(new Runnable() {
                 @Override
@@ -245,8 +248,10 @@ public class ScannerFragment extends Fragment implements ImageViewConnectListene
     private void stopLeDevice() {
         mScanning = false;
         try {
-            iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-            iGatewayService.execScanningQueue();
+            //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+            //iGatewayService.execScanningQueue();
+
+            iGatewayService.stopScan();
             setMenuVisibility();
         } catch (RemoteException e) {
             e.printStackTrace();

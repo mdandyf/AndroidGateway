@@ -53,9 +53,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Created by mdand on 3/17/2018.
@@ -145,7 +148,7 @@ public class GatewayService extends Service {
         executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
 
         try {
-            xmlDocument = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
+            xmlDocument = GattDataHelper.parseXML(new InputSource(getAssets().open("Settings.xml")));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -154,7 +157,7 @@ public class GatewayService extends Service {
         try {
             mfrParser = GattDataHelper.parseXML(getAssets().open("data.xml"));
             manufacturers = GattDataHelper.processParsing(mfrParser);
-            } catch (XmlPullParserException e) {
+        } catch (XmlPullParserException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
@@ -299,7 +302,7 @@ public class GatewayService extends Service {
 
         @Override
         public void setScanResultNonVolatile(List<BluetoothDevice> scanResult) throws RemoteException {
-            scanResultsNV = scanResult;
+                scanResultsNV = scanResult;
         }
 
         @Override
@@ -344,75 +347,93 @@ public class GatewayService extends Service {
             }
         }
 
-        @Override
+        /*@Override
         public void addQueueScanning(String macAddress, String name, int rssi, int typeCommand, ParcelUuid serviceUUID, long waitTime) throws RemoteException {
-            UUID uuidService = null;
-            if (serviceUUID != null) { uuidService = serviceUUID.getUuid(); }
-            bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, uuidService, waitTime);
-            queueScanning.add(bleDevice);
-        }
+            synchronized (queueScanning) {
 
-        @Override
+                UUID uuidService = null;
+                if (serviceUUID != null) {
+                    uuidService = serviceUUID.getUuid();
+                }
+                bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, uuidService, waitTime);
+                queueScanning.add(bleDevice);
+            }
+
+        }*/
+
+        /*@Override
         public void execScanningQueue() throws RemoteException {
             status = "Scanning";
             if (queueScanning != null && !queueScanning.isEmpty() && mProcessing) {
                 for (bleDevice = (BluetoothLeDevice) queueScanning.poll(); bleDevice != null; bleDevice = (BluetoothLeDevice) queueScanning.poll()) {
-                    synchronized (bleDevice) {
-                        int type = bleDevice.getType();
-                        if (type == BluetoothLeDevice.SCANNING) {
-                            //step scan new BLE devices
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
-                            mScanning = true;
-                            broadcastUpdate("Scanning bluetooth...");
-                            Log.d(TAG, "Start scanning");
-                            mBluetoothLeScanProcess.scanLeDevice(true);
-                            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                        } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
-                            // step scan for known BLE devices
-                            Log.d(TAG, "Start scanning for known BLE device ");
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
-                            if (bleDevice.getMacAddress() != null) {
-                                // find specific macAddress
-                                mScanning = false;
-                                broadcastUpdate("Searching device " + bleDevice.getMacAddress());
-                                BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(bleDevice.getMacAddress());
-                                if (device == null) {
-                                    broadcastUpdate("Device " + bleDevice.getMacAddress() + "not found, try scanning...");
-                                    mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), true);
+                    synchronized (queueScanning) {
+                        if(bleDevice != null) {
+                            int type = bleDevice.getType();
+                            if (type == BluetoothLeDevice.SCANNING) {
+                                if(!mScanning) {
+                                    //step scan new BLE devices
+                                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
+                                    mScanning = true;
+                                    broadcastUpdate("Scanning bluetooth...");
+                                    Log.d(TAG, "Start scanning");
+                                    mBluetoothLeScanProcess.scanLeDevice(true);
                                     mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                                    sleepThread(500);
-                                    mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), false);
-                                } else {
-                                    mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
                                 }
-                            } else if (bleDevice.getServiceUUID() != null) {
-                                // scan using specific service
-                                mScanning = true;
-                                UUID[] listBle = new UUID[1];
-                                listBle[0] = bleDevice.getServiceUUID();
-                                mBluetoothLeScanProcess.findLeDevice(listBle, true);
-                                mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                                sleepThread(1000);
-                                mBluetoothLeScanProcess.findLeDevice(listBle, false);
+                            } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
+                                // step scan for known BLE devices
+                                Log.d(TAG, "Start scanning for known BLE device ");
+                                Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
+                                if (bleDevice.getMacAddress() != null) {
+                                    // find specific macAddress
+                                    mScanning = false;
+                                    broadcastUpdate("Searching device " + bleDevice.getMacAddress());
+                                    BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(bleDevice.getMacAddress());
+                                    if (device == null) {
+                                        broadcastUpdate("Device " + bleDevice.getMacAddress() + "not found, try scanning...");
+                                        mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), true);
+                                        mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                                        sleepThread(500);
+                                        mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), false);
+                                    } else {
+                                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
+                                    }
+
+                                } else if (bleDevice.getServiceUUID() != null) {
+                                    // scan using specific service
+                                    if(!mScanning) {
+                                        mScanning = true;
+                                        UUID[] listBle = new UUID[1];
+                                        listBle[0] = bleDevice.getServiceUUID();
+                                        mBluetoothLeScanProcess.findLeDevice(listBle, true);
+                                        mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                                        sleepThread(1000);
+                                        mBluetoothLeScanProcess.findLeDevice(listBle, false);
+                                    }
+                                }
+                            } else if (type == BluetoothLeDevice.STOP_SCANNING) {
+                                if(mScanning) {
+                                    mScanning = false;
+                                    mBluetoothLeScanProcess.scanLeDevice(false);
+                                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
+                                    broadcastUpdate("Stop scanning bluetooth...");
+                                    broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
+                                }
+                            } else if (type == BluetoothLeDevice.STOP_SCAN) {
+                                if (mScanning) {
+                                    mScanning = false;
+                                    mBluetoothLeScanProcess.scanLeDevice(false);
+                                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
+                                    broadcastUpdate("Stop scanning...");
+                                }
+                            } else if (type == BluetoothLeDevice.WAIT_THREAD) {
+                                sleepThread(bleDevice.getWaitTime());
                             }
-                        } else if (type == BluetoothLeDevice.STOP_SCANNING) {
-                            mScanning = false;
-                            mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
-                            broadcastUpdate("Stop scanning bluetooth...");
-                            broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
-                        } else if (type == BluetoothLeDevice.STOP_SCAN) {
-                            mScanning = false;
-                            mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
-                            broadcastUpdate("Stop scanning...");
-                        } else if (type == BluetoothLeDevice.WAIT_THREAD) {
-                            sleepThread(bleDevice.getWaitTime());
+
                         }
                     }
                 }
             }
-        }
+        }*/
 
         @Override
         public void doConnect(String macAddress) throws RemoteException {
@@ -706,26 +727,26 @@ public class GatewayService extends Service {
                     mfrId = "0x" + mfrId;
                     Log.d(TAG, "Company Id: " + mfrId);
 
-                    deviceKnown =  checkManufacturer(mfrId);
+                    deviceKnown = checkManufacturer(mfrId);
 
                     //Device mfrId is Known, then check for serviceUUID
-                    if(deviceKnown){
+                    if (deviceKnown) {
 
                         //Check Service if known
-                        if(mapListAdvertisement.containsKey("DeviceUUID")){
+                        if (mapListAdvertisement.containsKey("DeviceUUID")) {
 
                             UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
 
-                            for(UUID uuid : arrayUUIDs){
+                            for (UUID uuid : arrayUUIDs) {
                                 Log.d(TAG, "Device UUID: " + uuid.toString());
-                                deviceKnown =  checkManufacturerService(mfrId, uuid.toString());
+                                deviceKnown = checkManufacturerService(mfrId, uuid.toString());
                                 Log.d(TAG, "DeviceKnown: " + deviceKnown);
                             }
-                        }else{
+                        } else {
                             // service is not known
                             return false;
                         }
-                    }else {
+                    } else {
                         //device not known
                         return false;
                     }
@@ -759,8 +780,8 @@ public class GatewayService extends Service {
         @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
 
-            for(int i = 0 ; i < manufacturers.size(); i++) {
-                if(mfr_id.equalsIgnoreCase(manufacturers.get(i).id)){
+            for (int i = 0; i < manufacturers.size(); i++) {
+                if (mfr_id.equalsIgnoreCase(manufacturers.get(i).id)) {
                     return true;
                 }
             }
@@ -771,9 +792,9 @@ public class GatewayService extends Service {
         @Override
         public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
 
-            for(int i = 0 ; i < manufacturers.size(); i++) {
-                if(mfr_id.equalsIgnoreCase(manufacturers.get(i).id)){
-                    if (serviceUUID.equalsIgnoreCase(manufacturers.get(i).service)){
+            for (int i = 0; i < manufacturers.size(); i++) {
+                if (mfr_id.equalsIgnoreCase(manufacturers.get(i).id)) {
+                    if (serviceUUID.equalsIgnoreCase(manufacturers.get(i).service)) {
                         return true;
                     }
                 }
@@ -789,7 +810,7 @@ public class GatewayService extends Service {
 
         @Override
         public void setPowerUsageConstraints(String dataName, double[] data) throws RemoteException {
-            if(powerConstraint.size() > 3) {
+            if (powerConstraint.size() > 3) {
                 powerConstraint = new HashMap<>();
             } else {
                 powerConstraint.put(dataName, data);
@@ -801,19 +822,19 @@ public class GatewayService extends Service {
             int currentLevel = (int) batteryLevel;
             double[] powerUsageConstraints = new double[3];
 
-            for(Map.Entry entry : powerConstraint.entrySet()) {
+            for (Map.Entry entry : powerConstraint.entrySet()) {
                 String key = (String) entry.getKey();
                 double[] data = (double[]) entry.getValue();
 
                 String batLevelString = key.substring(0, key.indexOf(","));
-                String batLevelUpString = key.substring(key.indexOf(",")+1);
+                String batLevelUpString = key.substring(key.indexOf(",") + 1);
 
                 int batLevel = Integer.valueOf(batLevelString);
                 int batLevelUp = Integer.valueOf(batLevelUpString);
 
-                if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
-                   powerUsageConstraints = data;
-                   break;
+                if ((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
+                    powerUsageConstraints = data;
+                    break;
                 }
             }
 
@@ -822,7 +843,7 @@ public class GatewayService extends Service {
 
         @Override
         public void setTimeSettings(String dataName, int data) throws RemoteException {
-            if(timerSettings.size() > 4) {
+            if (timerSettings.size() > 4) {
                 timerSettings = new HashMap<>();
             } else {
                 timerSettings.put(dataName, data);
@@ -861,7 +882,7 @@ public class GatewayService extends Service {
 
         @Override
         public String getCharacteristicValue(String macAddress, String serviceUUID, String characteristicUUID) throws RemoteException {
-            return bleCharacteristicDatabase.getCharacteristicValue(macAddress,serviceUUID,characteristicUUID);
+            return bleCharacteristicDatabase.getCharacteristicValue(macAddress, serviceUUID, characteristicUUID);
         }
 
         @Override
@@ -948,6 +969,77 @@ public class GatewayService extends Service {
                     break;
             }
             return result;
+        }
+
+        @Override
+        public void startScan(long time) throws RemoteException {
+
+            synchronized (this){
+                if(!mScanning) {
+                    //step scan new BLE devices
+                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
+                    mScanning = true;
+                    broadcastUpdate("Scanning bluetooth...");
+                    Log.d(TAG, "Start scanning");
+                    mBluetoothLeScanProcess.scanLeDevice(true);
+                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                    try {
+                        Thread.sleep(time);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void stopScanning() throws RemoteException {
+            synchronized (this) {
+                if (mScanning) {
+                    mScanning = false;
+                    mBluetoothLeScanProcess.scanLeDevice(false);
+                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
+                    broadcastUpdate("Stop scanning bluetooth...");
+                    broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
+                }
+            }
+        }
+
+        @Override
+        public void stopScan() throws RemoteException {
+            synchronized (this) {
+                if (mScanning) {
+                    mScanning = false;
+                    mBluetoothLeScanProcess.scanLeDevice(false);
+                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
+                    broadcastUpdate("Stop scanning...");
+                }
+            }
+        }
+
+        @Override
+        public void startScanKnownDevices(String macAddress) throws RemoteException {
+            synchronized (this) {
+                // step scan for known BLE devices
+                Log.d(TAG, "Start scanning for known BLE device ");
+                Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
+                if (macAddress != null) {
+                    // find specific macAddress
+                    mScanning = false;
+                    broadcastUpdate("Searching device " + macAddress);
+                    BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
+                    if (device == null) {
+                        broadcastUpdate("Device " + macAddress + "not found, try scanning...");
+                        mBluetoothLeScanProcess.findLeDevice(macAddress, true);
+                        mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                        sleepThread(500);
+                        mBluetoothLeScanProcess.findLeDevice(macAddress, false);
+                    } else {
+                        mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
+                    }
+
+                }
+            }
         }
     };
 
