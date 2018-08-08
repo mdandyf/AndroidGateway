@@ -63,6 +63,7 @@ public class ExhaustivePollingWithWSM {
 
     public void stop() {
         mProcessing = false; mConnecting = false;
+        executionTask.stopExecutorPools();
         executionTask.terminateExecutorPools();
     }
 

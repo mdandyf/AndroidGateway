@@ -60,6 +60,7 @@ public class ExhaustivePollingWithAHP {
 
     public void stop() {
         mProcessing = false; mConnecting = false;
+        executionTask.stopExecutorPools();
         executionTask.terminateExecutorPools();
     }
 
@@ -91,7 +92,6 @@ public class ExhaustivePollingWithAHP {
                         // search for known device listed in database
                         for (String device : devices) {
                             //iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
-
                             iGatewayService.startScanKnownDevices(device);
                         }
                         // do normal scanning only for half of normal scanning time

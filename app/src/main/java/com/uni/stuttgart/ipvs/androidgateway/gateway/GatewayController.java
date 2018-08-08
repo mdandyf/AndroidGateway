@@ -316,6 +316,7 @@ public class GatewayController extends Service {
      */
 
     //scheduling using Exhaustive Polling (EP)
+
     private void doScheduleEP() {
         broadcastUpdate("Start Exhaustive Polling Scheduling...");
         try {
@@ -535,6 +536,7 @@ public class GatewayController extends Service {
                         if(wsm != null) {wsm.stop();}
 
                         algorithmThread.interrupt();
+                        Thread.sleep(1000);
                         //isAlgorithmChanged[0] = true;
                         algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
                     /*}

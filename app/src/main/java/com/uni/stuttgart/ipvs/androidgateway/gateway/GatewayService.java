@@ -247,12 +247,12 @@ public class GatewayService extends Service {
         @Override
         public void setHandler(PMessageHandler messageHandler, String threadName, String type) throws RemoteException {
 
-            if (mHandlerMessage == null) {
+           /* if (mHandlerMessage == null) {
                 // no quit section
             } else {
                 mThread.interrupt();
                 mThread.quit();
-            }
+            }*/
             mThread = new HandlerThread(threadName);
             mThread.start();
 

@@ -93,7 +93,14 @@ public class ExecutionTask<T> extends TaskTracking {
         executor.shutdown();
     }
 
-    public void terminateExecutorPools() { executor.shutdownNow(); }
+    public void terminateExecutorPools() {
+        try {
+            executor.shutdownNow();
+            executor.awaitTermination(1000, TimeUnit.MICROSECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Section Scheduled ThreadPool Task Execution
