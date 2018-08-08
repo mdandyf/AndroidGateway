@@ -98,6 +98,7 @@ public class RoundRobin {
             List<BluetoothDevice> scanResults = null;
             try {
                 scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
 
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 if (scanResults.size() != 0) {

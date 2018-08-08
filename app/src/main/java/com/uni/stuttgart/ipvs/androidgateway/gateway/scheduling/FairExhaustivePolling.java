@@ -133,6 +133,8 @@ public class FairExhaustivePolling {
             List<String> devices = null;
             try {
                 scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
+                
                 devices = iGatewayService.getListActiveDevices();
             } catch (RemoteException e) {
                 e.printStackTrace();

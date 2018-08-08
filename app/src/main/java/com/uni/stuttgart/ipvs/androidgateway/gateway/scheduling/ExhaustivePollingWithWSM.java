@@ -140,6 +140,7 @@ public class ExhaustivePollingWithWSM {
         private void connectSemaphore() {
             try {
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
 
                 // do Connecting by using Semaphore
                 for (final BluetoothDevice device : scanResults) {
@@ -164,6 +165,8 @@ public class ExhaustivePollingWithWSM {
         private void connectWSM() {
             try {
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
+
                 Map<BluetoothDevice, Double> mapRankedDevices;
                 if(scanResults.size() != 0) {
                     broadcastUpdate("Start ranking device with WSM algorithm...");

@@ -137,6 +137,7 @@ public class ExhaustivePollingWithAHP {
         private void connectSemaphore() {
             try {
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
 
                 // do Connecting by using Semaphore
                 for (final BluetoothDevice device : scanResults) {
@@ -161,6 +162,7 @@ public class ExhaustivePollingWithAHP {
         private void connectAHP() {
             try {
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
 
                 if(scanResults.size() != 0) {
                     broadcastUpdate("Start ranking device with AHP algorithm...");
