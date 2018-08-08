@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Binder;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
@@ -75,7 +76,7 @@ public class GatewayController extends Service {
     private Runnable runnablePeriodic;
     private Runnable runnableMape;
     private Runnable runnableAlgorithm;
-    private Thread mapeThread;
+    private HandlerThread algThread;
     private Thread algorithmThread;
 
 
@@ -535,9 +536,15 @@ public class GatewayController extends Service {
                         if(ahp != null) {ahp.stop();}
                         if(wsm != null) {wsm.stop();}
 
-                        algorithmThread.interrupt();
-                        Thread.sleep(1000);
-                        //isAlgorithmChanged[0] = true;
+
+                        // ensure thread is killed first
+                        try {
+                            algorithmThread.interrupt();
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            // no interrupt handler
+                        }
+
                         algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
                     /*}
                         else{continue;}*/
