@@ -80,8 +80,7 @@ public class GatewayService extends Service {
             "com.uni-stuttgart.ipvs.androidgateway.gateway.FINISH_READ";
     public static final String START_NEW_CYCLE =
             "com.uni-stuttgart.ipvs.androidgateway.gateway.START_NEW_CYCLE";
-    /*public static final String STOP_SCAN =
-            "com..uni-stuttgart.ipvs.androidgateway.gateway.STOP_SCAN";*/
+
     private Intent mIntent;
     private Context context;
 
@@ -97,6 +96,7 @@ public class GatewayService extends Service {
     private BluetoothLeScanProcess mBluetoothLeScanProcess;
     private BluetoothLeGattCallback mBluetoothGattCallback;
     private List<BluetoothDevice> scanResults;
+    private List<BluetoothDevice> scanResultsNV;
     private List<BluetoothGatt> listBluetoothGatt;
     private Map<BluetoothGatt, BluetoothLeGattCallback> mapGattCallback;
     private BluetoothGatt mBluetoothGatt;
@@ -109,6 +109,7 @@ public class GatewayService extends Service {
     private boolean mScanning;
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
+    private PowerEstimator powerEstimator;
 
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
@@ -132,10 +133,12 @@ public class GatewayService extends Service {
         bleDevice = new BluetoothLeDevice();
         bleGatt = new BluetoothLeGatt();
         lock = new Object();
+        powerEstimator = new PowerEstimator(this);
 
         listBluetoothGatt = new ArrayList<>();
         mapGattCallback = new HashMap<>();
         scanResults = new ArrayList<>();
+        scanResultsNV = new ArrayList<>();
 
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
@@ -159,7 +162,6 @@ public class GatewayService extends Service {
 
 
         status = "Created";
-
     }
 
     @Override
@@ -196,6 +198,9 @@ public class GatewayService extends Service {
     private final IGatewayService.Stub mBinder = new IGatewayService.Stub() {
 
         private int cycleCounter = 0;
+        private Map<String, double[]> powerConstraint = new HashMap<>();
+        private Map<String, Integer> timerSettings = new HashMap<>();
+        private String timeUnit = null;
 
         @Override
         public int getPid() throws RemoteException {
@@ -209,6 +214,11 @@ public class GatewayService extends Service {
         @Override
         public int getNumberRunningTasks() throws RemoteException {
             return executionTask.getNumberOfTasks();
+        }
+
+        @Override
+        public int getNumberOfThreads() throws RemoteException {
+            return executionTask.getNumberOfThreads();
         }
 
         @Override
@@ -288,19 +298,28 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void setScanResultNonVolatile(List<BluetoothDevice> scanResult) throws RemoteException {
+            scanResultsNV = scanResult;
+        }
+
+        @Override
         public List<BluetoothDevice> getScanResults() throws RemoteException {
             // only known devices that will be processed
-            synchronized (scanResults) {
-                if (scanResults.size() > 0) {
-                    for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
-                        if (!isDeviceManufacturerKnown(device.getAddress())) {
-                            updateDatabaseDeviceState(device, "inactive");
-                            scanResults.remove(device);
-                        }
+            if (scanResults.size() > 0) {
+                for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
+                    if (!isDeviceManufacturerKnown(device.getAddress())) {
+                        updateDatabaseDeviceState(device, "inactive");
+                        scanResults.remove(device);
                     }
                 }
             }
+
             return scanResults;
+        }
+
+        @Override
+        public List<BluetoothDevice> getScanResultsNonVolatile() throws RemoteException {
+            return scanResultsNV;
         }
 
         @Override
@@ -381,13 +400,12 @@ public class GatewayService extends Service {
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
                             broadcastUpdate("Stop scanning bluetooth...");
-                            //broadcastCommand("Devices after scan: " + getScanResults().size()+ "", STOP_SCAN);
+                            broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
                         } else if (type == BluetoothLeDevice.STOP_SCAN) {
                             mScanning = false;
                             mBluetoothLeScanProcess.scanLeDevice(false);
                             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
                             broadcastUpdate("Stop scanning...");
-                            //broadcastCommand("Devices after scan: " + getScanResults().size()+ "", STOP_SCAN);
                         } else if (type == BluetoothLeDevice.WAIT_THREAD) {
                             sleepThread(bleDevice.getWaitTime());
                         }
@@ -770,45 +788,60 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void setPowerUsageConstraints(String dataName, double[] data) throws RemoteException {
+            if(powerConstraint.size() > 3) {
+                powerConstraint = new HashMap<>();
+            } else {
+                powerConstraint.put(dataName, data);
+            }
+        }
+
+        @Override
         public double[] getPowerUsageConstraints(double batteryLevel) throws RemoteException {
-            double[] powerConstraint = new double[3];
             int currentLevel = (int) batteryLevel;
+            double[] powerUsageConstraints = new double[3];
 
-            try {
-                NodeList list = xmlDocument.getElementsByTagName("DataPowerConstraint");
-                Node node = list.item(0);
+            for(Map.Entry entry : powerConstraint.entrySet()) {
+                String key = (String) entry.getKey();
+                double[] data = (double[]) entry.getValue();
 
-                Node nodeData = node.getFirstChild().getNextSibling();
-                Node batLvlDown = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                int batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
-                Node batLvlUp = batLvlDown.getNextSibling().getNextSibling();
-                int batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+                String batLevelString = key.substring(0, key.indexOf(","));
+                String batLevelUpString = key.substring(key.indexOf(",")+1);
+
+                int batLevel = Integer.valueOf(batLevelString);
+                int batLevelUp = Integer.valueOf(batLevelUpString);
 
                 if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
-                   powerConstraint = getPowerConstraint(batLvlUp);
-                } else {
-                    Node nodeData2 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                    batLvlDown = nodeData2.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                    batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
-                    batLvlUp = batLvlDown.getNextSibling().getNextSibling();
-                    batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
-
-                    if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
-                        powerConstraint = getPowerConstraint(batLvlUp);
-                    } else {
-                        Node nodeData3 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                        batLvlDown = nodeData3.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
-                        batLvlUp = batLvlDown.getNextSibling().getNextSibling();
-
-                        powerConstraint = getPowerConstraint(batLvlUp);
-                    }
+                   powerUsageConstraints = data;
+                   break;
                 }
-
-            } catch (Exception e) {
-                e.printStackTrace();
             }
 
-            return powerConstraint;
+            return powerUsageConstraints;
+        }
+
+        @Override
+        public void setTimeSettings(String dataName, int data) throws RemoteException {
+            if(timerSettings.size() > 4) {
+                timerSettings = new HashMap<>();
+            } else {
+                timerSettings.put(dataName, data);
+            }
+        }
+
+        @Override
+        public int getTimeSettings(String type) throws RemoteException {
+            return timerSettings.get(type);
+        }
+
+        @Override
+        public void setTimeUnit(String unit) throws RemoteException {
+            timeUnit = unit;
+        }
+
+        @Override
+        public String getTimeUnit() throws RemoteException {
+            return timeUnit;
         }
 
         @Override
@@ -858,44 +891,65 @@ public class GatewayService extends Service {
                 sendBroadcast(intent);
             }
         }
+
+        @Override
+        public void broadcastServiceInterface(String message) throws RemoteException {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
+                intent.putExtra("message", message);
+                context.sendBroadcast(intent);
+            }
+        }
+
+        @Override
+        public void broadcastClearScreen(String message) throws RemoteException {
+            if (mProcessing) {
+                final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
+                context.sendBroadcast(intent);
+            }
+        }
+
+        @Override
+        public void startPowerEstimator() throws RemoteException {
+            powerEstimator.start();
+        }
+
+        @Override
+        public void stopPowerEstimator() throws RemoteException {
+            powerEstimator.stop();
+        }
+
+        @Override
+        public long getPowerEstimatorData(String type) throws RemoteException {
+            long result = 0;
+            switch (type) {
+                case "currentAvg":
+                    result = powerEstimator.getCurrentAvg();
+                    break;
+                case "currentNow":
+                    result = powerEstimator.getCurrentNow();
+                    break;
+                case "batteryPercent":
+                    result = powerEstimator.getBatteryPercentage();
+                    break;
+                case "batteryRemaining":
+                    result = powerEstimator.getBatteryRemaining();
+                    break;
+                case "batteryRemainingEnergy":
+                    result = powerEstimator.getBatteryRemainingEnergy();
+                    break;
+                case "batteryRemainingPercent":
+                    result = powerEstimator.getBatteryRemainingPercent();
+                case "voltageAvg":
+                    result = powerEstimator.getVoltageAvg();
+                    break;
+                case "voltageNow":
+                    result = powerEstimator.getVoltageNow();
+                    break;
+            }
+            return result;
+        }
     };
-
-    /**
-     * Some routines about XML Parser for Power Constraint and Threshold
-     */
-
-    private double[] getPowerConstraint(Node batLvlUp) {
-        double[] powerConstraint = new double[3];
-        Node th1 = batLvlUp.getNextSibling().getNextSibling().getFirstChild();
-        String value = th1.getNodeValue();
-        int index = value.indexOf("^");
-        int cn = Integer.valueOf(value.substring(0, index));
-        int pw = Integer.valueOf(value.substring(index+1));
-        double threshold1 = Math.pow(cn, pw);
-
-        Node th2 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
-        String value2 = th2.getNodeValue();
-        index = value2.indexOf("^");
-        cn = Integer.valueOf(value2.substring(0, index));
-        pw = Integer.valueOf(value2.substring(index+1));
-        double threshold2 = Math.pow(cn, pw);
-
-        Node th3 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
-        String value3 = th3.getNodeValue();
-        index = value3.indexOf("^");
-        cn = Integer.valueOf(value3.substring(0, index));
-        pw = Integer.valueOf(value3.substring(index+1));
-        double threshold3 = Math.pow(cn, pw);
-
-        powerConstraint[0] = threshold1;
-        powerConstraint[1] = threshold2;
-        powerConstraint[2] = threshold3;
-
-        return powerConstraint;
-    }
-
-
-
 
     /**
      * Some routines section

@@ -16,7 +16,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WPM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
 import java.util.Map;
@@ -51,7 +50,6 @@ public class PriorityBasedWithWPM {
     private int maxConnectTime = 0;
     private long powerUsage = 0;
 
-    private ThreadTrackingPriority processConnecting;
     private ExecutionTask<String> executionTask;
 
     public PriorityBasedWithWPM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
@@ -245,11 +243,9 @@ public class PriorityBasedWithWPM {
 
                     powerUsage = 0;
                     powerEstimator.start();
-
-                    processConnecting = new ThreadTrackingPriority(10);
-                    processConnecting.newThread(doConnecting(device.getAddress())).start();
-
                     schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
+
+                    Thread connectingThread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Thread Connecting " + device.getAddress(), Thread.MAX_PRIORITY);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -258,7 +254,7 @@ public class PriorityBasedWithWPM {
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(10);
-                    processConnecting.interruptThread();
+                    connectingThread.interrupt();
 
                     schedulerPower.shutdownNow();
                     powerEstimator.stop();

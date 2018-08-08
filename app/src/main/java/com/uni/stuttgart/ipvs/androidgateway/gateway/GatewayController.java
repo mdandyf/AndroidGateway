@@ -35,6 +35,8 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -68,6 +70,7 @@ public class GatewayController extends Service {
     private PriorityBasedWithWSM wsm;
     private PriorityBasedWithWPM wpm;
 
+    private Document xmlFile;
     private Runnable runnablePeriodic;
     private Runnable runnableMape;
     private Runnable runnableAlgorithm;
@@ -95,8 +98,6 @@ public class GatewayController extends Service {
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockController");
 
-        //registerReceiver(scanReceiver, new IntentFilter(GatewayService.STOP_SCAN));
-
         return START_STICKY;
     }
 
@@ -104,8 +105,9 @@ public class GatewayController extends Service {
     public void onDestroy() {
         super.onDestroy();
         mProcessing = false;
-        if(wakeLock != null && wakeLock.isHeld()) {wakeLock.release();}
-        //unregisterReceiver(scanReceiver);
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
         stopService(mIntent);
         stopSelf();
     }
@@ -116,25 +118,61 @@ public class GatewayController extends Service {
 
 
     @Override
-    public IBinder onBind(Intent intent) { context = this; setWakeLock(); return mBinder; }
+    public IBinder onBind(Intent intent) {
+        context = this;
+        setWakeLock();
+        return mBinder;
+    }
 
     @Override
     public boolean onUnbind(Intent intent) {
-        try { iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);iGatewayService.execScanningQueue(); } catch (RemoteException e) { e.printStackTrace(); }
-        try { iGatewayService.setProcessing(false); } catch (RemoteException e) { e.printStackTrace(); }
+        try {
+            iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
+            iGatewayService.execScanningQueue();
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+        try {
+            iGatewayService.setProcessing(false);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
 
-        if(fep != null) {fep.stop();}
-        if(ep != null) {ep.stop();}
-        if(epAhp != null) {epAhp.stop();}
-        if(epWsm != null) {epWsm.stop();}
-        if(rr != null) {rr.stop();}
-        if(sem != null) {sem.stop();}
-        if(ahp != null) {ahp.stop();}
-        if(anp != null) {anp.stop();}
-        if(wsm != null) {wsm.stop();}
-        if(wpm != null) {wpm.stop();}
+        if (fep != null) {
+            fep.stop();
+        }
+        if (ep != null) {
+            ep.stop();
+        }
+        if (epAhp != null) {
+            epAhp.stop();
+        }
+        if (epWsm != null) {
+            epWsm.stop();
+        }
+        if (rr != null) {
+            rr.stop();
+        }
+        if (sem != null) {
+            sem.stop();
+        }
+        if (ahp != null) {
+            ahp.stop();
+        }
+        if (anp != null) {
+            anp.stop();
+        }
+        if (wsm != null) {
+            wsm.stop();
+        }
+        if (wpm != null) {
+            wpm.stop();
+        }
 
-        if(mConnection != null) {unbindService(mConnection); }
+
+        if (mConnection != null) {
+            unbindService(mConnection);
+        }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         return false;
     }
@@ -167,20 +205,63 @@ public class GatewayController extends Service {
             broadcastUpdate("GatewayController & GatewayService have bound...");
             initDatabase();
 
-
-            //MARWAN
-
-            //Choose First Algorithm
-            // read from .xml settings file
-            Document xmlFile = null;
             try {
-                xmlFile = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
-                NodeList list = xmlFile.getElementsByTagName("DataAlgorithm");
-                Node nodeDataAlgo = list.item(0);
-                Node nodeData = nodeDataAlgo.getFirstChild().getNextSibling();
-                Node nodeAlgo = nodeData.getFirstChild().getNextSibling();
-                algorithm[0] = nodeAlgo.getFirstChild().getNodeValue();
+                // read from .xml settings file
+                xmlFile = GattDataHelper.parseXML(new InputSource(getAssets().open("Settings.xml")));
+
+                // input data algorithm
+                Map<String, Object> alg = readXMLFile(xmlFile, "DataAlgorithm");
+                String algorithm = (String) alg.get("algorithm");
+
+                // input data powerConstraint
+                Map<String, Object> pwr = readXMLFile(xmlFile, "DataPowerConstraint");
+                for(Map.Entry entry : pwr.entrySet()) {
+                    String key = (String) entry.getKey();
+                    double[] data = (double[]) entry.getValue();
+                    iGatewayService.setPowerUsageConstraints(key, data);
+                }
+
+                // input data Timer
+                Map<String, Object> tmr = readXMLFile(xmlFile, "DataTimer");
+                for(Map.Entry entry : tmr.entrySet()) {
+                    String key = (String) entry.getKey();
+                    String dataString = (String) entry.getValue();
+
+                    if (key.equalsIgnoreCase("TimeUnit")) {
+                        iGatewayService.setTimeUnit(dataString);
+                    } else {
+                        int data = Integer.valueOf(dataString);
+                        iGatewayService.setTimeSettings(key, data);
+                    }
+                }
+
+
+                if (algorithm.equals("sem")) {
+                    doScheduleSemaphore();
+                } else if (algorithm.equals("ep")) {
+                    doScheduleEP();
+                } else if (algorithm.equals("fep")) {
+                    doScheduleFEP();
+                } else if (algorithm.equals("rr")) {
+                    doScheduleRR();
+                } else if (algorithm.equals("epAhp")) {
+                    doScheduleEPwithAHP();
+                } else if (algorithm.equals("epWsm")) {
+                    doScheduleEPwithWSM();
+                } else if (algorithm.equals("ahp")) {
+                    doSchedulePriorityAHP();
+                } else if (algorithm.equals("anp")) {
+                    doSchedulePriorityANP();
+                } else if (algorithm.equals("wsm")) {
+                    doSchedulePriorityWSM();
+                } else if (algorithm.equals("wpm")) {
+                    doSchedulePriorityWPM();
+                }
+
+
             } catch (IOException e) {
+                e.printStackTrace();
+            } catch (RemoteException e) {
                 e.printStackTrace();
             }
 
@@ -226,7 +307,9 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             sem = new Semaphore(context, mProcessing, iGatewayService);
             sem.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -242,7 +325,9 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             rr = new RoundRobin(context, mProcessing, iGatewayService);
             rr.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -258,7 +343,9 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             ep = new ExhaustivePolling(context, mProcessing, iGatewayService);
             ep.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -274,7 +361,9 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             epAhp = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService);
             epAhp.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -290,7 +379,9 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             epWsm = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService);
             epWsm.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -304,9 +395,11 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            fep =  new FairExhaustivePolling(context, mProcessing, iGatewayService);
+            fep = new FairExhaustivePolling(context, mProcessing, iGatewayService);
             fep.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -322,10 +415,12 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             ahp = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
             ahp.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-    
+
     /*                                                                                                                               *
      * ============================================================================================================================= *
      * ============================================================================================================================= *
@@ -339,7 +434,9 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             anp = new PriorityBasedWithANP(context, mProcessing, iGatewayService);
             anp.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -355,7 +452,9 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             wsm = new PriorityBasedWithWSM(context, mProcessing, iGatewayService);
             wsm.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /*                                                                                                                               *
@@ -371,9 +470,10 @@ public class GatewayController extends Service {
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
             wpm = new PriorityBasedWithWPM(context, mProcessing, iGatewayService);
             wpm.start();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
-
 
     //MARWAN
 
@@ -513,8 +613,95 @@ public class GatewayController extends Service {
         }
     }
 
+    private Map<String, Object> readXMLFile(Document xmlFile, String type) {
+        Map<String, Object> results = new HashMap<>();
+        switch (type) {
+            case "DataAlgorithm":
+                NodeList list = xmlFile.getElementsByTagName(type);
+                Node nodeDataAlgo = list.item(0);
+                Node nodeData = nodeDataAlgo.getFirstChild().getNextSibling();
+                Node nodeAlgo = nodeData.getFirstChild().getNextSibling();
+                results.put("algorithm", nodeAlgo.getFirstChild().getNodeValue());
+                break;
+            case "DataPowerConstraint":
+                list = xmlFile.getElementsByTagName(type);
+                Node node = list.item(0);
+
+                nodeData = node.getFirstChild().getNextSibling();
+                Node batLvlDown = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                int batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
+                Node batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+                int batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+                String constraint = String.valueOf(batLevel) + "," + String.valueOf(batLevelUp);
+                results.put(constraint, getPowerConstraint(batLvlUp));
+
+                Node nodeData2 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                batLvlDown = nodeData2.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
+                batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+                batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+                constraint = String.valueOf(batLevel) + "," + String.valueOf(batLevelUp);
+                results.put(constraint, getPowerConstraint(batLvlUp));
+
+                Node nodeData3 = node.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
+                batLvlDown = nodeData3.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                batLevel = Integer.valueOf(batLvlDown.getFirstChild().getNodeValue());
+                batLvlUp = batLvlDown.getNextSibling().getNextSibling();
+                batLevelUp = Integer.valueOf(batLvlUp.getFirstChild().getNodeValue());
+                constraint = String.valueOf(batLevel) + "," + String.valueOf(batLevelUp);
+                results.put(constraint, getPowerConstraint(batLvlUp));
+                break;
+            case "DataTimer":
+                list = xmlFile.getElementsByTagName(type);
+                Node nodeDataTimer = list.item(0);
+                nodeData = nodeDataTimer.getFirstChild().getNextSibling();
+                Node nodeTimer1 = nodeData.getFirstChild().getNextSibling();
+                results.put("ProcessingTime", nodeTimer1.getFirstChild().getNodeValue());
+                Node nodeTimer2 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                results.put("ScanningTime", nodeTimer2.getFirstChild().getNodeValue());
+                Node nodeTimer3 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
+                results.put("ScanningTime2", nodeTimer3.getFirstChild().getNodeValue());
+                Node nodeTimer4 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
+                results.put("TimeUnit", nodeTimer4.getFirstChild().getNodeValue());
+                break;
+        }
+        return results;
+    }
+
+    private double[] getPowerConstraint(Node batLvlUp) {
+        double[] powerConstraint = new double[3];
+        Node th1 = batLvlUp.getNextSibling().getNextSibling().getFirstChild();
+        String value = th1.getNodeValue();
+        int index = value.indexOf("^");
+        int cn = Integer.valueOf(value.substring(0, index));
+        int pw = Integer.valueOf(value.substring(index + 1));
+        double threshold1 = Math.pow(cn, pw);
+
+        Node th2 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
+        String value2 = th2.getNodeValue();
+        index = value2.indexOf("^");
+        cn = Integer.valueOf(value2.substring(0, index));
+        pw = Integer.valueOf(value2.substring(index + 1));
+        double threshold2 = Math.pow(cn, pw);
+
+        Node th3 = batLvlUp.getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getFirstChild();
+        String value3 = th3.getNodeValue();
+        index = value3.indexOf("^");
+        cn = Integer.valueOf(value3.substring(0, index));
+        pw = Integer.valueOf(value3.substring(index + 1));
+        double threshold3 = Math.pow(cn, pw);
+
+        powerConstraint[0] = threshold1;
+        powerConstraint[1] = threshold2;
+        powerConstraint[2] = threshold3;
+
+        return powerConstraint;
+    }
+
     private void setWakeLock() {
-        if((wakeLock != null) && (!wakeLock.isHeld())) { wakeLock.acquire(); }
+        if ((wakeLock != null) && (!wakeLock.isHeld())) {
+            wakeLock.acquire();
+        }
     }
 
     private void broadcastUpdate(String message) {

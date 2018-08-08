@@ -14,7 +14,6 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.ANP;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
-import com.uni.stuttgart.ipvs.androidgateway.thread.ThreadTrackingPriority;
 
 import java.util.List;
 import java.util.Map;
@@ -30,11 +29,11 @@ public class PriorityBasedWithANP {
     private static final int PROCESSING_TIME = 60000; // set processing time to 60 seconds
     private static final int NUMBER_OF_MAX_CONNECT_DEVICES = 10; // set max 10 devices connect before listening to disconnection time
 
-    private ScheduledThreadPoolExecutor schedulerPower;
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledThreadPoolExecutor scheduler2;
     private ScheduledFuture<?> future;
     private ScheduledFuture<?> future2;
+    private Thread threadMeasurePower;
 
     private Thread sleepThread;
     private IGatewayService iGatewayService;
@@ -50,7 +49,6 @@ public class PriorityBasedWithANP {
     private long powerUsage = 0;
     private int connectCounter = 0;
 
-    private ThreadTrackingPriority processConnecting;
     private ExecutionTask<String> executionTask;
 
     public PriorityBasedWithANP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
@@ -161,12 +159,8 @@ public class PriorityBasedWithANP {
                     broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
-                    powerUsage = 0;
-                    powerEstimator.start();
-
+                    setMeasurePower("Start", device);
                     PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
-
-                    schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -175,8 +169,7 @@ public class PriorityBasedWithANP {
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
 
-                    schedulerPower.shutdownNow();
-                    powerEstimator.stop();
+                    setMeasurePower("Stop", device);
 
                     iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
                 }
@@ -211,16 +204,7 @@ public class PriorityBasedWithANP {
                     broadcastUpdate("Maximum connection time for all devices is " + maxConnectTime / 1000 + " s");
                     broadcastUpdate("\n");
 
-                    if(mapRankedDevices.size() > NUMBER_OF_MAX_CONNECT_DEVICES) {
-                        // if more than 10 devices, try to listen to disconnect time before finish waiting
-                        // (ignoring maxConnectTime)
-                        isBroadcastRegistered = registerBroadcastListener();
-                        connect(mapRankedDevices, remainingTime);
-                        if(isBroadcastRegistered) {unregisterBroadcastListener();}
-                    } else {
-                        // if less than 10 devices, waiting time is based on maxConnectTime
-                        connect(mapRankedDevices, remainingTime);
-                    }
+                    connect(mapRankedDevices, remainingTime);
                 } else {
                     broadcastUpdate("No nearby device(s) available");
                     return;
@@ -239,13 +223,8 @@ public class PriorityBasedWithANP {
                     BluetoothDevice device = (BluetoothDevice) entry.getKey();
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
-                    powerUsage = 0;
-                    powerEstimator.start();
-
-                    processConnecting = new ThreadTrackingPriority(10);
-                    processConnecting.newThread(doConnecting(device.getAddress())).start();
-
-                    schedulerPower = executionTask.scheduleWithThreadPoolExecutor(doMeasurePower(), 0, 100, MILLISECONDS);
+                    setMeasurePower("Start", device);
+                    Thread connectingThread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Thread Connecting " + device.getAddress(), Thread.MAX_PRIORITY);
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
@@ -254,10 +233,9 @@ public class PriorityBasedWithANP {
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(10);
-                    processConnecting.interruptThread();
+                    executionTask.interruptThread(connectingThread);
 
-                    schedulerPower.shutdownNow();
-                    powerEstimator.stop();
+                    setMeasurePower("Stop", device);
                     iGatewayService.updateDatabaseDevicePowerUsage(device.getAddress(), powerUsage);
                 }
             } catch (Exception e) {
@@ -300,28 +278,6 @@ public class PriorityBasedWithANP {
         }
     }
 
-    /**
-     * =================================================================================================================================
-     * Broadcast Listener
-     * =================================================================================================================================
-     */
-
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (action.equals(GatewayService.DISCONNECT_COMMAND)) {
-                String message = intent.getStringExtra("command");
-                if(sleepThread != null && !sleepThread.isInterrupted()) {sleepThread.interrupt();}
-            } else if (action.equals(GatewayService.FINISH_READ)) {
-                String message = intent.getStringExtra("command");
-                if(sleepThread != null && !sleepThread.isInterrupted()) {sleepThread.interrupt();}
-            }
-        }
-
-    };
-
 
     /**
      * =================================================================================================================================
@@ -329,17 +285,7 @@ public class PriorityBasedWithANP {
      * =================================================================================================================================
      */
 
-    private boolean registerBroadcastListener() {
-        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.DISCONNECT_COMMAND));
-        context.registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
-        return true;
-    }
-
-    private void unregisterBroadcastListener() {
-        context.unregisterReceiver(mReceiver);
-    }
-
-    private Runnable doMeasurePower() {
+    private synchronized Runnable doMeasurePower() {
         return new Runnable() {
             @Override
             public void run() {
@@ -352,6 +298,20 @@ public class PriorityBasedWithANP {
                 }
             }
         };
+    }
+
+    private synchronized void setMeasurePower(String type, BluetoothDevice device) {
+        switch (type) {
+            case "Start":
+                powerUsage = 0;
+                powerEstimator.start();
+                threadMeasurePower = executionTask.executeRunnableInThread(doMeasurePower(), "Thread Power Measure " + device.getAddress(), Thread.MIN_PRIORITY);
+                break;
+            case "Stop":
+                threadMeasurePower.interrupt();
+                powerEstimator.stop();
+                break;
+        }
     }
 
     private Runnable doConnecting(final String macAddress) {

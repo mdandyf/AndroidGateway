@@ -2,7 +2,7 @@
 <root>
     <DataAlgorithm>
         <data>
-            <currentAlgorithm>fep</currentAlgorithm>
+            <currentAlgorithm>epWsm</currentAlgorithm>
         </data>
     </DataAlgorithm>
     <DataPowerConstraint>
@@ -31,6 +31,20 @@
             <threshold3>10^13</threshold3>
         </data>
     </DataPowerConstraint>
+    <DataManufacturer>
+        <data>
+            <id>0x0401</id>
+            <name>Vemiter Lamp Service</name>
+        </data>
+        <data>
+            <id>0x0001</id>
+            <name>Nokia Mobile Phones</name>
+        </data>
+        <data>
+            <id>0xffff</id>
+            <name>Testing Device</name>
+        </data>
+    </DataManufacturer>
     <DataTime>
         <data>
             <ProcessingTime>60000</ProcessingTime>

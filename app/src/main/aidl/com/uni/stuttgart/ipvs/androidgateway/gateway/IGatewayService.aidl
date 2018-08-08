@@ -25,6 +25,8 @@ interface IGatewayService {
 
     int getNumberRunningTasks();
 
+    int getNumberOfThreads();
+
     int getNumberOfProcessor();
 
     void setCycleCounter(in int cycleCounter);
@@ -45,7 +47,11 @@ interface IGatewayService {
 
     void setScanResult(in List<BluetoothDevice> scanResult);
 
+    void setScanResultNonVolatile(in List<BluetoothDevice> scanResult);
+
     List<BluetoothDevice> getScanResults();
+
+    List<BluetoothDevice> getScanResultsNonVolatile();
 
     void setCurrentGatt(in PBluetoothGatt gatt);
 
@@ -113,7 +119,17 @@ interface IGatewayService {
 
     List<PManufacturer> getListManufacturers();
 
+    void setPowerUsageConstraints(in String dataName, in double[] data);
+
     double[] getPowerUsageConstraints(in double batteryLevel);
+
+    void setTimeSettings(in String dataName, in int data);
+
+    int getTimeSettings(in String type);
+
+    void setTimeUnit(in String unit);
+
+    String getTimeUnit();
 
     List<ParcelUuid> getServiceUUIDs(String macAddress);
 
@@ -128,5 +144,15 @@ interface IGatewayService {
     void broadcastUpdate(in String message);
 
     void broadcastCommand(in String message, in String action);
+
+    void broadcastServiceInterface(in String message);
+
+    void broadcastClearScreen(in String message);
+
+    void startPowerEstimator();
+
+    void stopPowerEstimator();
+
+    long getPowerEstimatorData(in String type);
 
 }
