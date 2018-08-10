@@ -36,18 +36,13 @@ public class UploadCloudFragment extends Fragment {
 
     private TextView nameText;
     private TextView macText;
-    private Button uploadBtn;
+    private Button saveBtn;
 
     //Service Atts
     private IGatewayService myService;
     boolean isBound = false;
 
-    //Firebase
-    private FirebaseDatabase mDatabase;
-    DatabaseReference mDeviceReference;
-
-    private NetworkChangeReceiver mReceiver;
-    private boolean isUpload;
+    private boolean isSaved;
 
     @Override
     public void onAttach(Context context) {
@@ -76,18 +71,13 @@ public class UploadCloudFragment extends Fragment {
         //Initialize Layout Components
         nameText = view.findViewById(R.id.device_name);
         macText = view.findViewById(R.id.device_mac);
-        uploadBtn = view.findViewById(R.id.upload_btn);
+        saveBtn = view.findViewById(R.id.save_btn);
 
         //Bind to Gateway Service
         Intent intent = new Intent(getActivity(), GatewayService.class);
         getActivity().bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
 
-        //Firebase
-        mDatabase = FirebaseDatabase.getInstance();
-        mDeviceReference = mDatabase.getReference("devices");
-
-        mReceiver = new NetworkChangeReceiver();
-        isUpload = false;
+        isSaved = false;
 
 
         //Retrieve Initial Data
@@ -100,12 +90,14 @@ public class UploadCloudFragment extends Fragment {
             macText.setText(macAddress);
         }
 
-        //Upload Button
-        uploadBtn.setOnClickListener(new View.OnClickListener() {
+        //Save Data Button
+        saveBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 try {
-                    UploadDeviceData(macAddress);
+                    if(myService != null){
+                        myService.saveCloudData(macAddress);
+                    }
                 } catch (RemoteException e) {
                     e.printStackTrace();
                 }
@@ -132,95 +124,15 @@ public class UploadCloudFragment extends Fragment {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
-
-            getActivity().registerReceiver(mReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             isBound = false;
             myService = null;
-
-            getActivity().unregisterReceiver(mReceiver);
         }
     };
 
 
-    public void UploadDeviceData(String macAddress) throws RemoteException {
 
-        if (myService != null) {
-
-            int conn = NetworkUtil.getConnectivityStatus(getContext());
-
-            if(conn == NetworkUtil.TYPE_WIFI) {
-
-
-                //Services
-                List<ParcelUuid> listServiceUUID = myService.getServiceUUIDs(macAddress);
-
-                //array of services
-                String[] stringServiceUUIDs = new String[listServiceUUID.size()];
-                //populate
-                for (int i = 0; i < listServiceUUID.size(); i++) {
-                    stringServiceUUIDs[i] = listServiceUUID.get(i).toString();
-                }
-
-                //Loop on services to get characteristics of each
-                for (String service : stringServiceUUIDs) {
-                    //Characteristics of this Service
-                    List<ParcelUuid> listCharacteristicUUID = myService.getCharacteristicUUIDs(macAddress, service);
-                    //array of characteristics
-                    String[] stringCharacteristicUUIDs = new String[listCharacteristicUUID.size()];
-                    //populate
-                    for (int i = 0; i < listCharacteristicUUID.size(); i++) {
-                        stringCharacteristicUUIDs[i] = listCharacteristicUUID.get(i).toString();
-                    }
-
-                    //Loop on characteristics to get property, value of each
-                    for (String characteristic : stringCharacteristicUUIDs) {
-                        String property = myService.getCharacteristicProperty(macAddress, service, characteristic);
-                        String value = myService.getCharacteristicValue(macAddress, service, characteristic);
-
-                        //Upload to firebase this service with its characteristics
-                        mDeviceReference.child(macAddress).child("services").child(service).child("characteristics").
-                                child(characteristic).child("property").setValue(property);
-
-                        mDeviceReference.child(macAddress).child("services").child(service).child("characteristics").
-                                child(characteristic).child("value").setValue(value);
-
-                    }
-                }
-
-                Toast.makeText(getContext(), "Data Uploaded to Cloud", Toast.LENGTH_SHORT).show();
-
-                isUpload = true;
-            }
-            else{
-                Toast.makeText(getContext(), "Must enable WiFi to upload data", Toast.LENGTH_SHORT).show();
-                isUpload = false;
-            }
-        } else {
-            Toast.makeText(getContext(), "No Data Available", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    public class NetworkChangeReceiver extends BroadcastReceiver {
-
-        @Override
-        public void onReceive(final Context context, final Intent intent) {
-
-            String status = NetworkUtil.getConnectivityStatusString(context);
-
-            Toast.makeText(context, status, Toast.LENGTH_SHORT).show();
-
-            if(status.equalsIgnoreCase("Wifi enabled") && isUpload == false){
-                try {
-                    UploadDeviceData(macAddress);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
 }

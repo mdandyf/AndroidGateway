@@ -136,9 +136,15 @@ public class ServiceInterface extends ListFragment {
                         launchBatteryFragment(deviceAddress, ServiceLong);
                         break;
                     case "180d":        //Heart Service
-                        launchHeartRateFragment(deviceAddress, ServiceLong);
+
+                        launchUploadCloudFragment(deviceAddress);
+
+                        //launchHeartRateFragment(deviceAddress, ServiceLong);
                         break;
-                    case "fff0":        //VEMITER
+                    case "fff0":        //MIBAND
+                        launchUploadCloudFragment(deviceAddress);
+                        break;
+                    case "fff1":        //VEMITER
                         launchUploadCloudFragment(deviceAddress);
                         break;
                     case "1800":

@@ -13,6 +13,7 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePolling;
@@ -495,33 +496,14 @@ public class GatewayController extends Service {
             @Override
             public void run() {
 
-                //int mod;
-
             try {
-
-                /*if(algorithm[0].equalsIgnoreCase("fep") || algorithm[0].equalsIgnoreCase("ahp") || algorithm[0].equalsIgnoreCase("wsm")){
-                    mod = 1;
-                }else {
-                    mod = 10;
-                }*/
-
-
-
-                //READ DEVICES FROM NON VOLATILE MEMORY
-
-                //while (true) {
-
-                    /*if (((iGatewayService.getCycleCounter() % mod) == 0) && (iGatewayService.getCycleCounter() > 1)
-                            && (iGatewayService.getScanState() == false)
-                            ){*/
-
-                        //List<BluetoothDevice> deviceList = iGatewayService.getScanResultsNonVolatile();
-
-
+                        //READ DEVICES FROM NON VOLATILE MEMORY
                         broadcastUpdate("Available Devices: " + iGatewayService.getScanResultsNonVolatile());
                         broadcastUpdate("Evaluating new MAPE Algorithm...");
 
-                        mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService);
+                        //Toast.makeText(context, "NV Devices: " + iGatewayService.getScanResultsNonVolatile(), Toast.LENGTH_SHORT).show();
+
+                        mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService, executionTask);
                         algorithm[0] = mapeAlgorithm.startMape();
                         broadcastUpdate("Changing Algorithm...");
                         broadcastUpdate("New Algorithm Is : " + algorithm[0]);
@@ -539,10 +521,6 @@ public class GatewayController extends Service {
                         Thread.sleep(1000);
                         //isAlgorithmChanged[0] = true;
                         algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
-                    /*}
-                        else{continue;}*/
-
-               // }
             }
             catch (Exception e) {
                 e.printStackTrace();

@@ -161,4 +161,12 @@ interface IGatewayService {
      void stopScan();
 
      void startScanKnownDevices(String macAddress);
+
+     void saveCloudData(in String macAddress);
+
+     void uploadDataCloud();
+
+     void insertDatabaseUpload(in String macAddress, in String data, in String uploadState);
+
+     void updateDatabaseUpload(in String macAddress, in String uploadState);
 }

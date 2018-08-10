@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -14,10 +16,11 @@ import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.widget.TextView;
-
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.service.fragment.UploadCloudFragment;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import net.sourceforge.jFuzzyLogic.FIS;
@@ -36,6 +39,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
+import com.uni.stuttgart.ipvs.androidgateway.helper.NetworkUtil;
 
 public class MapeAlgorithm {
 
@@ -43,60 +47,87 @@ public class MapeAlgorithm {
     private Context context;
     private boolean mProcessing;
 
-    private ExecutionTask<String> executionTask;
-
-    private double fuzzyResult;
+    private double scheduleResult;
+    private double uploadResult;
     private int batteryInput;
     private int deviceInput;
+    private int connectionInput;
+
+    private int uploadOutput;
     private int priorityOutput;
+
     private String resultAlg;
 
-    public MapeAlgorithm(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    private Thread uploadThread;
+    private Runnable runnableUpload;
+    private ExecutionTask<Void> executionTask;
+
+    public MapeAlgorithm(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
     }
 
 
     public String startMape() {
 
-        //GET CURRENT BATTERY LEVEL
-        batteryInput = getBatteryLevel();
-
-
         try {
+            //GET CURRENT BATTERY LEVEL
+            batteryInput = getBatteryLevel();
 
             //GET CURRENT NUMBER OF CONNECTIBLE DEVICES
             List<BluetoothDevice> activeDevices = iGatewayService.getScanResultsNonVolatile();
-
             Log.d("mape", "MAPE Devices: " + activeDevices.size()+"");
-
             deviceInput = activeDevices.size();
-
-
-
             if(deviceInput > 10){
                 deviceInput = 10;
             }
 
-            //deviceTxt.setText("Number of Devices: " + deviceInput);
+           /* //GET CONNECTIVITY STATE
+            int conn = NetworkUtil.getConnectivityStatus(context);
+            if(conn == NetworkUtil.TYPE_WIFI){
+                connectionInput = 0;
+                fuzzyProcess1(batteryInput, deviceInput, connectionInput);
+            }else if(conn == NetworkUtil.TYPE_MOBILE){
+                connectionInput = 1;
+                fuzzyProcess1(batteryInput, deviceInput, connectionInput);
+            }else {
+                //delete this
+                fuzzyProcess1(batteryInput, deviceInput, 0);
 
-            //GET PRIORITY DEGREE BY APPLYING FUZZY LOGIC
-            priorityOutput = fuzzyProcess(batteryInput, deviceInput);
+                //Log.d("upload", "No Internet, upload failed");
+                //fuzzyProcess2(batteryInput, deviceInput);
+            }*/
+
+           fuzzyProcess2(batteryInput,deviceInput);
+
+
+            if(uploadOutput == 1){
+                //make new thread to run this methed
+                //iGatewayService.uploadDataCloud();
+
+                /*executionTask = new ExecutionTask<>(1,2);
+                executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);*/
+
+                //uploadThread = executionTask.executeRunnableInThread(doUploadData(), "Upload Thread", Thread.MIN_PRIORITY);
+
+
+            }
 
             //CHOOSE SCHEDULING ALGORITHM
             switch(priorityOutput) {
-                case 1: resultAlg = "ep";
+                case 1: resultAlg = "epAhp";        //worst case
                     break;
-                case 2: resultAlg = "fep";
+                case 2: resultAlg = "ep";
                     break;
-                case 3: resultAlg =  "epAhp";
+                case 3: resultAlg =  "ahp";
                     break;
                 case 4: resultAlg = "epWsm";
                     break;
-                case 5: resultAlg = "ahp";
+                case 5: resultAlg = "fep";
                     break;
-                case 6: resultAlg = "wsm";
+                case 6: resultAlg = "wsm";        //best case
                     break;
                 default:
                     break;
@@ -125,10 +156,7 @@ public class MapeAlgorithm {
     }
 
 
-    //FUZZY LOGIC TO GET PRIORITY DEGREE
-    public int fuzzyProcess(int battery, int device) {
-
-        Log.d("fuzzy1", "Beggining Fuzzy read and calculate...");
+    private void fuzzyProcess1(int battery, int device, int connection){
 
         InputStream in = null;
 
@@ -146,12 +174,75 @@ public class MapeAlgorithm {
         // Error while loading?
         if( fis == null ) {
             System.err.println("Can't load file: '" + fileName + "'");
-            return -1;
+            return;
         }
 
         // Set inputs
-        fis.setVariable("battery_level", battery);
-        fis.setVariable("devices_number", device);
+        fis.setVariable("schedule_controller","battery_level", battery);
+        fis.setVariable("schedule_controller","devices_number", device);
+
+        fis.setVariable("upload_controller", "battery_level", battery);
+        fis.setVariable("upload_controller", "internet_connection", connection);
+
+
+        // Evaluate
+        fis.evaluate();
+
+        Variable priority = fis.getFunctionBlock("schedule_controller").getVariable("priority_degree");
+        Variable uploadState = fis.getFunctionBlock("upload_controller").getVariable("upload_status");
+
+        // Print ruleSet
+        Log.d("Saida: ", "" + priority.defuzzify());
+        scheduleResult = ((int) Math.round(priority.defuzzify()));
+
+        // Print ruleSet
+        Log.d("Saida: ", "" + uploadState.defuzzify());
+        uploadResult = ((int) Math.round(uploadState.defuzzify()));
+
+        if(uploadResult >= 0.5){
+            Log.d("upload", "upload data");
+
+            /*try {
+                iGatewayService.uploadDataCloud();
+
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }*/
+
+        }else {
+            Log.d("upload", "do not upload data");
+        }
+
+        uploadOutput = (int) uploadResult;
+        priorityOutput = (int) scheduleResult;
+    }
+
+    //FUZZY LOGIC TO GET PRIORITY DEGREE
+    private void fuzzyProcess2(int battery, int device) {
+
+        InputStream in = null;
+
+        try {
+            in = context.getAssets().open("schedule_controller.fcl");
+        } catch (IOException e) {
+            e.printStackTrace();
+        };
+
+
+        // Load from 'FCL' file
+        String fileName = "schedule_controller.fcl";
+        FIS fis = FIS.load(in,true);
+
+        // Error while loading?
+        if( fis == null ) {
+            System.err.println("Can't load file: '" + fileName + "'");
+            return;
+        }
+
+        // Set inputs
+        fis.setVariable("schedule_controller","battery_level", battery);
+        fis.setVariable("schedule_controller","devices_number", device);
+
 
         // Evaluate
         fis.evaluate();
@@ -160,14 +251,22 @@ public class MapeAlgorithm {
 
         // Print ruleSet
         Log.d("Saida: ", "" + priority.defuzzify());
-        fuzzyResult = ((int) Math.round(priority.defuzzify()));
+        scheduleResult = ((int) Math.round(priority.defuzzify()));
 
-        // Show output variable
-        //fuzzyTxt.setText("Fuzzy Output: " + fuzzyResult);
+        priorityOutput = (int) scheduleResult;
+    }
 
-        Log.d("fuzzy2", "FUZZY ENDED");
-
-        return (int) fuzzyResult;
+    private synchronized Runnable doUploadData(){
+        return new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    iGatewayService.uploadDataCloud();
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
     }
 
 

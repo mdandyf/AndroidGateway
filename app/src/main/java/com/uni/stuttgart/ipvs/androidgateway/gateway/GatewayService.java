@@ -4,6 +4,8 @@ import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.content.Intent;
 import android.database.SQLException;
@@ -19,6 +21,10 @@ import android.util.Log;
 import android.widget.Toast;
 import android.util.Xml;
 
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
 import com.uni.stuttgart.ipvs.androidgateway.MainActivity;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
@@ -29,13 +35,17 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.UploadsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.helper.JsonParser;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
+import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -117,11 +127,16 @@ public class GatewayService extends Service {
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
+    private UploadsDatabase bleUploadDatabase = new UploadsDatabase(this);
 
     private String status;
     private Document xmlDocument;
     private XmlPullParser mfrParser;
     private List<PManufacturer> manufacturers;
+
+    //Firebase
+    private FirebaseDatabase mDatabase;
+    DatabaseReference mDeviceReference;
 
     @Override
     public void onCreate() {
@@ -146,6 +161,10 @@ public class GatewayService extends Service {
         int N = Runtime.getRuntime().availableProcessors();
         executionTask = new ExecutionTask<>(N, N * 2);
         executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
+
+        //Firebase
+        mDatabase = FirebaseDatabase.getInstance();
+        mDeviceReference = mDatabase.getReference("devices");
 
         try {
             xmlDocument = GattDataHelper.parseXML(new InputSource(getAssets().open("Settings.xml")));
@@ -895,6 +914,8 @@ public class GatewayService extends Service {
             }
         }
 
+
+
         @Override
         public void broadcastUpdate(String message) throws RemoteException {
             if (mProcessing) {
@@ -1040,6 +1061,81 @@ public class GatewayService extends Service {
 
                 }
             }
+        }
+
+        @Override
+        public void saveCloudData(String macAddress) throws RemoteException {
+
+            for (BluetoothGatt gatt : listBluetoothGatt) {
+                if (gatt.getDevice().getAddress().equals(macAddress)) {
+
+                    GattDataJson dataJson = new GattDataJson(gatt.getDevice(), gatt);
+                    String dataString = JsonParser.readJsonString(dataJson.getJsonData());
+
+
+                    //SAVE TO DB
+                    insertDatabaseUpload(macAddress, dataString, "No");
+                    Log.d("save", "data save in database");
+                }
+            }
+        }
+
+        @Override
+        public void uploadDataCloud() throws RemoteException {
+
+            //List<String> deviceDataList = bleUploadDatabase.getAllUploadStatus();
+
+            /*for(String state : uploadStatusList){
+
+                if(state.equalsIgnoreCase("No")){
+                    //upload
+                }else{
+                    if(state.equalsIgnoreCase("Yes")){
+                        //delete
+                        bleUploadDatabase.deleteDeviceData();
+                    }
+                }
+
+            }*/
+
+            try {
+
+                List<String> uploadDataList = bleUploadDatabase.getAllDeviceData();
+
+                Log.d("json", "JSON list acquired");
+
+                //loop list get each dataString
+                for (String uploadData : uploadDataList) {
+
+                    //convert to json
+                    JSONObject dataJson = JsonParser.readJsonObjectFromString(uploadData);
+
+                    Log.d("json", "JSON: " + dataJson.toString());
+
+                    //TRY TO SAVE JSON DIRECTLY TO DB
+                    String jsonString = dataJson.toString();
+
+                    Map<String, Object> jsonMap = new Gson().fromJson(jsonString, new TypeToken<HashMap<String, Object>>() {
+                    }.getType());
+                    mDeviceReference.push().setValue(jsonMap);
+
+                    //change db status to yes
+                    //updateDatabaseUpload(, "Yes");
+                }
+            }
+            catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void insertDatabaseUpload(String macAddress, String data, String uploadState) throws RemoteException {
+            bleUploadDatabase.insertData(macAddress,data,uploadState);
+        }
+
+        @Override
+        public void updateDatabaseUpload(String macAddress, String uploadState) throws RemoteException {
+            bleUploadDatabase.updateUploadStatus(macAddress,uploadState);
         }
     };
 
