@@ -115,6 +115,7 @@ public class GatewayService extends Service {
     private BluetoothGatt mBluetoothGatt;
 
     private HandlerThread mThread;
+    private HandlerThread mThreadOld;
     private Handler mHandlerMessage;
     private ExecutionTask<PBluetoothGatt> executionTask;
 
@@ -266,12 +267,6 @@ public class GatewayService extends Service {
         @Override
         public void setHandler(PMessageHandler messageHandler, String threadName, String type) throws RemoteException {
 
-           /* if (mHandlerMessage == null) {
-                // no quit section
-            } else {
-                mThread.interrupt();
-                mThread.quit();
-            }*/
             mThread = new HandlerThread(threadName);
             mThread.start();
 
@@ -468,7 +463,7 @@ public class GatewayService extends Service {
                 try {
                     lock.wait();
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    // No Exception print
                 }
             }
         }
@@ -1004,11 +999,7 @@ public class GatewayService extends Service {
                     Log.d(TAG, "Start scanning");
                     mBluetoothLeScanProcess.scanLeDevice(true);
                     mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                    try {
-                        Thread.sleep(time);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+                    sleepThread(time);
                 }
             }
         }
@@ -1156,7 +1147,7 @@ public class GatewayService extends Service {
         try {
             Thread.sleep(time);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            // No message is needed
         }
     }
 

@@ -89,6 +89,7 @@ public class Semaphore {
                     if (!mProcessing) { return; }
 
                     List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                    iGatewayService.setScanResultNonVolatile(scanResults);
 
                     // do Semaphore for Connecting method
                     for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {

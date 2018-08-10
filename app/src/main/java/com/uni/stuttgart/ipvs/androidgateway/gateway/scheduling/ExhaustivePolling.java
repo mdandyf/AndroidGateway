@@ -107,6 +107,7 @@ public class ExhaustivePolling {
                     }
 
                     List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                    iGatewayService.setScanResultNonVolatile(scanResults);
 
                     // do Connecting by using Semaphore
                     for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {

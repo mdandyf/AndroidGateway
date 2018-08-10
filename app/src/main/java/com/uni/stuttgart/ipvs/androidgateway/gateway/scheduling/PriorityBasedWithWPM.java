@@ -155,6 +155,8 @@ public class PriorityBasedWithWPM {
         private void connectRR() {
             try {
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
+
                 // calculate timer for connection (to obtain Round Robin Scheduling)
                 if (scanResults.size() != 0) {
                     int remainingTime = PROCESSING_TIME - SCAN_TIME;
@@ -198,6 +200,8 @@ public class PriorityBasedWithWPM {
             try {
                 /*registerBroadcast(); // start listening to disconnected Gatt and or finished read data*/
                 List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
+
                 Map<BluetoothDevice, Double> mapRankedDevices;
                 if (scanResults.size() != 0) {
                     broadcastUpdate("\n");
