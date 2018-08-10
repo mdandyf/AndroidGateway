@@ -259,6 +259,7 @@ public class GatewayController extends Service {
 
             //MAPE
             runnableMape = doMAPEAlgorithm();
+
             //REPEAT MAPE EVERY 1 MINUTE
             executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
 
@@ -524,7 +525,7 @@ public class GatewayController extends Service {
                             algorithmThread.interrupt();
                             Thread.sleep(1000);
                         } catch (InterruptedException e) {
-                            // no interrupt handler
+                           e.printStackTrace();
                         }
 
                         algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);

@@ -347,7 +347,7 @@ public class GatewayFragment extends Fragment {
      * View Related Routine Section
      */
 
-    private synchronized void setCommandLine(final String info, final boolean clearScreen) {
+    private void setCommandLine(final String info, final boolean clearScreen) {
         screenCounter++;
         getActivity().runOnUiThread(new Runnable() {
             @Override
