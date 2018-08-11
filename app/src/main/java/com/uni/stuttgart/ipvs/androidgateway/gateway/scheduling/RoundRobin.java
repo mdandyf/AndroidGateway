@@ -127,7 +127,7 @@ public class RoundRobin {
 
                 // do connecting by Round Robin
                 for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
                     PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
 
                     // set timer to xx seconds
@@ -150,19 +150,6 @@ public class RoundRobin {
             }
         }
 
-    }
-
-    private Runnable doConnecting(final String macAddress) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    iGatewayService.doConnect(macAddress);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
-        };
     }
 
     private void waitThread(int time) {
@@ -190,13 +177,4 @@ public class RoundRobin {
             context.sendBroadcast(intent);
         }
     }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
-            context.sendBroadcast(intent);
-        }
-    }
-
 }

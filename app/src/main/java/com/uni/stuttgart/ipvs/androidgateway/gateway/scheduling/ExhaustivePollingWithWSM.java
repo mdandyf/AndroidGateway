@@ -156,7 +156,7 @@ public class ExhaustivePollingWithWSM {
                 for (final BluetoothDevice device : scanResults) {
                     mConnecting = true;
                     mDevice = device;
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
                     powerUsage = 0;
@@ -199,7 +199,7 @@ public class ExhaustivePollingWithWSM {
 
                     mConnecting = true;
                     mDevice = device;
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
                     powerUsage = 0;
@@ -294,14 +294,6 @@ public class ExhaustivePollingWithWSM {
             if (mProcessing) {
                 final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
                 intent.putExtra("command", message);
-                context.sendBroadcast(intent);
-            }
-        }
-
-        private void broadcastServiceInterface(String message) {
-            if (mProcessing) {
-                final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-                intent.putExtra("message", message);
                 context.sendBroadcast(intent);
             }
         }

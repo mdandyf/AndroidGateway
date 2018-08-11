@@ -135,8 +135,6 @@ public class FairExhaustivePolling {
             broadcastUpdate("\n");
             if (mScanning) {
                 try {
-                    //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                    //iGatewayService.execScanningQueue();
                     iGatewayService.stopScanning();
                     mScanning = iGatewayService.getScanState();
                 } catch (RemoteException e) {
@@ -183,7 +181,7 @@ public class FairExhaustivePolling {
             // do Round Robin part for connection
             for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                 try {
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
                 } catch (RemoteException e) {
                     e.printStackTrace();
@@ -253,14 +251,6 @@ public class FairExhaustivePolling {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
             intent.putExtra("command", message);
-            context.sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             context.sendBroadcast(intent);
         }
     }

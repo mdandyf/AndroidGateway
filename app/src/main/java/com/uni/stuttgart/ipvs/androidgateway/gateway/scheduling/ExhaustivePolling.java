@@ -111,7 +111,7 @@ public class ExhaustivePolling {
 
                     // do Connecting by using Semaphore
                     for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
-                        broadcastServiceInterface("Start service interface");
+                        iGatewayService.broadcastServiceInterface("Start service interface");
                         iGatewayService.doConnect(device.getAddress());
 
                         if (!mProcessing) {
@@ -149,14 +149,6 @@ public class ExhaustivePolling {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
             intent.putExtra("command", message);
-            context.sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             context.sendBroadcast(intent);
         }
     }

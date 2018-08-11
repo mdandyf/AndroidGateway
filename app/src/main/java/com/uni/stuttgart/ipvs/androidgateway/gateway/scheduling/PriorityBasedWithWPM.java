@@ -168,7 +168,7 @@ public class PriorityBasedWithWPM {
                 // do connecting by Round Robin
                 for (final BluetoothDevice device : scanResults) {
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
 
                     powerUsage = 0;
                     powerEstimator.start();
@@ -396,14 +396,6 @@ public class PriorityBasedWithWPM {
     private void broadcastClrScrn() {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
-            context.sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             context.sendBroadcast(intent);
         }
     }

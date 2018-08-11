@@ -179,7 +179,7 @@ public class PriorityBasedWithAHP {
                 for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                     mConnecting = true;
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
 
                     startStopPowerMeasure(device, "Start");
 
@@ -383,14 +383,6 @@ public class PriorityBasedWithAHP {
     private void broadcastClrScrn() {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
-            context.sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             context.sendBroadcast(intent);
         }
     }

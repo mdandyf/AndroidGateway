@@ -94,7 +94,7 @@ public class Semaphore {
                     // do Semaphore for Connecting method
                     for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                         // only known manufacturer that will be used to connect
-                        broadcastServiceInterface("Start service interface");
+                        iGatewayService.broadcastServiceInterface("Start service interface");
                         iGatewayService.doConnect(device.getAddress());
 
                         if (!mProcessing) {
@@ -131,14 +131,6 @@ public class Semaphore {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
             intent.putExtra("command", message);
-            context.sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             context.sendBroadcast(intent);
         }
     }
