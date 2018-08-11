@@ -659,7 +659,7 @@ public class GatewayService extends Service {
                     //Device mfrId is Known, then check for serviceUUID
                     if (deviceKnown) {
 
-                        //Check Service if known
+                        /*//Check Service if known
                         if (mapListAdvertisement.containsKey("DeviceUUID")) {
 
                             UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
@@ -672,7 +672,7 @@ public class GatewayService extends Service {
                         } else {
                             // service is not known
                             return false;
-                        }
+                        }*/
                     } else {
                         //device not known
                         return false;
