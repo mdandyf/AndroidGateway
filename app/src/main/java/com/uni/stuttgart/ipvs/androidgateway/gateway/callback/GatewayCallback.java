@@ -212,6 +212,7 @@ public class GatewayCallback implements Handler.Callback {
                 mBinder.broadcastUpdate("UUID: " + characteristic.getUuid().toString());
                 mBinder.broadcastUpdate("Property: " + properties);
                 mBinder.broadcastUpdate("Value: " + characteristicValue);
+                mBinder.broadcastUpdate("Thread: " + Thread.currentThread().getId());
                 try {
                     databaseService = mBinder.updateDatabaseService(gatt.getDevice().getAddress(), characteristic.getService().getUuid().toString());
                     databaseCharacteristic = mBinder.updateDatabaseCharacteristics(gatt.getDevice().getAddress(), characteristic.getService().getUuid().toString(), characteristic.getUuid().toString(), properties, characteristicValue);

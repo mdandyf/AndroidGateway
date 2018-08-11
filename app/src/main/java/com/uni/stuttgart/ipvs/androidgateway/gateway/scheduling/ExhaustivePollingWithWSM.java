@@ -22,6 +22,7 @@ import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -43,15 +44,18 @@ public class ExhaustivePollingWithWSM {
     private boolean mProcessing;
     private int cycleCounter = 0;
 
-    private ExecutionTask<String> executionTask;
+    private ExecutionTask<Void> executionTask;
+    private Future<Void> future;
     private Thread threadPowerMeasure;
     private long powerUsage = 0;
     private PowerEstimator powerEstimator;
 
-    public ExhaustivePollingWithWSM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public ExhaustivePollingWithWSM(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
+
         try {
             this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
             this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
@@ -63,24 +67,19 @@ public class ExhaustivePollingWithWSM {
 
     public void stop() {
         mProcessing = false; mConnecting = false;
-        executionTask.stopExecutorPools();
-        executionTask.terminateExecutorPools();
+        future.cancel(true);
     }
 
     public void start() {
         mProcessing = true; mConnecting = false;
-        int N = Runtime.getRuntime().availableProcessors();
-
         powerEstimator = new PowerEstimator(context);
-        executionTask = new ExecutionTask<>(N, N * 2);
-        executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
-        executionTask.submitRunnable(new RunEPScheduling());
+        future = executionTask.submitRunnable(new RunEPScheduling());
     }
 
     private class RunEPScheduling implements Runnable {
         @Override
         public void run() {
-            while (mProcessing) {
+            while (!Thread.currentThread().isInterrupted() && mProcessing) {
                 // do Exhaustive Polling Part
                 cycleCounter++;
                 if (cycleCounter > 1) {
@@ -89,44 +88,55 @@ public class ExhaustivePollingWithWSM {
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");
                 broadcastUpdate("Cycle number " + cycleCounter);
+
                 try {
                     iGatewayService.setCycleCounter(cycleCounter);
                     boolean isDataExist = iGatewayService.checkDevice(null);
                     if (isDataExist) {
+                        // Devices are listed in DB
                         List<String> devices = iGatewayService.getListActiveDevices();
                         // search for known device listed in database
                         for (String device : devices) {
-                            //iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
-
                             iGatewayService.startScanKnownDevices(device);
                         }
-                        // do normal scanning only for half of normal scanning time
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-                        //iGatewayService.execScanningQueue();
 
+                        // do normal scanning only for half of normal scanning time
                         iGatewayService.startScan(SCAN_TIME_HALF);
                         iGatewayService.stopScan();
                         mScanning = iGatewayService.getScanState();
 
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
                         connectWSM();
                     } else {
                         // do normal scanning
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-                        //iGatewayService.execScanningQueue();
 
                         iGatewayService.startScan(SCAN_TIME);
                         iGatewayService.stopScan();
                         mScanning = iGatewayService.getScanState();
 
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
                         connectSemaphore();
                     }
 
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
+                } finally {
+                    Log.d("Thread", "Thread EPWSM " + Thread.currentThread().getId() + " is interrupted");
                 }
             }
         }
@@ -146,7 +156,7 @@ public class ExhaustivePollingWithWSM {
                 for (final BluetoothDevice device : scanResults) {
                     mConnecting = true;
                     mDevice = device;
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
                     powerUsage = 0;
@@ -156,6 +166,12 @@ public class ExhaustivePollingWithWSM {
                     iGatewayService.doConnect(mDevice.getAddress());
 
                     stopPowerMeasure();
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -183,7 +199,7 @@ public class ExhaustivePollingWithWSM {
 
                     mConnecting = true;
                     mDevice = device;
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
 
                     powerUsage = 0;
@@ -198,6 +214,12 @@ public class ExhaustivePollingWithWSM {
                     iGatewayService.doConnect(mDevice.getAddress());
 
                     stopPowerMeasure();
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -272,14 +294,6 @@ public class ExhaustivePollingWithWSM {
             if (mProcessing) {
                 final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
                 intent.putExtra("command", message);
-                context.sendBroadcast(intent);
-            }
-        }
-
-        private void broadcastServiceInterface(String message) {
-            if (mProcessing) {
-                final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-                intent.putExtra("message", message);
                 context.sendBroadcast(intent);
             }
         }

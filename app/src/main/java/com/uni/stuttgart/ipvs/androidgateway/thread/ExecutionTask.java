@@ -21,6 +21,7 @@ public class ExecutionTask<T> extends TaskTracking {
     private ExecutorService executor;
     private ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> future;
+    private Future<T> futureReturn;
     private List<Thread> listThreads;
 
     private EExecutionType executionType;
@@ -63,8 +64,9 @@ public class ExecutionTask<T> extends TaskTracking {
         return future;
     }
 
-    public void submitRunnable(Runnable inputRunnable) {
-        executor.submit(inputRunnable);
+    public Future<T> submitRunnable(Runnable inputRunnable) {
+        futureReturn = (Future<T>) executor.submit(inputRunnable);
+        return futureReturn;
     }
 
     public Future<T> submitCallable(Callable<T> callable) {

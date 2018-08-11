@@ -8,6 +8,7 @@ import android.os.RemoteException;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
@@ -36,12 +37,14 @@ public class RoundRobin {
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
 
-    private ExecutionTask<String> executionTask;
+    private ExecutionTask<Void> executionTask;
 
-    public RoundRobin(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public RoundRobin(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
+
         try {
             this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
             this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
@@ -58,8 +61,6 @@ public class RoundRobin {
     }
 
     public void start() {
-        int N = Runtime.getRuntime().availableProcessors();
-        executionTask = new ExecutionTask<>(N, N * 2);
         scheduler = executionTask.scheduleWithThreadPoolExecutor(new RRStartScanning(), 0, PROCESSING_TIME + 10, MILLISECONDS);
         future = executionTask.getFuture();
     }
@@ -68,27 +69,36 @@ public class RoundRobin {
         @Override
         public void run() {
             try {
-                cycleCounter++;
-                iGatewayService.setCycleCounter(cycleCounter);
-                if (cycleCounter > 1) { broadcastClrScrn(); }
-                broadcastUpdate("\n");
-                broadcastUpdate("Start new cycle...");
-                broadcastUpdate("Cycle number " + cycleCounter);
-                //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                //iGatewayService.execScanningQueue();
+                while (!Thread.currentThread().isInterrupted()) {
+                    cycleCounter++;
+                    iGatewayService.setCycleCounter(cycleCounter);
+                    if (cycleCounter > 1) {
+                        broadcastClrScrn();
+                    }
+                    broadcastUpdate("\n");
+                    broadcastUpdate("Start new cycle...");
+                    broadcastUpdate("Cycle number " + cycleCounter);
 
-                iGatewayService.startScan(SCAN_TIME);
-                iGatewayService.stopScanning();
-                mScanning = iGatewayService.getScanState();
-                waitThread(100);
+                    iGatewayService.startScan(SCAN_TIME);
+                    iGatewayService.stopScanning();
+                    mScanning = iGatewayService.getScanState();
+                    waitThread(100);
 
-                if (!mProcessing) {
-                    future.cancel(false);
-                    return;
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+
+                    connect();
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+
                 }
-                connect();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -110,45 +120,36 @@ public class RoundRobin {
                 }
 
                 if (!mProcessing) {
-                    future.cancel(false);
+                    future.cancel(true);
+                    Thread.currentThread().interrupt();
                     return;
                 }
 
                 // do connecting by Round Robin
                 for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
-                    broadcastServiceInterface("Start service interface");
-                    Thread connectingThread = executionTask.executeRunnableInThread(doConnecting(device.getAddress()), "Connecting Thread " + device.getAddress(), Thread.MAX_PRIORITY);
+                    iGatewayService.broadcastServiceInterface("Start service interface");
+                    PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if (!mProcessing) {
-                        future.cancel(false);
-                        return;
-                    }
+
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(iGatewayService.getCurrentGatt(), "GatewayController");
                     waitThread(100);
-                    executionTask.interruptThread(connectingThread);
-            }
-        } catch(RemoteException e)
-        {
-            e.printStackTrace();
-        }
-    }
 
-}
+                    iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
 
-    private Runnable doConnecting(final String macAddress) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    iGatewayService.doConnect(macAddress);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
+            } catch (RemoteException e) {
+                e.printStackTrace();
             }
-        };
+        }
+
     }
 
     private void waitThread(int time) {
@@ -176,13 +177,4 @@ public class RoundRobin {
             context.sendBroadcast(intent);
         }
     }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
-            context.sendBroadcast(intent);
-        }
-    }
-
 }

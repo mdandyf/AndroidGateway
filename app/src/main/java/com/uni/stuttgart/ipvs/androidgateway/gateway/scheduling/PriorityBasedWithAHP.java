@@ -53,12 +53,14 @@ public class PriorityBasedWithAHP {
     private int maxConnectTime = 0;
     private long powerUsage = 0;
 
-    private ExecutionTask<String> executionTask;
+    private ExecutionTask<Void> executionTask;
 
-    public PriorityBasedWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public PriorityBasedWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
+
         try {
             this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
             this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
@@ -81,8 +83,6 @@ public class PriorityBasedWithAHP {
             mConnecting = false;
             powerEstimator = new PowerEstimator(context);
 
-            int N = Runtime.getRuntime().availableProcessors();
-            executionTask = new ExecutionTask<>(N, N * 2);
             scheduler = executionTask.scheduleWithThreadPoolExecutor(new FPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
             future = executionTask.getFuture();
 
@@ -98,75 +98,65 @@ public class PriorityBasedWithAHP {
         @Override
         public void run() {
             try {
-                cycleCounter++;
-                iGatewayService.setCycleCounter(cycleCounter);
-                if (cycleCounter > 1) {
-                    broadcastClrScrn();
+                while (!Thread.currentThread().isInterrupted()) {
+                    cycleCounter++;
+                    iGatewayService.setCycleCounter(cycleCounter);
+                    if (cycleCounter > 1) {
+                        broadcastClrScrn();
+                    }
+                    broadcastUpdate("Start new cycle");
+                    broadcastUpdate("Cycle number " + cycleCounter);
+
+                    boolean isDataExist = iGatewayService.checkDevice(null);
+                    if (isDataExist) {
+                        // Devices are listed in DB
+                        List<String> devices = iGatewayService.getListActiveDevices();
+                        // search for known device listed in database
+                        for (String device : devices) {
+                            iGatewayService.startScanKnownDevices(device);
+                        }
+
+                        // do normal scanning only for half of normal scanning time
+
+                        iGatewayService.startScan(SCAN_TIME_HALF);
+                        iGatewayService.stopScanning();
+                        mScanning = iGatewayService.getScanState();
+
+                        waitThread(100);
+
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                        connectFP();
+                    } else {
+                        // do normal scanning
+
+                        iGatewayService.startScan(SCAN_TIME);
+                        iGatewayService.stopScanning();
+                        mScanning = iGatewayService.getScanState();
+
+                        waitThread(100);
+
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                        connectRR();
+                    }
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
-                broadcastUpdate("Start new cycle");
-
-                broadcastUpdate("Cycle number " + cycleCounter);
-                mProcessing = true;
-                boolean isDataExist = iGatewayService.checkDevice(null);
-                if (isDataExist) {
-
-                    List<String> devices = iGatewayService.getListActiveDevices();
-                    for (String device : devices) {
-                        //iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
-
-                        iGatewayService.startScanKnownDevices(device);
-                    }
-
-                    // do normal scanning only for half of normal scanning time
-                    //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
-                    //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                    //iGatewayService.execScanningQueue();
-
-                    iGatewayService.startScan(SCAN_TIME_HALF);
-                    iGatewayService.stopScanning();
-                    mScanning = iGatewayService.getScanState();
-
-                    if (!mProcessing) {
-                        future.cancel(false);
-                        return;
-                    }
-
-                    waitThread(100);
-
-                    if (!mProcessing) {
-                        future.cancel(false);
-                        return;
-                    }
-                    connectFP();
-                } else {
-                    // do normal scanning
-                    /*iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                    iGatewayService.execScanningQueue();*/
-
-                    iGatewayService.startScan(SCAN_TIME);
-                    iGatewayService.stopScanning();
-                    mScanning = iGatewayService.getScanState();
-
-                    if (!mProcessing) {
-                        future.cancel(false);
-                        return;
-                    }
-
-                    waitThread(100);
-
-                    if (!mProcessing) {
-                        future.cancel(false);
-                        return;
-                    }
-                    connectRR();
-                }
-
-
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
+                Log.d("Thread", "Thread FEPAHP " + Thread.currentThread().getId() + " is interrupted");
             }
         }
 
@@ -189,7 +179,7 @@ public class PriorityBasedWithAHP {
                 for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                     mConnecting = true;
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
 
                     startStopPowerMeasure(device, "Start");
 
@@ -198,15 +188,17 @@ public class PriorityBasedWithAHP {
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if (!mProcessing) {
-                        return;
-                    }
-
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
 
                     schedulerPowerMeasure.shutdownNow();
                     startStopPowerMeasure(device, "Stop");
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -269,15 +261,18 @@ public class PriorityBasedWithAHP {
 
                     // set timer to xx seconds
                     waitThread(maxConnectTime);
-                    if (!mProcessing) {
-                        return;
-                    }
 
                     broadcastUpdate("Wait time finished, disconnected...");
                     iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
 
                     schedulerPowerMeasure.shutdownNow();
                     startStopPowerMeasure(device, "Stop");
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -302,20 +297,24 @@ public class PriorityBasedWithAHP {
     private class FPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-            if (!mProcessing) {
-                future2.cancel(true);
-                return;
-            }
-            broadcastUpdate("Update all device states...");
-            if (mProcessing) {
-                try {
-                    iGatewayService.updateAllDeviceStates(null);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
+            while(!Thread.currentThread().isInterrupted()) {
+                if (!mProcessing) {
+                    future2.cancel(true);
+                    Thread.currentThread().interrupt();
+                    return;
                 }
-            } else {
-                future2.cancel(false);
+                broadcastUpdate("Update all device states...");
+                if (mProcessing) {
+                    try {
+                        iGatewayService.updateAllDeviceStates(null);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+
+                }
             }
+
         }
     }
 
@@ -384,14 +383,6 @@ public class PriorityBasedWithAHP {
     private void broadcastClrScrn() {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.START_NEW_CYCLE);
-            context.sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             context.sendBroadcast(intent);
         }
     }
