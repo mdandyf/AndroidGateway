@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -54,7 +55,7 @@ public class GatewayController extends Service {
     private IGatewayService iGatewayService;
 
     private boolean mBound = false;
-    private boolean mProcessing = false;
+    private volatile boolean mProcessing = false;
 
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
@@ -80,9 +81,7 @@ public class GatewayController extends Service {
     private HandlerThread algThread;
     private Thread algorithmThread;
 
-
     private final String[] algorithm = {null};
-    private final boolean[] isAlgorithmChanged = {false};
     private ExecutionTask<Void> executionTask = null;
 
     @Override
@@ -132,12 +131,7 @@ public class GatewayController extends Service {
         try {
             //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
             //iGatewayService.execScanningQueue();
-
             iGatewayService.stopScan();
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-        try {
             iGatewayService.setProcessing(false);
         } catch (RemoteException e) {
             e.printStackTrace();
@@ -220,7 +214,7 @@ public class GatewayController extends Service {
 
                 // input data powerConstraint
                 Map<String, Object> pwr = readXMLFile(xmlFile, "DataPowerConstraint");
-                for(Map.Entry entry : pwr.entrySet()) {
+                for (Map.Entry entry : pwr.entrySet()) {
                     String key = (String) entry.getKey();
                     double[] data = (double[]) entry.getValue();
                     iGatewayService.setPowerUsageConstraints(key, data);
@@ -228,7 +222,7 @@ public class GatewayController extends Service {
 
                 // input data Timer
                 Map<String, Object> tmr = readXMLFile(xmlFile, "DataTimer");
-                for(Map.Entry entry : tmr.entrySet()) {
+                for (Map.Entry entry : tmr.entrySet()) {
                     String key = (String) entry.getKey();
                     String dataString = (String) entry.getValue();
 
@@ -247,22 +241,20 @@ public class GatewayController extends Service {
 
 
             //MARWAN
-            executionTask = new ExecutionTask<Void>(1,2);
+            int N = Runtime.getRuntime().availableProcessors();
+            executionTask = new ExecutionTask<Void>(N, N + 1);
             executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
-
-            //isAlgorithmChanged[0] = false;
 
             //Schedule algorithm thread
             runnableAlgorithm = doSchedulingAlgorithm();
 
-            algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
+            algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MIN_PRIORITY);
 
             //MAPE
             runnableMape = doMAPEAlgorithm();
 
             //REPEAT MAPE EVERY 1 MINUTE
             executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
-
 
         }
 
@@ -288,7 +280,7 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            sem = new Semaphore(context, mProcessing, iGatewayService);
+            sem = new Semaphore(context, mProcessing, iGatewayService, executionTask);
             sem.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -306,7 +298,7 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            rr = new RoundRobin(context, mProcessing, iGatewayService);
+            rr = new RoundRobin(context, mProcessing, iGatewayService, executionTask);
             rr.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -325,7 +317,7 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            ep = new ExhaustivePolling(context, mProcessing, iGatewayService);
+            ep = new ExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
             ep.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -343,7 +335,7 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            epAhp = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService);
+            epAhp = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService, executionTask);
             epAhp.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -361,7 +353,7 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            epWsm = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService);
+            epWsm = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService, executionTask);
             epWsm.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -379,7 +371,7 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            fep = new FairExhaustivePolling(context, mProcessing, iGatewayService);
+            fep = new FairExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
             fep.start();
         } catch (Exception e) {
             e.printStackTrace();
@@ -397,8 +389,26 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            ahp = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
+            ahp = new PriorityBasedWithAHP(context, mProcessing, iGatewayService, executionTask);
             ahp.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /*                                                                                                                               *
+     * ============================================================================================================================= *
+     * ============================================================================================================================= *
+     */
+
+    // scheduling based on Priority with WSM decision making algorithm
+    private void doSchedulePriorityWSM() {
+        broadcastUpdate("Start Priority Scheduling with WSM...");
+        try {
+            iGatewayService.setProcessing(mProcessing);
+            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
+            wsm = new PriorityBasedWithWSM(context, mProcessing, iGatewayService, executionTask);
+            wsm.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -416,26 +426,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            anp = new PriorityBasedWithANP(context, mProcessing, iGatewayService);
+            anp = new PriorityBasedWithANP(context, mProcessing, iGatewayService, executionTask);
             anp.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    /*                                                                                                                               *
-     * ============================================================================================================================= *
-     * ============================================================================================================================= *
-     */
-
-    // scheduling based on Priority with WSM decision making algorithm
-    private void doSchedulePriorityWSM() {
-        broadcastUpdate("Start Priority Scheduling with WSM...");
-        try {
-            iGatewayService.setProcessing(mProcessing);
-            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            wsm = new PriorityBasedWithWSM(context, mProcessing, iGatewayService);
-            wsm.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -452,44 +444,40 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            wpm = new PriorityBasedWithWPM(context, mProcessing, iGatewayService);
+            wpm = new PriorityBasedWithWPM(context, mProcessing, iGatewayService, executionTask);
             wpm.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+
     //MARWAN
 
     private synchronized Runnable doSchedulingAlgorithm() {
 
-        return  new Runnable() {
+        return new Runnable() {
             @Override
             public void run() {
 
-                if(algorithm[0].equals("ep")) {
+                if (algorithm[0].equals("ep")) {
                     doScheduleEP();
-                } else if(algorithm[0].equals("fep")) {
+                } else if (algorithm[0].equals("fep")) {
                     doScheduleFEP();
-                } else if(algorithm[0].equals("epAhp")) {
+                } else if (algorithm[0].equals("epAhp")) {
                     doScheduleEPwithAHP();
-                } else if(algorithm[0].equals("epWsm")) {
+                } else if (algorithm[0].equals("epWsm")) {
                     doScheduleEPwithWSM();
-                } else if(algorithm[0].equals("ahp")) {
+                } else if (algorithm[0].equals("ahp")) {
                     doSchedulePriorityAHP();
-                } else if(algorithm[0].equals("wsm")) {
+                } else if (algorithm[0].equals("wsm")) {
                     doSchedulePriorityWSM();
                 }
 
-                //isAlgorithmChanged[0] = false;
             }
         };
 
     }
-
-
-
-
 
 
     private synchronized Runnable doMAPEAlgorithm() {
@@ -498,47 +486,53 @@ public class GatewayController extends Service {
             @Override
             public void run() {
 
-            try {
-                        //READ DEVICES FROM NON VOLATILE MEMORY
-                        broadcastUpdate("Available Devices: " + iGatewayService.getScanResultsNonVolatile());
-                        broadcastUpdate("Evaluating new MAPE Algorithm...");
+                try {
+                    //READ DEVICES FROM NON VOLATILE MEMORY
+                    iGatewayService.broadcastClearScreen("Clear the Screen");
+                    broadcastUpdate("Available Devices: " + iGatewayService.getScanResultsNonVolatile());
+                    broadcastUpdate("Evaluating new MAPE Algorithm...");
 
-                        //Toast.makeText(context, "NV Devices: " + iGatewayService.getScanResultsNonVolatile(), Toast.LENGTH_SHORT).show();
+                    mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService, executionTask);
+                    algorithm[0] = mapeAlgorithm.startMape();
+                    broadcastUpdate("Changing Algorithm...");
+                    broadcastUpdate("New Algorithm Is : " + algorithm[0]);
 
-                        mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService, executionTask);
-                        algorithm[0] = mapeAlgorithm.startMape();
-                        broadcastUpdate("Changing Algorithm...");
-                        broadcastUpdate("New Algorithm Is : " + algorithm[0]);
+                    Log.d("newAlgorithm", "New Algorithm Is : " + algorithm[0]);
 
-                        Log.d("newAlgorithm", "New Algorithm Is : " + algorithm[0]);
+                    // ensure thread is killed first & clear the screen
 
-                        if(fep != null) {fep.stop();}
-                        if(ep != null) {ep.stop();}
-                        if(epAhp != null) {epAhp.stop();}
-                        if(epWsm != null) {epWsm.stop();}
-                        if(ahp != null) {ahp.stop();}
-                        if(wsm != null) {wsm.stop();}
+                    if (fep != null) {
+                        fep.stop();
+                    }
+                    if (ep != null) {
+                        ep.stop();
+                    }
+                    if (epAhp != null) {
+                        epAhp.stop();
+                    }
+                    if (epWsm != null) {
+                        epWsm.stop();
+                    }
+                    if (ahp != null) {
+                        ahp.stop();
+                    }
+                    if (wsm != null) {
+                        wsm.stop();
+                    }
+
+                    Thread.sleep(1000);
+                    algorithmThread = null;
+                    algorithmThread = executionTask.executeRunnableInThread(doSchedulingAlgorithm(), "Algorithm Thread", Thread.MAX_PRIORITY);
 
 
-                        // ensure thread is killed first
-                        try {
-                            algorithmThread.interrupt();
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                           e.printStackTrace();
-                        }
-
-                        algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
-            }
-            catch (Exception e) {
-                e.printStackTrace();
-            }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
 
             }
         };
 
     }
-
 
 
     /**
@@ -549,22 +543,6 @@ public class GatewayController extends Service {
      * ============================================================================================================================= *
      * ============================================================================================================================= *
      */
-
-
-/*    private final BroadcastReceiver scanReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-
-            if (action.equals(GatewayService.STOP_SCAN)) {
-
-                mapeThread = executionTask.executeRunnableInThread(execMapeAlgorithm(), "MAPE Thread", Thread.MIN_PRIORITY);
-
-            }
-        }
-    };*/
-
-
 
     /**
      * Start Method Routine

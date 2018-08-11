@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.RemoteException;
+import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
@@ -19,6 +20,7 @@ import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -39,15 +41,17 @@ public class ExhaustivePollingWithAHP {
     private boolean mProcessing;
     private int cycleCounter = 0;
 
-    private ExecutionTask<String> executionTask;
+    private ExecutionTask<Void> executionTask;
+    private Future<Void> future;
     private Thread threadPowerMeasure;
     private long powerUsage = 0;
     private PowerEstimator powerEstimator;
 
-    public ExhaustivePollingWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public ExhaustivePollingWithAHP(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
 
         try {
             this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
@@ -60,69 +64,74 @@ public class ExhaustivePollingWithAHP {
 
     public void stop() {
         mProcessing = false; mConnecting = false;
-        executionTask.stopExecutorPools();
-        executionTask.terminateExecutorPools();
+        future.cancel(true);
     }
 
     public void start() {
         mProcessing = true; mConnecting = false;
-        int N = Runtime.getRuntime().availableProcessors();
-
         powerEstimator = new PowerEstimator(context);
-        executionTask = new ExecutionTask<>(N, N * 2);
-        executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
-        executionTask.submitRunnable(new RunEPScheduling());
+        future = executionTask.submitRunnable(new RunEPScheduling());
     }
 
     private class RunEPScheduling implements Runnable {
         @Override
         public void run() {
-            while (mProcessing) {
+            while (!Thread.currentThread().isInterrupted() && mProcessing) {
                 // do Exhaustive Polling Part
                 cycleCounter++;
                 if (cycleCounter > 1) { broadcastClrScrn(); }
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");
                 broadcastUpdate("Cycle number " + cycleCounter);
+
                 try {
                     iGatewayService.setCycleCounter(cycleCounter);
                     boolean isDataExist = iGatewayService.checkDevice(null);
                     if (isDataExist) {
+                        // Devices are listed in DB
                         List<String> devices = iGatewayService.getListActiveDevices();
                         // search for known device listed in database
                         for (String device : devices) {
-                            //iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
                             iGatewayService.startScanKnownDevices(device);
                         }
                         // do normal scanning only for half of normal scanning time
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_OTHER);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-                        //iGatewayService.execScanningQueue();
 
                         iGatewayService.startScan(SCAN_TIME_OTHER);
                         iGatewayService.stopScan();
                         mScanning = iGatewayService.getScanState();
 
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
                         connectAHP();
                     } else {
                         // do normal scanning
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                        //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-                        //iGatewayService.execScanningQueue();
 
                         iGatewayService.startScan(SCAN_TIME);
                         iGatewayService.stopScan();
                         mScanning = iGatewayService.getScanState();
 
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
                         connectSemaphore();
                     }
 
-
-
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
+                } finally {
+                    Log.d("Thread", "Thread EPAHP " + Thread.currentThread().getId() + " is interrupted");
                 }
             }
 
@@ -153,6 +162,12 @@ public class ExhaustivePollingWithAHP {
                     iGatewayService.doConnect(mDevice.getAddress());
 
                     stopPowerMeasure();
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -189,6 +204,12 @@ public class ExhaustivePollingWithAHP {
                     iGatewayService.doConnect(mDevice.getAddress());
 
                     stopPowerMeasure();
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
 
             } catch (Exception e) {

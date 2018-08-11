@@ -17,6 +17,7 @@ import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 // implementation of Semaphore Scheduling Gateway Controller
 
@@ -33,15 +34,16 @@ public class Semaphore {
     private Context context;
     private boolean mProcessing;
     private int cycleCounter = 0;
-    private int maxConnectTime = 0;
-    private long powerUsage = 0;
 
-    private ExecutionTask<String> executionTask;
+    private ExecutionTask<Void> executionTask;
+    private Future<Void> future;
 
-    public Semaphore(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public Semaphore(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
+
         try {
             this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
             this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
@@ -53,40 +55,38 @@ public class Semaphore {
     
     public void stop() {
         mProcessing = false;
-        executionTask.terminateExecutorPools();
+        future.cancel(true);
     }
 
     public void start() {
-        mProcessing = true;
-        int N = Runtime.getRuntime().availableProcessors();
-        executionTask = new ExecutionTask<>(N, N*2);
         executionTask.setExecutionType(EExecutionType.SINGLE_THREAD_POOL);
-        executionTask.submitRunnable(new SemaphoreSchedulling());
+        future = executionTask.submitRunnable(new SemaphoreSchedulling());
     }
 
     private class SemaphoreSchedulling implements Runnable {
 
         @Override
         public void run() {
-            while (mProcessing) {
+            while (!Thread.currentThread().isInterrupted() && mProcessing) {
                 cycleCounter++;
                 if(cycleCounter > 1) {broadcastClrScrn();}
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle...");
                 broadcastUpdate("Cycle number " + cycleCounter);
+
                 try {
                     iGatewayService.setCycleCounter(cycleCounter);
-                    //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    //iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                   // iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                   // iGatewayService.execScanningQueue();
 
                     iGatewayService.startScan(SCAN_TIME);
                     iGatewayService.stopScanning();
 
                     mScanning = iGatewayService.getScanState();
 
-                    if (!mProcessing) { return; }
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
 
                     List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
                     iGatewayService.setScanResultNonVolatile(scanResults);
@@ -97,8 +97,18 @@ public class Semaphore {
                         broadcastServiceInterface("Start service interface");
                         iGatewayService.doConnect(device.getAddress());
 
-                        if (!mProcessing) { return; }
+                        if (!mProcessing) {
+                            future.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
 
+                    }
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
                     }
                 } catch (RemoteException e) {
                     e.printStackTrace();

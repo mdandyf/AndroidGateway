@@ -120,6 +120,7 @@ public class GatewayService extends Service {
     private ExecutionTask<PBluetoothGatt> executionTask;
 
     private boolean mProcessing;
+    private boolean mProcessView;
     private boolean mScanning;
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
@@ -989,20 +990,7 @@ public class GatewayService extends Service {
         @Override
         public void startScan(final long time) throws RemoteException {
             //step scan new BLE devices
-            while (true) {
-                if (!getScanState()) {
-                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
-                    mScanning = true;
-                    broadcastUpdate("Scanning bluetooth...");
-                    Log.d(TAG, "Start scanning");
-                    mBluetoothLeScanProcess.scanLeDevice(true);
-                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                    sleepThread(time);
-                    break;
-                } else {
-                    sleepThread(100);
-                }
-            }
+            scanBleDevice("UnknownDevice", null, time);
         }
 
         @Override
@@ -1012,7 +1000,6 @@ public class GatewayService extends Service {
             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
             broadcastUpdate("Stop scanning bluetooth...");
             broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
-
         }
 
         @Override
@@ -1021,30 +1008,12 @@ public class GatewayService extends Service {
             mBluetoothLeScanProcess.scanLeDevice(false);
             Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
             broadcastUpdate("Stop scanning...");
-
         }
 
         @Override
         public void startScanKnownDevices(String macAddress) throws RemoteException {
             // step scan for known BLE devices
-            Log.d(TAG, "Start scanning for known BLE device ");
-            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
-            if (macAddress != null) {
-                // find specific macAddress
-                mScanning = false;
-                broadcastUpdate("Searching device " + macAddress);
-                BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
-                if (device == null) {
-                    broadcastUpdate("Device " + macAddress + "not found, try scanning...");
-                    mBluetoothLeScanProcess.findLeDevice(macAddress, true);
-                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                    mBluetoothLeScanProcess.findLeDevice(macAddress, false);
-                } else {
-                    mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
-                }
-
-            }
-
+            scanBleDevice("KnownDevice", macAddress, 0);
         }
 
         @Override
@@ -1066,21 +1035,6 @@ public class GatewayService extends Service {
 
         @Override
         public void uploadDataCloud() throws RemoteException {
-
-            //List<String> deviceDataList = bleUploadDatabase.getAllUploadStatus();
-
-            /*for(String state : uploadStatusList){
-
-                if(state.equalsIgnoreCase("No")){
-                    //upload
-                }else{
-                    if(state.equalsIgnoreCase("Yes")){
-                        //delete
-                        bleUploadDatabase.deleteDeviceData();
-                    }
-                }
-
-            }*/
 
             try {
 
@@ -1126,6 +1080,45 @@ public class GatewayService extends Service {
      * Some routines section
      */
 
+    private synchronized void scanBleDevice(String type, final String macAddress, long time) {
+        try {
+            switch (type) {
+                case "UnknownDevice":
+                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
+                    mScanning = true;
+                    mBinder.broadcastUpdate("Scanning bluetooth...");
+                    Log.d(TAG, "Start scanning");
+                    mBluetoothLeScanProcess.scanLeDevice(true);
+                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                    sleepThread(time);
+                    break;
+                case "KnownDevice":
+                    Log.d(TAG, "Start scanning for known BLE device ");
+                    Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
+                    if (macAddress != null) {
+                        // find specific macAddress
+                        mScanning = false;
+                        mBinder.broadcastUpdate("Searching device " + macAddress);
+                        BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
+                        if (device == null) {
+                            mBinder.broadcastUpdate("Device " + macAddress + "not found, try scanning...");
+                            mBluetoothLeScanProcess.findLeDevice(macAddress, true);
+                            mScanning = true;
+                            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                            mBluetoothLeScanProcess.findLeDevice(macAddress, false);
+                            mScanning = false;
+                        } else {
+                            mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
+                        }
+                    }
+                    break;
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void setWakeLock() {
         powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeLockService");
@@ -1135,10 +1128,20 @@ public class GatewayService extends Service {
     }
 
 
-    public void sleepThread(long time) {
+    private void sleepThread(long time) {
         try {
+            Log.d("Thread", "Thread " + Thread.currentThread().getId() + " is accessing sleep Thread");
             Thread.sleep(time);
         } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            if(mBinder.getScanState()) {
+                mBinder.stopScan();
+                mScanning = mBinder.getScanState();
+            }
+        } catch (RemoteException e) {
             e.printStackTrace();
         }
     }

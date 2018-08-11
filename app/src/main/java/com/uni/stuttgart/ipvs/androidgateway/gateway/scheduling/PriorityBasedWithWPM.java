@@ -50,12 +50,13 @@ public class PriorityBasedWithWPM {
     private int maxConnectTime = 0;
     private long powerUsage = 0;
 
-    private ExecutionTask<String> executionTask;
+    private ExecutionTask<Void> executionTask;
 
-    public PriorityBasedWithWPM(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public PriorityBasedWithWPM(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
     }
 
     public void stop() {
@@ -68,8 +69,6 @@ public class PriorityBasedWithWPM {
             isBroadcastRegistered = false;
             powerEstimator = new PowerEstimator(context);
 
-            int N = Runtime.getRuntime().availableProcessors();
-            executionTask = new ExecutionTask<>(N, N*2);
             scheduler = executionTask.scheduleWithThreadPoolExecutor(new FPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
             future = executionTask.getFuture();
 
