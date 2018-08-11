@@ -2,7 +2,7 @@
 <root>
     <DataAlgorithm>
         <data>
-            <currentAlgorithm>fep</currentAlgorithm>
+            <currentAlgorithm>wsm</currentAlgorithm>
         </data>
     </DataAlgorithm>
     <DataPowerConstraint>
@@ -39,4 +39,10 @@
             <unit>ms</unit>
         </data>
     </DataTimer>
+    <DataMape>
+        <data>
+        <mapeAction>yes</mapeAction>
+        <mapeDataUpload>yes</mapeDataUpload>
+        </data>
+    </DataMape>
 </root>
