@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.text.DateFormat;
 import java.util.List;
+import java.util.Map;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -52,6 +53,7 @@ public class MapeAlgorithm {
     private int batteryInput;
     private int deviceInput;
     private int connectionInput;
+    private Map<String,Object> mapeAction;
 
     private int uploadOutput;
     private int priorityOutput;
@@ -62,11 +64,12 @@ public class MapeAlgorithm {
     private Runnable runnableUpload;
     private ExecutionTask<Void> executionTask;
 
-    public MapeAlgorithm(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
+    public MapeAlgorithm(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask, Map<String,Object> mapeAction) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
         this.executionTask = executionTask;
+        this.mapeAction = mapeAction;
     }
 
 
@@ -84,36 +87,36 @@ public class MapeAlgorithm {
                 deviceInput = 10;
             }
 
-           /* //GET CONNECTIVITY STATE
-            int conn = NetworkUtil.getConnectivityStatus(context);
-            if(conn == NetworkUtil.TYPE_WIFI){
-                connectionInput = 0;
-                fuzzyProcess1(batteryInput, deviceInput, connectionInput);
-            }else if(conn == NetworkUtil.TYPE_MOBILE){
-                connectionInput = 1;
-                fuzzyProcess1(batteryInput, deviceInput, connectionInput);
+            String mapeDataUpload = (String) mapeAction.get("DataUpload");
+            if(mapeDataUpload.equalsIgnoreCase("yes")){
+                //GET CONNECTIVITY STATE
+                int conn = NetworkUtil.getConnectivityStatus(context);
+                if(conn == NetworkUtil.TYPE_WIFI){
+                    connectionInput = 0;
+                    fuzzyProcess1(batteryInput, deviceInput, connectionInput);
+
+                    if(uploadOutput == 1){
+                        iGatewayService.uploadDataCloud();
+                    }
+                }else if(conn == NetworkUtil.TYPE_MOBILE){
+                    connectionInput = 1;
+                    fuzzyProcess1(batteryInput, deviceInput, connectionInput);
+
+                    if(uploadOutput == 1){
+                        iGatewayService.uploadDataCloud();
+                    }
+                }else {
+                    Log.d("upload", "No Internet, upload failed");
+                    fuzzyProcess2(batteryInput, deviceInput);
+                }
             }else {
-                //delete this
-                fuzzyProcess1(batteryInput, deviceInput, 0);
-
-                //Log.d("upload", "No Internet, upload failed");
-                //fuzzyProcess2(batteryInput, deviceInput);
-            }*/
-
-           fuzzyProcess2(batteryInput,deviceInput);
-
-
-            if(uploadOutput == 1){
-                //make new thread to run this methed
-                //iGatewayService.uploadDataCloud();
-
-                /*executionTask = new ExecutionTask<>(1,2);
-                executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);*/
-
-                //uploadThread = executionTask.executeRunnableInThread(doUploadData(), "Upload Thread", Thread.MIN_PRIORITY);
-
-
+                fuzzyProcess2(batteryInput,deviceInput);
             }
+
+
+
+
+
 
             //CHOOSE SCHEDULING ALGORITHM
             switch(priorityOutput) {
@@ -192,11 +195,11 @@ public class MapeAlgorithm {
         Variable uploadState = fis.getFunctionBlock("upload_controller").getVariable("upload_status");
 
         // Print ruleSet
-        Log.d("Saida: ", "" + priority.defuzzify());
+        Log.d("mape: ", "scheduleResult" + priority.defuzzify());
         scheduleResult = ((int) Math.round(priority.defuzzify()));
 
         // Print ruleSet
-        Log.d("Saida: ", "" + uploadState.defuzzify());
+        Log.d("mape: ", "uploadResult" + uploadState.defuzzify());
         uploadResult = ((int) Math.round(uploadState.defuzzify()));
 
         if(uploadResult >= 0.5){

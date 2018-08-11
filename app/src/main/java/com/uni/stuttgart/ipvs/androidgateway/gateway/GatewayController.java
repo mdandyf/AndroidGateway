@@ -81,6 +81,8 @@ public class GatewayController extends Service {
     private HandlerThread algThread;
     private Thread algorithmThread;
 
+    private Map<String,Object> mapeDataAction;
+
     private int oldNumberOfDevices = 0;
 
     private final String[] algorithm = {null};
@@ -235,6 +237,9 @@ public class GatewayController extends Service {
                         iGatewayService.setTimeSettings(key, data);
                     }
                 }
+
+                //read Mape action
+                mapeDataAction = readXMLFile(xmlFile, "DataMape");
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (RemoteException e) {
@@ -253,10 +258,13 @@ public class GatewayController extends Service {
             algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MIN_PRIORITY);
 
             //MAPE
-            //runnableMape = doMAPEAlgorithm();
+            runnableMape = doMAPEAlgorithm();
 
             //REPEAT MAPE EVERY 1 MINUTE
-            //executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
+            String mapeAction = (String) mapeDataAction.get("MapeAction");
+            if(mapeAction.equalsIgnoreCase("yes")){
+                executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
+            }
 
         }
 
@@ -490,18 +498,12 @@ public class GatewayController extends Service {
 
                 try {
 
-                    if (iGatewayService.getScanResultsNonVolatile().size() != oldNumberOfDevices) {
-                        // go run MAPE
-                    } else {
-                        return;
-                    }
-
                     //READ DEVICES FROM NON VOLATILE MEMORY
                     iGatewayService.broadcastClearScreen("Clear the Screen");
                     broadcastUpdate("Available Devices: " + iGatewayService.getScanResultsNonVolatile());
                     broadcastUpdate("Evaluating new MAPE Algorithm...");
 
-                    mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService, executionTask);
+                    mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService, executionTask, mapeDataAction);
                     algorithm[0] = mapeAlgorithm.startMape();
                     broadcastUpdate("Changing Algorithm...");
                     broadcastUpdate("New Algorithm Is : " + algorithm[0]);
@@ -532,9 +534,6 @@ public class GatewayController extends Service {
                     Thread.sleep(1000);
                     algorithmThread = null;
                     algorithmThread = executionTask.executeRunnableInThread(doSchedulingAlgorithm(), "Algorithm Thread", Thread.MAX_PRIORITY);
-
-                    oldNumberOfDevices = iGatewayService.getScanResultsNonVolatile().size();
-
 
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -620,6 +619,14 @@ public class GatewayController extends Service {
                 Node nodeTimer4 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
                 results.put("TimeUnit", nodeTimer4.getFirstChild().getNodeValue());
                 break;
+            case "DataMape":
+                list = xmlFile.getElementsByTagName(type);
+                Node nodeDataMape = list.item(0);
+                nodeData = nodeDataMape.getFirstChild().getNextSibling();
+                Node nodeMapeAction = nodeData.getFirstChild().getNextSibling();
+                results.put("MapeAction", nodeMapeAction.getFirstChild().getNodeValue());
+                Node nodeDataUpload = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                results.put("DataUpload", nodeDataUpload.getFirstChild().getNodeValue());
         }
         return results;
     }
