@@ -81,6 +81,8 @@ public class GatewayController extends Service {
     private HandlerThread algThread;
     private Thread algorithmThread;
 
+    private int oldNumberOfDevices = 0;
+
     private final String[] algorithm = {null};
     private ExecutionTask<Void> executionTask = null;
 
@@ -487,6 +489,13 @@ public class GatewayController extends Service {
             public void run() {
 
                 try {
+
+                    if (iGatewayService.getScanResultsNonVolatile().size() != oldNumberOfDevices) {
+                        // go run MAPE
+                    } else {
+                        return;
+                    }
+
                     //READ DEVICES FROM NON VOLATILE MEMORY
                     iGatewayService.broadcastClearScreen("Clear the Screen");
                     broadcastUpdate("Available Devices: " + iGatewayService.getScanResultsNonVolatile());
@@ -523,6 +532,8 @@ public class GatewayController extends Service {
                     Thread.sleep(1000);
                     algorithmThread = null;
                     algorithmThread = executionTask.executeRunnableInThread(doSchedulingAlgorithm(), "Algorithm Thread", Thread.MAX_PRIORITY);
+
+                    oldNumberOfDevices = iGatewayService.getScanResultsNonVolatile().size();
 
 
                 } catch (Exception e) {
