@@ -70,8 +70,10 @@ public class FairExhaustivePolling {
         mProcessing = false;
         futureFEP.cancel(true);
         futureDB.cancel(true);
-        scheduleFEP.shutdown();scheduleFEP.shutdownNow();
-        scheduleDB.shutdown();scheduleDB.shutdownNow();
+        scheduleFEP.shutdown();
+        scheduleFEP.shutdownNow();
+        scheduleDB.shutdown();
+        scheduleDB.shutdownNow();
     }
 
     private class FEPStartScanning implements Runnable {
@@ -211,18 +213,16 @@ public class FairExhaustivePolling {
     private class FEPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
-                if (!mProcessing) {
-                    futureDB.cancel(true);
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                broadcastUpdate("Update all device states...");
-                try {
-                    iGatewayService.updateAllDeviceStates(null);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
+            if (!mProcessing) {
+                futureDB.cancel(true);
+                Thread.currentThread().interrupt();
+                return;
+            }
+            broadcastUpdate("Update all device states...");
+            try {
+                iGatewayService.updateAllDeviceStates(null);
+            } catch (RemoteException e) {
+                e.printStackTrace();
             }
         }
     }

@@ -297,7 +297,6 @@ public class PriorityBasedWithAHP {
     private class FPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-            while(!Thread.currentThread().isInterrupted()) {
                 if (!mProcessing) {
                     future2.cancel(true);
                     Thread.currentThread().interrupt();
@@ -313,8 +312,6 @@ public class PriorityBasedWithAHP {
                 } else {
 
                 }
-            }
-
         }
     }
 

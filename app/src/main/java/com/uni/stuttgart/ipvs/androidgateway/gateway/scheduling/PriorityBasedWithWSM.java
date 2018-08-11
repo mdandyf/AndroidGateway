@@ -304,7 +304,6 @@ public class PriorityBasedWithWSM {
     private class FPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-            while (Thread.currentThread().isInterrupted()) {
                 if (!mProcessing) {
                     future2.cancel(true);
                     Thread.currentThread().interrupt();
@@ -318,10 +317,9 @@ public class PriorityBasedWithWSM {
                         e.printStackTrace();
                     }
                 } else {
-                    future2.cancel(false);
+                    future2.cancel(true);
                 }
             }
-        }
     }
 
 
