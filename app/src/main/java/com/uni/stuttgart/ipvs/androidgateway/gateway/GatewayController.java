@@ -258,10 +258,10 @@ public class GatewayController extends Service {
             algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MAX_PRIORITY);
 
             //MAPE
-            runnableMape = doMAPEAlgorithm();
+            //runnableMape = doMAPEAlgorithm();
 
             //REPEAT MAPE EVERY 1 MINUTE
-            executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
+            //executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
 
 
         }

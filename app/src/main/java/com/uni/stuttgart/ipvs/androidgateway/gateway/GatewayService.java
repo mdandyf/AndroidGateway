@@ -1036,9 +1036,16 @@ public class GatewayService extends Service {
                 BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
                 if (device == null) {
                     broadcastUpdate("Device " + macAddress + "not found, try scanning...");
-                    mBluetoothLeScanProcess.findLeDevice(macAddress, true);
-                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                    mBluetoothLeScanProcess.findLeDevice(macAddress, false);
+                    while (true) {
+                        if (!getScanState()) {
+                            mBluetoothLeScanProcess.findLeDevice(macAddress, true);
+                            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                            mBluetoothLeScanProcess.findLeDevice(macAddress, false);
+                            break;
+                        } else {
+                            sleepThread(100);
+                        }
+                    }
                 } else {
                     mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
                 }
