@@ -80,52 +80,51 @@ public class FairExhaustivePolling {
         @Override
         public void run() {
             try {
-                while (!Thread.currentThread().isInterrupted()) {
-                    cycleCounter++;
-                    iGatewayService.setCycleCounter(cycleCounter);
-                    if (cycleCounter > 1) {
-                        broadcastClrScrn();
-                    }
-                    broadcastUpdate("\n");
-                    broadcastUpdate("Start new cycle");
-                    broadcastUpdate("Cycle number " + cycleCounter);
-
-                    // do polling slaves part
-                    boolean isDataExist = iGatewayService.checkDevice(null);
-                    if (isDataExist) {
-                        // Devices are listed in DB
-                        List<String> devices = iGatewayService.getListActiveDevices();
-                        // search for known device listed in database
-                        for (String device : devices) {
-                            iGatewayService.startScanKnownDevices(device);
-                        }
-                        // do normal scanning only for half of normal scanning time
-                        sleepThread(100);
-                        iGatewayService.startScan(SCAN_TIME_HALF);
-                        mScanning = iGatewayService.getScanState();
-                    } else {
-                        // do normal scanning
-                        iGatewayService.startScan(SCAN_TIME);
-                        mScanning = iGatewayService.getScanState();
-                    }
-
-                    if (!mProcessing) {
-                        futureFEP.cancel(true);
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-
-                    stop();
-                    sleepThread(100);
-                    connect();
-
-
-                    if (!mProcessing) {
-                        futureFEP.cancel(true);
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
+                cycleCounter++;
+                iGatewayService.setCycleCounter(cycleCounter);
+                if (cycleCounter > 1) {
+                    broadcastClrScrn();
                 }
+                broadcastUpdate("\n");
+                broadcastUpdate("Start new cycle");
+                broadcastUpdate("Cycle number " + cycleCounter);
+
+                // do polling slaves part
+                boolean isDataExist = iGatewayService.checkDevice(null);
+                if (isDataExist) {
+                    // Devices are listed in DB
+                    List<String> devices = iGatewayService.getListActiveDevices();
+                    // search for known device listed in database
+                    for (String device : devices) {
+                        iGatewayService.startScanKnownDevices(device);
+                    }
+                    // do normal scanning only for half of normal scanning time
+                    sleepThread(100);
+                    iGatewayService.startScan(SCAN_TIME_HALF);
+                    mScanning = iGatewayService.getScanState();
+                } else {
+                    // do normal scanning
+                    iGatewayService.startScan(SCAN_TIME);
+                    mScanning = iGatewayService.getScanState();
+                }
+
+                if (!mProcessing) {
+                    futureFEP.cancel(true);
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
+                stop();
+                sleepThread(100);
+                connect();
+
+
+                if (!mProcessing) {
+                    futureFEP.cancel(true);
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
