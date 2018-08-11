@@ -70,9 +70,12 @@ public class PriorityBasedWithWSM {
     }
 
     public void stop() {
-        mConnecting = false;mProcessing = false;
-        future.cancel(true);future2.cancel(true);
-        scheduler.shutdownNow();scheduler2.shutdownNow();
+        mConnecting = false;
+        mProcessing = false;
+        future.cancel(true);
+        future2.cancel(true);
+        scheduler.shutdownNow();
+        scheduler2.shutdownNow();
     }
 
     public void start() {
@@ -95,64 +98,27 @@ public class PriorityBasedWithWSM {
         @Override
         public void run() {
             try {
-                while (!Thread.currentThread().isInterrupted() && mProcessing) {
-                    cycleCounter++;
-                    iGatewayService.setCycleCounter(cycleCounter);
-                    if (cycleCounter > 1) {
-                        broadcastClrScrn();
+                cycleCounter++;
+                iGatewayService.setCycleCounter(cycleCounter);
+                if (cycleCounter > 1) {
+                    broadcastClrScrn();
+                }
+                broadcastUpdate("Start new cycle");
+                broadcastUpdate("Cycle number " + cycleCounter);
+
+                boolean isDataExist = iGatewayService.checkDevice(null);
+                if (isDataExist) {
+                    // Devices are listed in DB
+                    List<String> devices = iGatewayService.getListActiveDevices();
+                    // search for known device listed in database
+                    for (String device : devices) {
+                        iGatewayService.startScanKnownDevices(device);
                     }
-                    broadcastUpdate("Start new cycle");
-                    broadcastUpdate("Cycle number " + cycleCounter);
 
-                    boolean isDataExist = iGatewayService.checkDevice(null);
-                    if (isDataExist) {
-                        // Devices are listed in DB
-                        List<String> devices = iGatewayService.getListActiveDevices();
-                        // search for known device listed in database
-                        for (String device : devices) {
-                            iGatewayService.startScanKnownDevices(device);
-                        }
-
-                        // do normal scanning only for half of normal scanning time
-                        iGatewayService.startScan(SCAN_TIME_HALF);
-                        iGatewayService.stopScanning();
-                        mScanning = iGatewayService.getScanState();
-
-                        if (!mProcessing) {
-                            future.cancel(true);
-                            Thread.currentThread().interrupt();
-                            return;
-                        }
-
-                        waitThread(100);
-
-                        if (!mProcessing) {
-                            future.cancel(true);
-                            Thread.currentThread().interrupt();
-                            return;
-                        }
-                        connectFP();
-                    } else {
-                        // do normal scanning
-                        iGatewayService.startScan(SCAN_TIME);
-                        iGatewayService.stopScanning();
-                        mScanning = iGatewayService.getScanState();
-
-                        if (!mProcessing) {
-                            future.cancel(true);
-                            Thread.currentThread().interrupt();
-                            return;
-                        }
-
-                        waitThread(100);
-
-                        if (!mProcessing) {
-                            future.cancel(true);
-                            Thread.currentThread().interrupt();
-                            return;
-                        }
-                        connectRR();
-                    }
+                    // do normal scanning only for half of normal scanning time
+                    iGatewayService.startScan(SCAN_TIME_HALF);
+                    iGatewayService.stopScanning();
+                    mScanning = iGatewayService.getScanState();
 
                     if (!mProcessing) {
                         future.cancel(true);
@@ -160,6 +126,40 @@ public class PriorityBasedWithWSM {
                         return;
                     }
 
+                    waitThread(100);
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    connectFP();
+                } else {
+                    // do normal scanning
+                    iGatewayService.startScan(SCAN_TIME);
+                    iGatewayService.stopScanning();
+                    mScanning = iGatewayService.getScanState();
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+
+                    waitThread(100);
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    connectRR();
+                }
+
+                if (!mProcessing) {
+                    future.cancel(true);
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -304,22 +304,22 @@ public class PriorityBasedWithWSM {
     private class FPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-                if (!mProcessing) {
-                    future2.cancel(true);
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                broadcastUpdate("Update all device states...");
-                if (mProcessing) {
-                    try {
-                        iGatewayService.updateAllDeviceStates(null);
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
-                    }
-                } else {
-                    future2.cancel(true);
-                }
+            if (!mProcessing) {
+                future2.cancel(true);
+                Thread.currentThread().interrupt();
+                return;
             }
+            broadcastUpdate("Update all device states...");
+            if (mProcessing) {
+                try {
+                    iGatewayService.updateAllDeviceStates(null);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                future2.cancel(true);
+            }
+        }
     }
 
 

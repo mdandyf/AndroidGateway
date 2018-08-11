@@ -98,60 +98,58 @@ public class PriorityBasedWithAHP {
         @Override
         public void run() {
             try {
-                while (!Thread.currentThread().isInterrupted()) {
-                    cycleCounter++;
-                    iGatewayService.setCycleCounter(cycleCounter);
-                    if (cycleCounter > 1) {
-                        broadcastClrScrn();
+                cycleCounter++;
+                iGatewayService.setCycleCounter(cycleCounter);
+                if (cycleCounter > 1) {
+                    broadcastClrScrn();
+                }
+                broadcastUpdate("Start new cycle");
+                broadcastUpdate("Cycle number " + cycleCounter);
+
+                boolean isDataExist = iGatewayService.checkDevice(null);
+                if (isDataExist) {
+                    // Devices are listed in DB
+                    List<String> devices = iGatewayService.getListActiveDevices();
+                    // search for known device listed in database
+                    for (String device : devices) {
+                        iGatewayService.startScanKnownDevices(device);
                     }
-                    broadcastUpdate("Start new cycle");
-                    broadcastUpdate("Cycle number " + cycleCounter);
 
-                    boolean isDataExist = iGatewayService.checkDevice(null);
-                    if (isDataExist) {
-                        // Devices are listed in DB
-                        List<String> devices = iGatewayService.getListActiveDevices();
-                        // search for known device listed in database
-                        for (String device : devices) {
-                            iGatewayService.startScanKnownDevices(device);
-                        }
+                    // do normal scanning only for half of normal scanning time
 
-                        // do normal scanning only for half of normal scanning time
+                    iGatewayService.startScan(SCAN_TIME_HALF);
+                    iGatewayService.stopScanning();
+                    mScanning = iGatewayService.getScanState();
 
-                        iGatewayService.startScan(SCAN_TIME_HALF);
-                        iGatewayService.stopScanning();
-                        mScanning = iGatewayService.getScanState();
-
-                        waitThread(100);
-
-                        if (!mProcessing) {
-                            future.cancel(true);
-                            Thread.currentThread().interrupt();
-                            return;
-                        }
-                        connectFP();
-                    } else {
-                        // do normal scanning
-
-                        iGatewayService.startScan(SCAN_TIME);
-                        iGatewayService.stopScanning();
-                        mScanning = iGatewayService.getScanState();
-
-                        waitThread(100);
-
-                        if (!mProcessing) {
-                            future.cancel(true);
-                            Thread.currentThread().interrupt();
-                            return;
-                        }
-                        connectRR();
-                    }
+                    waitThread(100);
 
                     if (!mProcessing) {
                         future.cancel(true);
                         Thread.currentThread().interrupt();
                         return;
                     }
+                    connectFP();
+                } else {
+                    // do normal scanning
+
+                    iGatewayService.startScan(SCAN_TIME);
+                    iGatewayService.stopScanning();
+                    mScanning = iGatewayService.getScanState();
+
+                    waitThread(100);
+
+                    if (!mProcessing) {
+                        future.cancel(true);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    connectRR();
+                }
+
+                if (!mProcessing) {
+                    future.cancel(true);
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -297,21 +295,21 @@ public class PriorityBasedWithAHP {
     private class FPDeviceDbRefresh implements Runnable {
         @Override
         public void run() {
-                if (!mProcessing) {
-                    future2.cancel(true);
-                    Thread.currentThread().interrupt();
-                    return;
+            if (!mProcessing) {
+                future2.cancel(true);
+                Thread.currentThread().interrupt();
+                return;
+            }
+            broadcastUpdate("Update all device states...");
+            if (mProcessing) {
+                try {
+                    iGatewayService.updateAllDeviceStates(null);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
                 }
-                broadcastUpdate("Update all device states...");
-                if (mProcessing) {
-                    try {
-                        iGatewayService.updateAllDeviceStates(null);
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
-                    }
-                } else {
+            } else {
 
-                }
+            }
         }
     }
 
@@ -333,7 +331,8 @@ public class PriorityBasedWithAHP {
                     }
                     powerUsage = powerUsage + (currentNow * new Long(powerEstimator.getVoltageNow()));
                     if (!mConnecting) {
-                        schedulerPowerMeasure.shutdownNow();return;
+                        schedulerPowerMeasure.shutdownNow();
+                        return;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
