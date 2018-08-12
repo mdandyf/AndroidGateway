@@ -770,7 +770,7 @@ public class GatewayService extends Service {
 
         @Override
         public void setTimeSettings(String dataName, int data) throws RemoteException {
-            if (timerSettings.size() > 4) {
+            if (timerSettings.size() > 6) {
                 timerSettings = new HashMap<>();
             } else {
                 timerSettings.put(dataName, data);

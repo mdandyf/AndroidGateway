@@ -263,7 +263,11 @@ public class GatewayController extends Service {
             //REPEAT MAPE EVERY 1 MINUTE
             String mapeAction = (String) mapeDataAction.get("MapeAction");
             if(mapeAction.equalsIgnoreCase("yes")){
-                executionTask.scheduleWithThreadPoolExecutor(runnableMape, 60000, 60000, TimeUnit.MILLISECONDS);
+                try {
+                    executionTask.scheduleWithThreadPoolExecutor(runnableMape, iGatewayService.getTimeSettings("MapeTime"), iGatewayService.getTimeSettings("MapePeriod"), TimeUnit.MILLISECONDS);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
             }
 
         }
@@ -618,6 +622,10 @@ public class GatewayController extends Service {
                 results.put("ScanningTime2", nodeTimer3.getFirstChild().getNodeValue());
                 Node nodeTimer4 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
                 results.put("TimeUnit", nodeTimer4.getFirstChild().getNodeValue());
+                Node nodeTimer5 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
+                results.put("MapeTime", nodeTimer5.getFirstChild().getNodeValue());
+                Node nodeTimer6 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
+                results.put("MapePeriod", nodeTimer6.getFirstChild().getNodeValue());
                 break;
             case "DataMape":
                 list = xmlFile.getElementsByTagName(type);

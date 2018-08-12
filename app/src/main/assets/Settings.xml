@@ -37,6 +37,8 @@
             <ScanningTime>10000</ScanningTime>
             <ScanningTime2>5000</ScanningTime2>
             <unit>ms</unit>
+            <MapeTimeStart>60000</MapeTimeStart>
+            <MapeTime>60000</MapeTime>
         </data>
     </DataTimer>
     <DataMape>
