@@ -139,10 +139,10 @@ public class ServiceInterface extends ListFragment {
                         //launchUploadCloudFragment(deviceAddress);
                         launchHeartRateFragment(deviceAddress, ServiceLong);
                         break;
-                    case "0000fff0-0000-1000-8000-00805f9b34fb":        //MIBAND
+                    case "0000fee0-0000-1000-8000-00805f9b34fb":        //MIBAND
                         launchUploadCloudFragment(deviceAddress);
                         break;
-                    case "0000fff1-0000-1000-8000-00805f9b34fb":        //VEMITER
+                    case "0000fff0-0000-1000-8000-00805f9b34fb":        //VEMITER
                         launchUploadCloudFragment(deviceAddress);
                         break;
                     case "00001816-0000-1000-8000-00805f9b34fb":        // Cycling Speed and Cadence

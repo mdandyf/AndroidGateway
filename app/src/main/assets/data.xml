@@ -8,7 +8,7 @@
     <manufacturer>
         <id>0x0401</id>
         <name>Vemiter Lamp Service</name>
-        <service>0000fff1-0000-1000-8000-00805f9b34fb</service>
+        <service>0000fff0-0000-1000-8000-00805f9b34fb</service>
     </manufacturer>
     <manufacturer>
         <id>0x0001</id>
