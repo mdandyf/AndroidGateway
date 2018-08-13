@@ -131,24 +131,28 @@ public class ServiceInterface extends ListFragment {
                 ServiceUUID = ServiceLong.substring(4, 8);
 
                 //check if it's battery or heart sensor
-                switch(ServiceUUID) {
-                    case "180f":        //Battery Service
+                switch(ServiceLong) {
+                    case "0000180f-0000-1000-8000-00805f9b34fb":        //Battery Service
                         launchBatteryFragment(deviceAddress, ServiceLong);
                         break;
-                    case "180d":        //Heart Service
-
-                        launchUploadCloudFragment(deviceAddress);
-
-                        //launchHeartRateFragment(deviceAddress, ServiceLong);
+                    case "0000180d-0000-1000-8000-00805f9b34fb":        //Heart Service
+                        //launchUploadCloudFragment(deviceAddress);
+                        launchHeartRateFragment(deviceAddress, ServiceLong);
                         break;
-                    case "fff0":        //MIBAND
+                    case "0000fff0-0000-1000-8000-00805f9b34fb":        //MIBAND
                         launchUploadCloudFragment(deviceAddress);
                         break;
-                    case "fff1":        //VEMITER
+                    case "0000fff1-0000-1000-8000-00805f9b34fb":        //VEMITER
                         launchUploadCloudFragment(deviceAddress);
                         break;
-                    case "1800":
+                    case "00001816-0000-1000-8000-00805f9b34fb":        // Cycling Speed and Cadence
+                        launchUploadCloudFragment(deviceAddress);
+                        break;
+                    case "00001800-0000-1000-8000-00805f9b34fb":
                         Toast.makeText(getContext(),  "Service UUID " + ServiceUUID, Toast.LENGTH_SHORT).show();
+                        break;
+                    case "a8b3fa04-4834-4051-89d0-3de95cddd318":        // BeeWi Humidity Sensor
+                        launchUploadCloudFragment(deviceAddress);
                         break;
                     default:
                         Toast.makeText(getContext(),  "Service Not Supported " + ServiceUUID, Toast.LENGTH_SHORT).show();

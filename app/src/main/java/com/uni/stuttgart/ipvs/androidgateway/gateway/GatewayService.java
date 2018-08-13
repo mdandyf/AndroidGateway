@@ -636,7 +636,7 @@ public class GatewayService extends Service {
         @Override
         public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
 
-            boolean deviceKnown;
+            boolean deviceKnown = false;
 
             //Get Device Advertisement
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
@@ -658,28 +658,38 @@ public class GatewayService extends Service {
 
                     //Device mfrId is Known, then check for serviceUUID
                     if (deviceKnown) {
-
-                        /*//Check Service if known
+                        //Check Service if known
                         if (mapListAdvertisement.containsKey("DeviceUUID")) {
-
                             UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
-
                             for (UUID uuid : arrayUUIDs) {
                                 Log.d(TAG, "Device UUID: " + uuid.toString());
                                 deviceKnown = checkManufacturerService(mfrId, uuid.toString());
                                 Log.d(TAG, "DeviceKnown: " + deviceKnown);
+                                if(deviceKnown) { break; }
                             }
                         } else {
                             // service is not known
                             return false;
-                        }*/
+                        }
                     } else {
                         //device not known
                         return false;
                     }
                 } else {
                     // if device has no manufacturer id
-                    return false;
+                    // Check if the services are listed in the xml file
+                    if (mapListAdvertisement.containsKey("DeviceUUID")) {
+                        UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
+                        for (UUID uuid : arrayUUIDs) {
+                            Log.d(TAG, "Device UUID: " + uuid.toString());
+                            deviceKnown = checkManufacturerService("0xffff", uuid.toString());
+                            Log.d(TAG, "DeviceKnown: " + deviceKnown);
+                            if(deviceKnown) { break; }
+                        }
+                    } else {
+                        // service is not known
+                        return false;
+                    }
                 }
             } else {
                 // if device has no scan record
@@ -706,7 +716,6 @@ public class GatewayService extends Service {
 
         @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
-
             for (int i = 0; i < manufacturers.size(); i++) {
                 if (mfr_id.equalsIgnoreCase(manufacturers.get(i).id)) {
                     return true;
@@ -718,7 +727,6 @@ public class GatewayService extends Service {
 
         @Override
         public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
-
             for (int i = 0; i < manufacturers.size(); i++) {
                 if (mfr_id.equalsIgnoreCase(manufacturers.get(i).id)) {
                     if (serviceUUID.equalsIgnoreCase(manufacturers.get(i).service)) {

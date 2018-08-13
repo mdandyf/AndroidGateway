@@ -20,4 +20,14 @@
         <name>Intel Corp.</name>
         <service>0000180d-0000-1000-8000-00805f9b34fb</service>
     </manufacturer>
+    <manufacturer>
+        <id>0x000d</id>
+        <name>BeeWi Temperature and Humidity Sensor</name>
+        <service>a8b3fa04-4834-4051-89d0-3de95cddd318</service>
+    </manufacturer>
+    <manufacturer>
+        <id>0xffff</id>
+        <name>CooSpo Cycle Speed and Cadance Sensor</name>
+        <service>00001816-0000-1000-8000-00805f9b34fb</service>
+    </manufacturer>
 </manufacturers>
