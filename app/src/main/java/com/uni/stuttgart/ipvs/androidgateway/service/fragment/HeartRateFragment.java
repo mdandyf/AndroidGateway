@@ -91,14 +91,14 @@ public class HeartRateFragment extends Fragment {
 
 
         //View Initial Data
-        if(bundle != null) {
+        if (bundle != null) {
             serviceText.setText(bundle.getString("service"));
             locationCharacteristicText.setText(bundle.getString("sensorLocationCharacteristic"));
             locationValueText.setText(bundle.getString("sensorLocation"));
 
             Toast.makeText(getContext(), bundle.getString("heartRate"), Toast.LENGTH_SHORT).show();
 
-            if(bundle.getString("heartRate") != null) {
+            if (bundle.getString("heartRate") != null) {
                 heartCharacteristicText.setText(bundle.getString("heartRateCharacteristic"));
                 heartValueText.setText(bundle.getString("heartRate"));
             }
@@ -111,7 +111,9 @@ public class HeartRateFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (isBound) { getActivity().unbindService(mConnection); }
+        if (isBound) {
+            getActivity().unbindService(mConnection);
+        }
     }
 
     //Service Connection
@@ -185,33 +187,36 @@ public class HeartRateFragment extends Fragment {
                 getActivity().runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-
-                        //Update Location Value
+                        //Update Sensor Location Value
                         String sensorLocationValueLong = null;
                         try {
                             sensorLocationValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, locationCharacteristicUUIDLong);
+                            if (sensorLocationValueLong != null) {
+                                String sensorLocationValue = sensorLocationValueLong.substring(3, 5);
+                                String sensorLocationName = gattData.bodySensorLocationLookup(sensorLocationValue);
+                                locationValueText.setText(sensorLocationName);
+                            } else {
+                                locationValueText.setText("N/A");
+                            }
                         } catch (RemoteException e) {
                             e.printStackTrace();
                         }
-                        String sensorLocationValue = sensorLocationValueLong.substring(3,5);
-
-                        //Sensor Location Mapping
-                        String sensorLocationName = gattData.bodySensorLocationLookup(sensorLocationValue);
-                        locationValueText.setText(sensorLocationName);
 
                         //Update Heart Rate Value
-                        if(bundle.getString("heartRate") != null) {
+                        if (bundle.getString("heartRate") != null) {
                             String heartRateValueLong = null;
                             try {
                                 heartRateValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, heartRateCharacteristicUUIDLong);
+                                if(heartRateValueLong != null) {
+                                    String heartRateValue = heartRateValueLong.substring(6, 8);
+                                    int heartRateBpm = Integer.parseInt(heartRateValue, 16);
+                                    heartValueText.setText(heartRateBpm + "");
+                                } else {
+                                    heartValueText.setText("N/A");
+                                }
                             } catch (RemoteException e) {
                                 e.printStackTrace();
                             }
-                            String heartRateValue = heartRateValueLong.substring(6, 8);
-
-                            int heartRateBpm = Integer.parseInt(heartRateValue, 16);
-                            heartValueText.setText(heartRateBpm + "");
-
                         }
 
                     }
