@@ -111,7 +111,7 @@ public class HeartRateFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-
+        if (isBound) { getActivity().unbindService(mConnection); }
     }
 
     //Service Connection
@@ -213,7 +213,6 @@ public class HeartRateFragment extends Fragment {
                             heartValueText.setText(heartRateBpm + "");
 
                         }
-                        Toast.makeText(getContext(), "Value Updated", Toast.LENGTH_SHORT).show();
 
                     }
                 });

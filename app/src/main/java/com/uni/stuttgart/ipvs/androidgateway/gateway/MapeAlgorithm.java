@@ -16,6 +16,8 @@ import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
@@ -96,6 +98,8 @@ public class MapeAlgorithm {
                     fuzzyProcess1(batteryInput, deviceInput, connectionInput);
 
                     if(uploadOutput == 1){
+                        Log.d("Upload", "Data has been uploaded to the cloud");
+                        Toast.makeText(context, "Data has been uploaded to the cloud", Toast.LENGTH_SHORT).show();
                         iGatewayService.uploadDataCloud();
                     }
                 }else if(conn == NetworkUtil.TYPE_MOBILE){
@@ -103,6 +107,8 @@ public class MapeAlgorithm {
                     fuzzyProcess1(batteryInput, deviceInput, connectionInput);
 
                     if(uploadOutput == 1){
+                        Log.d("Upload", "Data has been uploaded to the cloud");
+                        Toast.makeText(context, "Data has been uploaded to the cloud", Toast.LENGTH_SHORT).show();
                         iGatewayService.uploadDataCloud();
                     }
                 }else {

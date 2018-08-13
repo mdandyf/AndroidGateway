@@ -96,6 +96,8 @@ public class ServiceInterface extends ListFragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if(mReceiver != null) { getActivity().unregisterReceiver(mReceiver); }
+        if(mBound) { getActivity().unbindService(mConnection); }
     }
 
     @Override

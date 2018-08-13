@@ -105,6 +105,7 @@ public class BatteryFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (isBound) { getActivity().unbindService(mConnection); }
     }
 
 

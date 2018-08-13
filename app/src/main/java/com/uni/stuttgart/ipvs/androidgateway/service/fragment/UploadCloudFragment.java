@@ -56,7 +56,7 @@ public class UploadCloudFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, @Nullable final ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_upload_cloud, container, false);
 
         Toolbar toolbar = view.findViewById(R.id.toolbar);
@@ -96,6 +96,7 @@ public class UploadCloudFragment extends Fragment {
             public void onClick(View view) {
                 try {
                     if(myService != null){
+                        Toast.makeText(getContext(), "Data has been saved to database", Toast.LENGTH_SHORT).show();
                         myService.saveCloudData(macAddress);
                     }
                 } catch (RemoteException e) {
@@ -115,6 +116,7 @@ public class UploadCloudFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if(isBound) { getActivity().unbindService(mConnection); }
     }
 
 
@@ -124,6 +126,7 @@ public class UploadCloudFragment extends Fragment {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
+            isBound = true;
         }
 
         @Override
