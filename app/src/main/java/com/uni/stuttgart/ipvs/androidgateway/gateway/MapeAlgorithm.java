@@ -99,7 +99,6 @@ public class MapeAlgorithm {
 
                     if(uploadOutput == 1){
                         Log.d("Upload", "Data has been uploaded to the cloud");
-                        Toast.makeText(context, "Data has been uploaded to the cloud", Toast.LENGTH_SHORT).show();
                         iGatewayService.uploadDataCloud();
                     }
                 }else if(conn == NetworkUtil.TYPE_MOBILE){
@@ -108,7 +107,6 @@ public class MapeAlgorithm {
 
                     if(uploadOutput == 1){
                         Log.d("Upload", "Data has been uploaded to the cloud");
-                        Toast.makeText(context, "Data has been uploaded to the cloud", Toast.LENGTH_SHORT).show();
                         iGatewayService.uploadDataCloud();
                     }
                 }else {
