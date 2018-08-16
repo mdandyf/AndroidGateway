@@ -111,9 +111,8 @@ public class HeartRateFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (isBound) {
-            getActivity().unbindService(mConnection);
-        }
+        if(isBound) { getActivity().unregisterReceiver(mReceiver); }
+        if (isBound) { getActivity().unbindService(mConnection); }
     }
 
     //Service Connection
@@ -122,7 +121,7 @@ public class HeartRateFragment extends Fragment {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
-
+            isBound = true;
             getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
 
         }
@@ -229,6 +228,5 @@ public class HeartRateFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        getActivity().unregisterReceiver(mReceiver);
     }
 }

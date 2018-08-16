@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice;
 
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
+import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.IMatrixComputation;
 import com.uni.stuttgart.ipvs.androidgateway.helper.matrix.MatrixComputation;
 
 import java.util.List;
@@ -125,7 +126,7 @@ public class ANP implements Callable<Map<BluetoothDevice, Double>> {
 
     // sort data after processing based on the percentage
     private void sorting() {
-        MatrixComputation computeWrtRssi = new MatrixComputation(listDevices.size(), listDevices.size());
+        IMatrixComputation computeWrtRssi = new MatrixComputation(listDevices.size(), listDevices.size());
         this.wrtRssi = computeWrtRssi.getMatrixIdentity();
 
         int i = 0;
@@ -146,7 +147,7 @@ public class ANP implements Callable<Map<BluetoothDevice, Double>> {
     private void initializeMatrix() {
 
         // set Matrix AHP Weight
-        MatrixComputation matrixComputeAHP = new MatrixComputation(3,3);
+        IMatrixComputation matrixComputeAHP = new MatrixComputation(3,3);
         double[][] matrix = matrixComputeAHP.getMatrixIdentity();
         matrix = matrixComputeAHP.changeMatrixValue(matrix, 0, 1, 0.33);
         matrix = matrixComputeAHP.changeMatrixValue(matrix, 0, 2, 0.20);
@@ -160,7 +161,7 @@ public class ANP implements Callable<Map<BluetoothDevice, Double>> {
         this.matrixAHPWeight = this.matrix3x3Weight;
 
         // set Rssi Matrix Weight
-        MatrixComputation matrixComputeRssi = new MatrixComputation(2,2);
+        IMatrixComputation matrixComputeRssi = new MatrixComputation(2,2);
         double[][] matrixRssi = matrixComputeRssi.getMatrixIdentity();
         matrixRssi = matrixComputeRssi.changeMatrixValue(matrixRssi, 0, 1, 2.00);
         matrixRssi = matrixComputeRssi.changeMatrixValue(matrixRssi, 1, 0, 0.50);
@@ -171,7 +172,7 @@ public class ANP implements Callable<Map<BluetoothDevice, Double>> {
         this.rssiMatrix = this.matrix2x2SubWeight;
 
         // set DeviceState Matrix Weight
-        MatrixComputation matrixComputeDS = new MatrixComputation(2,2);
+        IMatrixComputation matrixComputeDS = new MatrixComputation(2,2);
         double[][] matrixDS = matrixComputeDS.getMatrixIdentity();
         matrixDS = matrixComputeDS.changeMatrixValue(matrixDS, 0, 1, 3.00);
         matrixDS = matrixComputeDS.changeMatrixValue(matrixDS, 1, 0, 0.33);
@@ -182,7 +183,7 @@ public class ANP implements Callable<Map<BluetoothDevice, Double>> {
         this.deviceStateMatrix = this.matrix2x2SubWeight;
 
         //set PowerUsage Matrix Weight
-        MatrixComputation matrixComputePU = new MatrixComputation(3,3);
+        IMatrixComputation matrixComputePU = new MatrixComputation(3,3);
         double[][] matrixPU = matrixComputePU.getMatrixIdentity();
         matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 0, 1, 0.33);
         matrixPU = matrixComputePU.changeMatrixValue(matrixPU, 0, 2, 0.20);
@@ -196,7 +197,7 @@ public class ANP implements Callable<Map<BluetoothDevice, Double>> {
         this.matrix3x3SubWeight = matrixComputePU.getMatrixSubWeight(matrix3x3Weight, matrixAHPWeight[2]);
         this.powerUsageMatrix = this.matrix3x3SubWeight;
 
-        MatrixComputation matrixCompute = new MatrixComputation((GOAL_SIZE + CRITERIA_SIZE + listDevices.size()),(GOAL_SIZE + CRITERIA_SIZE + listDevices.size()));
+        IMatrixComputation matrixCompute = new MatrixComputation((GOAL_SIZE + CRITERIA_SIZE + listDevices.size()),(GOAL_SIZE + CRITERIA_SIZE + listDevices.size()));
         this.superMatrix = matrixCompute.getMatrixZero();
         this.superMatrix = matrixCompute.changeMatrixValue(this.superMatrix, 1, 0, this.matrixAHPWeight[0]);
         this.superMatrix = matrixCompute.changeMatrixValue(this.superMatrix, 2, 0, this.matrixAHPWeight[1]);

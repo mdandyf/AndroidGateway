@@ -1,21 +1,16 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
 
 import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.RemoteException;
 import android.util.Log;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
+import com.uni.stuttgart.ipvs.androidgateway.helper.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.AHP;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
-import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import java.util.ArrayList;

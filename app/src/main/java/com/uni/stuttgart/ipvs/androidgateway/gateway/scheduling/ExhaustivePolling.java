@@ -3,23 +3,16 @@ package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
-import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
-import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 // implementation of Scheduling using Exhaustive Polling
 public class ExhaustivePolling {

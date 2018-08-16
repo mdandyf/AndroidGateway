@@ -4,11 +4,8 @@ import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.content.Intent;
-import android.database.SQLException;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -18,15 +15,12 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
-import android.widget.Toast;
-import android.util.Xml;
 
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
-import com.uni.stuttgart.ipvs.androidgateway.MainActivity;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeGatt;
@@ -42,33 +36,25 @@ import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import com.uni.stuttgart.ipvs.androidgateway.helper.JsonParser;
+import com.uni.stuttgart.ipvs.androidgateway.helper.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import org.json.JSONObject;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlPullParserFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Created by mdand on 3/17/2018.
@@ -659,7 +645,7 @@ public class GatewayService extends Service {
                     //Device mfrId is Known, then check for serviceUUID
                     if (deviceKnown) {
                         //Check Service if known
-                        if (mapListAdvertisement.containsKey("DeviceUUID")) {
+                       if (mapListAdvertisement.containsKey("DeviceUUID")) {
                             UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
                             for (UUID uuid : arrayUUIDs) {
                                 Log.d(TAG, "Device UUID: " + uuid.toString());

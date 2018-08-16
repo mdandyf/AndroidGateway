@@ -102,10 +102,11 @@ public class BatteryFragment extends Fragment {
         super.onActivityCreated(savedInstanceState);
     }
 
+
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (isBound) { getActivity().unbindService(mConnection); }
+        if (isBound) { getActivity().unregisterReceiver(mReceiver);getActivity().unbindService(mConnection); }
     }
 
 
@@ -115,10 +116,8 @@ public class BatteryFragment extends Fragment {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
-
+            isBound = true;
             getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
-
-
         }
 
         @Override

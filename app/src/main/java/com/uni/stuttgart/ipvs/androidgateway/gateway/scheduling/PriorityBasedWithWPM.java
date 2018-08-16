@@ -7,14 +7,11 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.RemoteException;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
+import com.uni.stuttgart.ipvs.androidgateway.helper.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WPM;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.mcdm.WSM;
-import com.uni.stuttgart.ipvs.androidgateway.helper.DataSorterHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import java.util.List;

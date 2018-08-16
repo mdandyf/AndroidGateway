@@ -117,11 +117,6 @@ public class MapeAlgorithm {
                 fuzzyProcess2(batteryInput,deviceInput);
             }
 
-
-
-
-
-
             //CHOOSE SCHEDULING ALGORITHM
             switch(priorityOutput) {
                 case 1: resultAlg = "epAhp";        //worst case
