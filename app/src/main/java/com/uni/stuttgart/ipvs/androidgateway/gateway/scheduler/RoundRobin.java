@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
+package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
@@ -7,6 +7,7 @@ import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.IScheduler;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
@@ -18,7 +19,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // Implementation of Round Robin Scheduling Gateway Controller
-public class RoundRobin {
+public class RoundRobin implements IScheduler {
 
     private int SCAN_TIME; // set scanning and reading time to 10 seoonds
     private int SCAN_TIME_HALF;

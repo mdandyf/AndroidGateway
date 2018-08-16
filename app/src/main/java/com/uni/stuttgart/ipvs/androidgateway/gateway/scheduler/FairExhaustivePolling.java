@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
+package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
@@ -8,6 +8,7 @@ import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.IScheduler;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
@@ -19,7 +20,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
-public class FairExhaustivePolling {
+public class FairExhaustivePolling implements IScheduler {
     private int SCAN_TIME; // set scanning and reading time to 10 seoonds
     private int SCAN_TIME_HALF; // set scanning and reading time to half
     private int PROCESSING_TIME; // set processing time to 60 seconds
