@@ -1,48 +1,25 @@
 package com.uni.stuttgart.ipvs.androidgateway.gateway.mape;
 
 import android.bluetooth.BluetoothDevice;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.os.BatteryManager;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.IBinder;
 import android.os.RemoteException;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.widget.TextView;
-import android.widget.Toast;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
-import com.uni.stuttgart.ipvs.androidgateway.service.fragment.UploadCloudFragment;
-import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import net.sourceforge.jFuzzyLogic.FIS;
 import net.sourceforge.jFuzzyLogic.rule.Variable;
 
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.xml.sax.SAXException;
-
 import java.io.IOException;
 import java.io.InputStream;
-import java.text.DateFormat;
 import java.util.List;
 import java.util.Map;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.TransformerException;
-import com.uni.stuttgart.ipvs.androidgateway.helper.NetworkUtil;
+import com.uni.stuttgart.ipvs.androidgateway.helper.NetworkUtils;
 
 public class MapeAlgorithm {
 
@@ -89,8 +66,8 @@ public class MapeAlgorithm {
             String mapeDataUpload = (String) mapeAction.get("DataUpload");
             if(mapeDataUpload.equalsIgnoreCase("yes")){
                 //GET CONNECTIVITY STATE
-                int conn = NetworkUtil.getConnectivityStatus(context);
-                if(conn == NetworkUtil.TYPE_WIFI){
+                int conn = NetworkUtils.getConnectivityStatus(context);
+                if(conn == NetworkUtils.TYPE_WIFI){
                     connectionInput = 0;
                     fuzzyProcess1(batteryInput, deviceInput, connectionInput);
 
@@ -98,7 +75,7 @@ public class MapeAlgorithm {
                         Log.d("Upload", "Data has been uploaded to the cloud");
                         iGatewayService.uploadDataCloud();
                     }
-                }else if(conn == NetworkUtil.TYPE_MOBILE){
+                }else if(conn == NetworkUtils.TYPE_MOBILE){
                     connectionInput = 1;
                     fuzzyProcess1(batteryInput, deviceInput, connectionInput);
 

@@ -56,9 +56,9 @@
             android:name=".MainActivity"
             android:label="@string/app_name" />
 
-        <activity
+       <!-- <activity
             android:name=".settings.SettingsActivity"
-            android:label="@string/title_activity_settings" />
+            android:label="@string/title_activity_settings" />-->
 
         <!--<service android:name=".gateway.GatewayService" />
         <service android:name=".gateway.GatewayController" />-->

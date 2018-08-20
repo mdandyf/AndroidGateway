@@ -58,7 +58,7 @@ public class ServicesDatabase extends SQLiteOpenHelper {
             String date = sdf.format(new Date());
             contentValues.put("modified_date", date);
 
-            if (isMacExist(data) && isServiceExist(serviceUUID)) {
+            if (isMacAddressExist(data) && isServiceExist(serviceUUID)) {
                 db.update("BleServicesData", contentValues, "mac_address = ? AND service_uuid = ?", new String[]{data, serviceUUID});
             } else {
                 contentValues.put("create_date", date);
@@ -85,7 +85,7 @@ public class ServicesDatabase extends SQLiteOpenHelper {
         return status;
     }
 
-    public boolean isMacExist(String key) {
+    public boolean isMacAddressExist(String key) {
         Cursor cursor = null;
         boolean status = false;
         try {
