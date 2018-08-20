@@ -83,8 +83,6 @@ public class GatewayService extends Service {
     private Intent mIntent;
     private Context context;
 
-    private ConcurrentLinkedQueue queueScanning;
-    private ConcurrentLinkedQueue queueConnecting;
     private ConcurrentLinkedQueue queueCharacteristic;
 
     private BluetoothLeDevice bleDevice;
@@ -101,12 +99,10 @@ public class GatewayService extends Service {
     private BluetoothGatt mBluetoothGatt;
 
     private HandlerThread mThread;
-    private HandlerThread mThreadOld;
     private Handler mHandlerMessage;
     private ExecutionTask<PBluetoothGatt> executionTask;
 
     private boolean mProcessing;
-    private boolean mProcessView;
     private boolean mScanning;
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
@@ -118,7 +114,6 @@ public class GatewayService extends Service {
     private UploadsDatabase bleUploadDatabase = new UploadsDatabase(this);
 
     private String status;
-    private Document xmlDocument;
     private XmlPullParser mfrParser;
     private List<PManufacturer> manufacturers;
 
@@ -133,9 +128,8 @@ public class GatewayService extends Service {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
 
-        queueScanning = new ConcurrentLinkedQueue();
-        queueConnecting = new ConcurrentLinkedQueue();
         queueCharacteristic = new ConcurrentLinkedQueue();
+
         bleDevice = new BluetoothLeDevice();
         bleGatt = new BluetoothLeGatt();
         lock = new Object();
@@ -153,12 +147,6 @@ public class GatewayService extends Service {
         //Firebase
         mDatabase = FirebaseDatabase.getInstance();
         mDeviceReference = mDatabase.getReference("devices");
-
-        try {
-            xmlDocument = GattDataHelper.parseXML(new InputSource(getAssets().open("Settings.xml")));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
 
         //Get Manufacturers List from XML File
         try {
@@ -964,25 +952,9 @@ public class GatewayService extends Service {
 
         @Override
         public void uploadDataCloud() throws RemoteException {
-
-            //List<String> deviceDataList = bleUploadDatabase.getAllUploadStatus();
-
-            /*for(String state : uploadStatusList){
-
-                if(state.equalsIgnoreCase("No")){
-                    //upload
-                }else{
-                    if(state.equalsIgnoreCase("Yes")){
-                        //delete
-                        bleUploadDatabase.deleteDeviceData();
-                    }
-                }
-
-            }*/
-
             try {
 
-                List<String> uploadDataList = bleUploadDatabase.getAllDeviceData();
+                List<String> uploadDataList = bleUploadDatabase.getAllUploadData();
 
                 Log.d("json", "JSON list acquired");
 

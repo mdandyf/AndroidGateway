@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.gateway;
+package com.uni.stuttgart.ipvs.androidgateway.gateway.mape;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
@@ -61,9 +61,6 @@ public class MapeAlgorithm {
     private int priorityOutput;
 
     private String resultAlg;
-
-    private Thread uploadThread;
-    private Runnable runnableUpload;
     private ExecutionTask<Void> executionTask;
 
     public MapeAlgorithm(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask, Map<String,Object> mapeAction) {
@@ -256,19 +253,6 @@ public class MapeAlgorithm {
         scheduleResult = ((int) Math.round(priority.defuzzify()));
 
         priorityOutput = (int) scheduleResult;
-    }
-
-    private synchronized Runnable doUploadData(){
-        return new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    iGatewayService.uploadDataCloud();
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-            }
-        };
     }
 
 

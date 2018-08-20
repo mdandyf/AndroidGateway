@@ -135,7 +135,7 @@ public class UploadsDatabase extends SQLiteOpenHelper {
     // ======================================================================================================================== //
 
     //Gets the data the needs to be uploaded
-    public String getDeviceData(String macAddress) {
+    public String getUploaadData(String macAddress) {
         Cursor cursor = getQuery("SELECT device_data from BleUploadData WHERE mac_address=?", new String[] {macAddress});
         String result = null;
         if (cursor.moveToFirst()) {
@@ -148,7 +148,7 @@ public class UploadsDatabase extends SQLiteOpenHelper {
         return result;
     }
 
-    public List<String> getAllDeviceData() {
+    public List<String> getAllUploadData() {
 
         List<String> list = new ArrayList<>();
         Cursor cursor = getQuery("SELECT device_data from BleUploadData", null);
@@ -193,7 +193,7 @@ public class UploadsDatabase extends SQLiteOpenHelper {
         return result;
     }
 
-    public boolean deleteDeviceData() {
+    public boolean deleteUploadData() {
         boolean status = false;
         try {
             SQLiteDatabase db = this.getWritableDatabase();

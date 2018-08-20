@@ -7,7 +7,6 @@ import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.IScheduler;
 import com.uni.stuttgart.ipvs.androidgateway.helper.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
@@ -18,7 +17,7 @@ import java.util.concurrent.Future;
 
 // implementation of Semaphore Scheduling Gateway Controller
 
-public class Semaphore implements IScheduler {
+public class Semaphore implements IGatewayScheduler {
     private int SCAN_TIME; // set scanning and reading time to 10 seoonds
     private int SCAN_TIME_HALF;
     private int PROCESSING_TIME; // set processing time to 60 seconds

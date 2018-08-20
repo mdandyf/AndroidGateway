@@ -8,7 +8,6 @@ import android.util.Log;
 
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.IScheduler;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import java.util.ArrayList;
@@ -16,7 +15,7 @@ import java.util.List;
 import java.util.concurrent.Future;
 
 // implementation of Scheduling using Exhaustive Polling
-public class ExhaustivePolling implements IScheduler {
+public class ExhaustivePolling implements IGatewayScheduler {
 
     private IGatewayService iGatewayService;
 

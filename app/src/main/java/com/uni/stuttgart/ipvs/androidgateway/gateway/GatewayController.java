@@ -11,10 +11,12 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.util.Log;
 
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mape.MapeAlgorithm;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.ExhaustivePolling;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.ExhaustivePollingWithAHP;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.ExhaustivePollingWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.FairExhaustivePolling;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.IGatewayScheduler;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.PriorityBasedWithAHP;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.PriorityBasedWithWSM;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.RoundRobin;
@@ -43,7 +45,7 @@ public class GatewayController extends Service {
     private Intent mIntent;
 
     private IGatewayService iGatewayService;
-    private IScheduler iScheduler;
+    private IGatewayScheduler iGatewayScheduler;
 
     private boolean mBound = false;
     private volatile boolean mProcessing = false;
@@ -114,9 +116,9 @@ public class GatewayController extends Service {
             e.printStackTrace();
         }
 
-        if(iScheduler != null) { iScheduler.stop(); }
+        if(iGatewayScheduler != null) { iGatewayScheduler.stop(); }
         if (mConnection != null) { unbindService(mConnection); }
-        
+
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         return false;
     }
@@ -236,8 +238,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new Semaphore(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new Semaphore(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -254,8 +256,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new RoundRobin(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new RoundRobin(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -273,8 +275,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new ExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new ExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -291,8 +293,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -309,8 +311,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -327,8 +329,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new FairExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new FairExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -345,8 +347,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new PriorityBasedWithAHP(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new PriorityBasedWithAHP(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -363,8 +365,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            iScheduler = new PriorityBasedWithWSM(context, mProcessing, iGatewayService, executionTask);
-            iScheduler.start();
+            iGatewayScheduler = new PriorityBasedWithWSM(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -418,7 +420,7 @@ public class GatewayController extends Service {
                     Log.d("newAlgorithm", "New Algorithm Is : " + algorithm[0]);
 
                     // ensure thread is killed first & clear the screen
-                    if(iScheduler != null) { iScheduler.stop(); }
+                    if(iGatewayScheduler != null) { iGatewayScheduler.stop(); }
 
                     Thread.sleep(1000);
                     algorithmThread = null;

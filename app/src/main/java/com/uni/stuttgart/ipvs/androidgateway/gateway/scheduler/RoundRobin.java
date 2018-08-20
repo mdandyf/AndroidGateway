@@ -7,7 +7,6 @@ import android.os.RemoteException;
 
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.IScheduler;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
@@ -19,7 +18,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // Implementation of Round Robin Scheduling Gateway Controller
-public class RoundRobin implements IScheduler {
+public class RoundRobin implements IGatewayScheduler {
 
     private int SCAN_TIME; // set scanning and reading time to 10 seoonds
     private int SCAN_TIME_HALF;
