@@ -114,8 +114,6 @@ public class GatewayService extends Service {
     private UploadsDatabase bleUploadDatabase = new UploadsDatabase(this);
 
     private String status;
-    private XmlPullParser mfrParser;
-    private List<PManufacturer> manufacturers;
 
     //Firebase
     private FirebaseDatabase mDatabase;
@@ -147,17 +145,6 @@ public class GatewayService extends Service {
         //Firebase
         mDatabase = FirebaseDatabase.getInstance();
         mDeviceReference = mDatabase.getReference("devices");
-
-        //Get Manufacturers List from XML File
-        try {
-            mfrParser = GattDataHelper.parseXML(getAssets().open("data.xml"));
-            manufacturers = GattDataHelper.processParsing(mfrParser);
-        } catch (XmlPullParserException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
 
         status = "Created";
     }
@@ -198,6 +185,7 @@ public class GatewayService extends Service {
         private int cycleCounter = 0;
         private Map<String, double[]> powerConstraint = new HashMap<>();
         private Map<String, Integer> timerSettings = new HashMap<>();
+        private List<PManufacturer> manufacturers = new ArrayList<>();
         private String timeUnit = null;
 
         @Override
@@ -689,9 +677,19 @@ public class GatewayService extends Service {
         }
 
         @Override
+        public void setManufacturerData(List<PManufacturer> manufacturer) throws RemoteException {
+            manufacturers = manufacturer;
+        }
+
+        @Override
+        public List<PManufacturer> getManufacturerData() throws RemoteException {
+            return manufacturers;
+        }
+
+        @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
-            for (int i = 0; i < manufacturers.size(); i++) {
-                if (mfr_id.equalsIgnoreCase(manufacturers.get(i).id)) {
+            for (int i = 0; i < getManufacturerData().size(); i++) {
+                if (mfr_id.equalsIgnoreCase(getManufacturerData().get(i).id)) {
                     return true;
                 }
             }
@@ -701,9 +699,9 @@ public class GatewayService extends Service {
 
         @Override
         public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
-            for (int i = 0; i < manufacturers.size(); i++) {
-                if (mfr_id.equalsIgnoreCase(manufacturers.get(i).id)) {
-                    if (serviceUUID.equalsIgnoreCase(manufacturers.get(i).service)) {
+            for (int i = 0; i < getManufacturerData().size(); i++) {
+                if (mfr_id.equalsIgnoreCase(getManufacturerData().get(i).id)) {
+                    if (serviceUUID.equalsIgnoreCase(getManufacturerData().get(i).service)) {
                         return true;
                     }
                 }
@@ -714,7 +712,7 @@ public class GatewayService extends Service {
 
         @Override
         public List<PManufacturer> getListManufacturers() throws RemoteException {
-            return manufacturers;
+            return getManufacturerData();
         }
 
         @Override

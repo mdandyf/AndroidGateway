@@ -112,6 +112,10 @@ interface IGatewayService {
 
     long getDevicePowerUsage(in String macAddress);
 
+    void setManufacturerData(in List<PManufacturer> manufacturer);
+
+    List<PManufacturer> getManufacturerData();
+
     boolean checkManufacturer(in String mfr_id);
 
     boolean checkManufacturerService(in String mfr_id, in String serviceUUID);

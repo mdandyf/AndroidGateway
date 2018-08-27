@@ -29,9 +29,12 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -64,6 +67,8 @@ public class GatewayController extends Service {
 
     private final String[] algorithm = {null};
     private ExecutionTask<Void> executionTask = null;
+
+    private XmlPullParser mfrParser;
 
     @Override
     public void onCreate() {
@@ -184,9 +189,16 @@ public class GatewayController extends Service {
                 // input data MAPE
                 mapeDataAction = readXMLFile(xmlFile, "DataMape");
 
+                //Get Manufacturers List from XML File
+                mfrParser = GattDataHelper.parseXML(getAssets().open("Manufacturer.xml"));
+                List<PManufacturer> manufacturers = GattDataHelper.processParsing(mfrParser);
+                iGatewayService.setManufacturerData(manufacturers);
+
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (RemoteException e) {
+                e.printStackTrace();
+            } catch (XmlPullParserException e) {
                 e.printStackTrace();
             }
 
