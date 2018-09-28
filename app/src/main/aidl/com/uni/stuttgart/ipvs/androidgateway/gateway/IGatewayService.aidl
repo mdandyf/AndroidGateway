@@ -9,6 +9,7 @@ import ParcelUuid;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PMessageHandler;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PHandlerThread;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.PManufacturer;
 
 interface IGatewayService {
     /**
@@ -57,9 +58,9 @@ interface IGatewayService {
 
     void setListGatt(in List<PBluetoothGatt> listGatt);
 
-    void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID, in long waitTime);
+    //void addQueueScanning(in String macAddress, in String name, in int rssi, in int typeCommand, in ParcelUuid serviceUUID, in long waitTime);
 
-    void execScanningQueue();
+    //void execScanningQueue();
 
     void doConnect(in String macAddress);
 
@@ -89,8 +90,6 @@ interface IGatewayService {
 
     void updateDatabaseDeviceAdvRecord(in BluetoothDevice device, in byte[] scanRecord);
 
-    void updateDatabaseDeviceUsrChoice(in String macAddress, in String userChoice);
-
     void updateDatabaseDevicePowerUsage(in String macAddress, in long powerUsage);
 
     void updateAllDeviceStates(in List<String> nearbyDevices);
@@ -107,19 +106,21 @@ interface IGatewayService {
 
     boolean isDeviceManufacturerKnown(in String macAddress);
 
-    String getDeviceUsrChoice(in String macAddress);
+    String getDeviceName(in String macAddress);
 
     String getDeviceState(in String macAddress);
 
     long getDevicePowerUsage(in String macAddress);
 
-    void insertDatabaseManufacturer(in String manfId, in String manfName);
+    void setManufacturerData(in List<PManufacturer> manufacturer);
+
+    List<PManufacturer> getManufacturerData();
 
     boolean checkManufacturer(in String mfr_id);
 
-    List<String> getListManufacturers();
+    boolean checkManufacturerService(in String mfr_id, in String serviceUUID);
 
-    String getManufacturerName(in String mfr_id);
+    List<PManufacturer> getListManufacturers();
 
     void setPowerUsageConstraints(in String dataName, in double[] data);
 
@@ -133,11 +134,13 @@ interface IGatewayService {
 
     String getTimeUnit();
 
-    List<ParcelUuid> getServiceUUIDs(String macAddress);
+    List<ParcelUuid> getServiceUUIDs(in String macAddress);
 
-    List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID);
+    List<ParcelUuid> getCharacteristicUUIDs(in String macAddress, in String serviceUUID);
 
-    String getCharacteristicValue(String macAddress, String serviceUUID, String CharacteristicUUID);
+    String getCharacteristicProperty(in String macAddress, in String serviceUUID, in String CharacteristicUUID);
+
+    String getCharacteristicValue(in String macAddress, in String serviceUUID, in String CharacteristicUUID);
 
     void disconnectSpecificGatt(in String macAddress);
 
@@ -149,10 +152,25 @@ interface IGatewayService {
 
     void broadcastClearScreen(in String message);
 
-    void startPowerEstimator();
+     void startPowerEstimator();
 
-    void stopPowerEstimator();
+     void stopPowerEstimator();
 
-    long getPowerEstimatorData(in String type);
+     long getPowerEstimatorData(in String type);
 
+     void startScan(in long time);
+
+     void stopScanning();
+
+     void stopScan();
+
+     void startScanKnownDevices(String macAddress);
+
+     void saveCloudData(in String macAddress);
+
+     void uploadDataCloud();
+
+     void insertDatabaseUpload(in String macAddress, in String data, in String uploadState);
+
+     void updateDatabaseUpload(in String macAddress, in String uploadState);
 }

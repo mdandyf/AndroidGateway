@@ -1,4 +1,4 @@
-package com.uni.stuttgart.ipvs.androidgateway.gateway;
+package com.uni.stuttgart.ipvs.androidgateway.helper;
 
 import android.app.Service;
 import android.content.BroadcastReceiver;

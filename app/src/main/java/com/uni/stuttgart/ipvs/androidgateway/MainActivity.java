@@ -1,17 +1,15 @@
 package com.uni.stuttgart.ipvs.androidgateway;
 
-import android.annotation.SuppressLint;
-import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.Cursor;
+import android.database.SQLException;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.support.v4.app.DialogFragment;
+import android.os.ParcelUuid;
 import android.support.v4.app.FragmentTabHost;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.TabHost;
 import android.widget.Toast;
@@ -19,6 +17,10 @@ import android.widget.Toast;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.ScannerFragment;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayFragment;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Created by mdand on 3/25/2018.
@@ -55,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
 
         IntentFilter filter = new IntentFilter(GatewayService.START_SERVICE_INTERFACE);
         registerReceiver(mReceiver, filter);
+
     }
 
     @Override

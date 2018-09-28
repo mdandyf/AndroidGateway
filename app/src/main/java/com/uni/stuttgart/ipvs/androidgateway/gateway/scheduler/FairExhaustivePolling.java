@@ -1,28 +1,25 @@
-package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling;
+package com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.os.RemoteException;
+import android.util.Log;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.PBluetoothGatt;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.PowerEstimator;
-import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 // implementation Fair Exhaustive Polling (FEP) Scheduling Gateway Controller
-public class FairExhaustivePolling {
+public class FairExhaustivePolling implements IGatewayScheduler {
     private int SCAN_TIME; // set scanning and reading time to 10 seoonds
     private int SCAN_TIME_HALF; // set scanning and reading time to half
     private int PROCESSING_TIME; // set processing time to 60 seconds
@@ -35,12 +32,18 @@ public class FairExhaustivePolling {
     private int cycleCounter = 0;
     private int maxConnectTime = 0;
 
-    private ExecutionTask<String> executionTask;
+    private ExecutionTask<Void> executionTask;
+    private ScheduledThreadPoolExecutor scheduleFEP;
+    private ScheduledThreadPoolExecutor scheduleDB;
+    private Future<?> futureFEP;
+    private Future<?> futureDB;
 
-    public FairExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService) {
+    public FairExhaustivePolling(Context context, boolean mProcessing, IGatewayService iGatewayService, ExecutionTask<Void> executionTask) {
         this.context = context;
         this.mProcessing = mProcessing;
         this.iGatewayService = iGatewayService;
+        this.executionTask = executionTask;
+
         try {
             this.SCAN_TIME = iGatewayService.getTimeSettings("ScanningTime");
             this.SCAN_TIME_HALF = iGatewayService.getTimeSettings("ScanningTime2");
@@ -51,55 +54,75 @@ public class FairExhaustivePolling {
     }
 
     public void start() {
-        int N = Runtime.getRuntime().availableProcessors();
-        executionTask = new ExecutionTask<>(N, N * 2);
-
-        executionTask.scheduleWithThreadPoolExecutor(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
-        executionTask.scheduleWithThreadPoolExecutor(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS);
+        scheduleFEP = executionTask.scheduleWithThreadPoolExecutor(new FEPStartScanning(), 0, PROCESSING_TIME + 1, MILLISECONDS);
+        futureFEP = executionTask.getFuture();
+        scheduleDB = executionTask.scheduleWithThreadPoolExecutor(new FEPDeviceDbRefresh(), 5 * PROCESSING_TIME, 5 * PROCESSING_TIME, MILLISECONDS);
+        futureDB = executionTask.getFuture();
     }
 
     public void stop() {
         mProcessing = false;
-        executionTask.stopScheduler();
-        executionTask.terminateScheduler();
+        futureFEP.cancel(true);
+        futureDB.cancel(true);
+        scheduleFEP.shutdown();
+        scheduleFEP.shutdownNow();
+        scheduleDB.shutdown();
+        scheduleDB.shutdownNow();
     }
 
     private class FEPStartScanning implements Runnable {
         @Override
         public void run() {
             try {
-                iGatewayService.setProcessing(mProcessing);
                 cycleCounter++;
                 iGatewayService.setCycleCounter(cycleCounter);
-                if(cycleCounter > 1) {broadcastClrScrn();}
+                if (cycleCounter > 1) {
+                    broadcastClrScrn();
+                }
                 broadcastUpdate("\n");
                 broadcastUpdate("Start new cycle");
                 broadcastUpdate("Cycle number " + cycleCounter);
+
                 // do polling slaves part
                 boolean isDataExist = iGatewayService.checkDevice(null);
                 if (isDataExist) {
+                    // Devices are listed in DB
                     List<String> devices = iGatewayService.getListActiveDevices();
+                    // search for known device listed in database
                     for (String device : devices) {
-                        iGatewayService.addQueueScanning(device, null, 0, BluetoothLeDevice.FIND_LE_DEVICE, null, 0);
+                        iGatewayService.startScanKnownDevices(device);
                     }
                     // do normal scanning only for half of normal scanning time
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME_HALF);
-                    iGatewayService.execScanningQueue();
+                    sleepThread(100);
+                    iGatewayService.startScan(SCAN_TIME_HALF);
                     mScanning = iGatewayService.getScanState();
                 } else {
                     // do normal scanning
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.SCANNING, null, 0);
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.WAIT_THREAD, null, SCAN_TIME);
-                    iGatewayService.execScanningQueue();
+                    iGatewayService.startScan(SCAN_TIME);
                     mScanning = iGatewayService.getScanState();
                 }
 
+                if (!mProcessing) {
+                    futureFEP.cancel(true);
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
                 stop();
-                waitThread(100);
+                sleepThread(100);
                 connect();
+
+
+                if (!mProcessing) {
+                    futureFEP.cancel(true);
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
+                Log.d("Thread", "Thread FEP " + Thread.currentThread().getId() + " is interrupted");
             }
         }
 
@@ -107,8 +130,7 @@ public class FairExhaustivePolling {
             broadcastUpdate("\n");
             if (mScanning) {
                 try {
-                    iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCANNING, null, 0);
-                    iGatewayService.execScanningQueue();
+                    iGatewayService.stopScanning();
                     mScanning = iGatewayService.getScanState();
                 } catch (RemoteException e) {
                     e.printStackTrace();
@@ -116,6 +138,8 @@ public class FairExhaustivePolling {
             }
 
             if (!mProcessing) {
+                futureFEP.cancel(true);
+                Thread.currentThread().interrupt();
                 return;
             }
         }
@@ -125,16 +149,22 @@ public class FairExhaustivePolling {
             List<String> devices = null;
             try {
                 scanResults = iGatewayService.getScanResults();
+                iGatewayService.setScanResultNonVolatile(scanResults);
+
                 devices = iGatewayService.getListActiveDevices();
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
 
             if (!mProcessing) {
+                futureFEP.cancel(true);
+                Thread.currentThread().interrupt();
                 return;
             }
 
-            if (devices == null || devices.size() <= 0) { return; }
+            if (devices == null || devices.size() <= 0) {
+                return;
+            }
 
             // calculate timer for connection (to obtain Round Robin Scheduling)
             int remainingTime = PROCESSING_TIME - SCAN_TIME;
@@ -146,7 +176,7 @@ public class FairExhaustivePolling {
             // do Round Robin part for connection
             for (BluetoothDevice device : new ArrayList<BluetoothDevice>(scanResults)) {
                 try {
-                    broadcastServiceInterface("Start service interface");
+                    iGatewayService.broadcastServiceInterface("Start service interface");
                     iGatewayService.updateDatabaseDeviceState(device, "inactive");
                 } catch (RemoteException e) {
                     e.printStackTrace();
@@ -156,11 +186,15 @@ public class FairExhaustivePolling {
                         PBluetoothGatt parcelBluetoothGatt = iGatewayService.doConnecting(device.getAddress());
 
                         // set timer to xx seconds
-                        waitThread(maxConnectTime);
-                        if (!mProcessing) { return; }
-
+                        sleepThread(maxConnectTime);
                         broadcastUpdate("Wait time finished, disconnected...");
                         iGatewayService.doDisconnected(parcelBluetoothGatt, "GatewayController");
+
+                        if (!mProcessing) {
+                            futureFEP.cancel(true);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
@@ -173,6 +207,8 @@ public class FairExhaustivePolling {
         @Override
         public void run() {
             if (!mProcessing) {
+                futureDB.cancel(true);
+                Thread.currentThread().interrupt();
                 return;
             }
             broadcastUpdate("Update all device states...");
@@ -184,8 +220,8 @@ public class FairExhaustivePolling {
         }
     }
 
-    private void waitThread(int time) {
-        if (!!mProcessing) {
+    private void sleepThread(int time) {
+        if (mProcessing) {
             try {
                 Thread.sleep(time);
             } catch (InterruptedException e) {
@@ -208,14 +244,6 @@ public class FairExhaustivePolling {
         if (mProcessing) {
             final Intent intent = new Intent(GatewayService.MESSAGE_COMMAND);
             intent.putExtra("command", message);
-            context.sendBroadcast(intent);
-        }
-    }
-
-    private void broadcastServiceInterface(String message) {
-        if (mProcessing) {
-            final Intent intent = new Intent(GatewayService.START_SERVICE_INTERFACE);
-            intent.putExtra("message", message);
             context.sendBroadcast(intent);
         }
     }

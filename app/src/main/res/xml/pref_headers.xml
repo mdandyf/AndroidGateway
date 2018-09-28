@@ -2,7 +2,7 @@
 
     <!-- These settings headers are only used on tablets. -->
 
-    <header
+  <!--  <header
         android:fragment="com.uni.stuttgart.ipvs.androidgateway.settings.SettingsActivity$GeneralPreferenceFragment"
         android:icon="@drawable/ic_info_black_24dp"
         android:title="@string/pref_header_general" />
@@ -10,7 +10,7 @@
     <header
         android:fragment="com.uni.stuttgart.ipvs.androidgateway.settings.SettingsActivity$GeneralPreferenceFragment"
         android:icon="@drawable/ic_bluetooth_icon_black"
-        android:title="@string/pref_header_bluetooth" />
+        android:title="@string/pref_header_bluetooth" />-->
 
     <!--<header
         android:fragment="com.uni.stuttgart.ipvs.androidgateway.settings.SettingsActivity$NotificationPreferenceFragment"

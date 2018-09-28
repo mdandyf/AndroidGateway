@@ -1,15 +1,18 @@
 package com.uni.stuttgart.ipvs.androidgateway.service;
 
 import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelUuid;
 import android.os.RemoteException;
 import android.support.v4.app.ListFragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,6 +26,7 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 import com.uni.stuttgart.ipvs.androidgateway.service.fragment.BatteryFragment;
 import com.uni.stuttgart.ipvs.androidgateway.service.fragment.HeartRateFragment;
+import com.uni.stuttgart.ipvs.androidgateway.service.fragment.UploadCloudFragment;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,12 +60,15 @@ public class ServiceInterface extends ListFragment {
     public void onAttach(Context context) {
         super.onAttach(context);
         this.context = context;
+
+        //bind to service
+        Intent intent = new Intent(context, GatewayService.class);
+        getActivity().bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getActivity().bindService(new Intent(context, GatewayService.class), mConnection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
@@ -89,7 +96,8 @@ public class ServiceInterface extends ListFragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (scheduler != null && !scheduler.isShutdown()) { scheduler.shutdown(); }
+        if(mReceiver != null) { getActivity().unregisterReceiver(mReceiver); }
+        if(mBound) { getActivity().unbindService(mConnection); }
     }
 
     @Override
@@ -125,15 +133,28 @@ public class ServiceInterface extends ListFragment {
                 ServiceUUID = ServiceLong.substring(4, 8);
 
                 //check if it's battery or heart sensor
-                switch(ServiceUUID) {
-                    case "180f":
+                switch(ServiceLong) {
+                    case "0000180f-0000-1000-8000-00805f9b34fb":        //Battery Service
                         launchBatteryFragment(deviceAddress, ServiceLong);
                         break;
-                    case "180d":
+                    case "0000180d-0000-1000-8000-00805f9b34fb":        //Heart Service
+                        //launchUploadCloudFragment(deviceAddress);
                         launchHeartRateFragment(deviceAddress, ServiceLong);
                         break;
-                    case "1800":
+                    case "0000fee0-0000-1000-8000-00805f9b34fb":        //MIBAND
+                        launchUploadCloudFragment(deviceAddress);
+                        break;
+                    case "0000fff0-0000-1000-8000-00805f9b34fb":        //VEMITER
+                        launchUploadCloudFragment(deviceAddress);
+                        break;
+                    case "00001816-0000-1000-8000-00805f9b34fb":        // Cycling Speed and Cadence
+                        launchUploadCloudFragment(deviceAddress);
+                        break;
+                    case "00001800-0000-1000-8000-00805f9b34fb":
                         Toast.makeText(getContext(),  "Service UUID " + ServiceUUID, Toast.LENGTH_SHORT).show();
+                        break;
+                    case "a8b3fa04-4834-4051-89d0-3de95cddd318":        // BeeWi Humidity Sensor
+                        launchUploadCloudFragment(deviceAddress);
                         break;
                     default:
                         Toast.makeText(getContext(),  "Service Not Supported " + ServiceUUID, Toast.LENGTH_SHORT).show();
@@ -179,8 +200,6 @@ public class ServiceInterface extends ListFragment {
         //Convert HEX to DEC
         int batteryPercent = Integer.parseInt(batteryValue, 16);
 
-           //Toast.makeText(getContext(), serviceUUID + "/" + batterycharacteristicUUID , Toast.LENGTH_SHORT).show();
-
             //Mapping
             UUID serviceMap = UUID.fromString(serviceUUID);
             UUID characteristicMap = UUID.fromString(batteryCharacteristicLong);
@@ -212,7 +231,6 @@ public class ServiceInterface extends ListFragment {
 
         UUID characteristicMap;
         String characteristicName;
-        UUID sensorLocationMap;
         String sensorLocationName;
 
         GattDataLookUp gattData = new GattDataLookUp();
@@ -287,6 +305,22 @@ public class ServiceInterface extends ListFragment {
     }
 
 
+    //Handle Upload to Cloud
+    public void launchUploadCloudFragment(String macAddress) throws RemoteException {
+
+        String deviceName = iGatewayService.getDeviceName(macAddress);
+
+        //Pass Data to Cloud Fragment
+        Bundle bundle = new Bundle();
+        bundle.putString("mac", macAddress);
+        bundle.putString("name", deviceName);
+        UploadCloudFragment uploadCloudFragment = new UploadCloudFragment();
+        uploadCloudFragment.setArguments(bundle);
+        replaceFragment(R.id.main_frame, uploadCloudFragment, "Cloud");
+
+    }
+
+
     /**
      * Defines callbacks for service binding, passed to bindService()
      */
@@ -297,8 +331,27 @@ public class ServiceInterface extends ListFragment {
                                        IBinder service) {
             iGatewayService = IGatewayService.Stub.asInterface(service);
             mBound = true;
-            scheduler = new ScheduledThreadPoolExecutor(10);
-            scheduler.scheduleAtFixedRate(new ServiceInterfaceRun(), 10, 5 * 1000, MILLISECONDS); // check dbase for new device every 5 seconds
+
+
+            //check active devices once
+            try {
+                List<String> activeDevices = iGatewayService.getListActiveDevices();
+                Map<String, String> data = new HashMap<>();
+
+                for(String mac : activeDevices){
+                    String deviceName = iGatewayService.getDeviceName(mac);
+                    data.put("Device Address", mac);
+                    data.put("Device Name", deviceName);
+                    if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
+                    //Log.d("message", dataAdapter.get(0).toString());
+                    //Log.d("message", dataAdapter.get(1).toString());
+
+                }
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+
+            getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
         }
 
         @Override
@@ -308,41 +361,40 @@ public class ServiceInterface extends ListFragment {
     };
 
 
-    protected class ServiceInterfaceRun implements Runnable {
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
 
         @Override
-        public void run() {
-            // populate result from database
-            try {
-                List<String> activeDevices = iGatewayService.getListActiveDevices();
-                List<BluetoothDevice> scanResults = iGatewayService.getScanResults();
-                for(final BluetoothDevice device : scanResults) {
-                    for(String macAddress: activeDevices) {
-                        if(device.getAddress().equals(macAddress)) {
-                            String userChoice = iGatewayService.getDeviceUsrChoice(macAddress);
-                            if(userChoice != null) {
-                                if(userChoice.equals("Yes")) {
-                                    // put data into adapter
-                                    getActivity().runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            Map<String, String> data = new HashMap<>();
-                                            data.put("Device Name", "Unknown");
-                                            if(device.getName() != null) { data.put("Device Name", device.getName()); }
-                                            data.put("Device Address", device.getAddress());
-                                            if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
-                                        }
-                                    });
-                                }
-                            }
+        public void onReceive(Context context, final Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(GatewayService.FINISH_READ)) {
+
+                //Toast.makeText(getContext(), "Device Added Ya MArwan", Toast.LENGTH_SHORT).show();
+
+                final String macAddress = intent.getStringExtra("command");
+
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        try {
+                            String deviceName = iGatewayService.getDeviceName(macAddress);
+
+                            Map<String, String> data = new HashMap<>();
+                            data.put("Device Name", deviceName);
+                            data.put("Device Address", macAddress);
+                            if(!dataAdapter.contains(data)) { dataAdapter.add(data);adapter.notifyDataSetChanged(); }
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
                         }
+
                     }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+                });
+
             }
         }
-    }
+    };
+
 
     private void replaceFragment(int containerView, android.support.v4.app.Fragment classFragment, String tag) {
         getActivity().getSupportFragmentManager().beginTransaction()

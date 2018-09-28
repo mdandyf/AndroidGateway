@@ -15,8 +15,11 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
-import android.util.Xml;
 
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.neovisionaries.bluetooth.ble.advertising.ADStructure;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.ScannerCallback;
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
@@ -25,27 +28,27 @@ import com.uni.stuttgart.ipvs.androidgateway.bluetooth.callback.BluetoothLeGattC
 import com.uni.stuttgart.ipvs.androidgateway.bluetooth.BluetoothLeScanProcess;
 import com.uni.stuttgart.ipvs.androidgateway.database.BleDeviceDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.CharacteristicsDatabase;
-import com.uni.stuttgart.ipvs.androidgateway.database.ManufacturerDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.database.ServicesDatabase;
+import com.uni.stuttgart.ipvs.androidgateway.database.UploadsDatabase;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.callback.GatewayCallback;
 import com.uni.stuttgart.ipvs.androidgateway.helper.AdRecordHelper;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataJson;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
+import com.uni.stuttgart.ipvs.androidgateway.helper.JsonParser;
+import com.uni.stuttgart.ipvs.androidgateway.helper.PowerEstimator;
 import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
 import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
+import org.json.JSONObject;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -80,8 +83,6 @@ public class GatewayService extends Service {
     private Intent mIntent;
     private Context context;
 
-    private ConcurrentLinkedQueue queueScanning;
-    private ConcurrentLinkedQueue queueConnecting;
     private ConcurrentLinkedQueue queueCharacteristic;
 
     private BluetoothLeDevice bleDevice;
@@ -110,10 +111,13 @@ public class GatewayService extends Service {
     private BleDeviceDatabase bleDeviceDatabase = new BleDeviceDatabase(this);
     private ServicesDatabase bleServicesDatabase = new ServicesDatabase(this);
     private CharacteristicsDatabase bleCharacteristicDatabase = new CharacteristicsDatabase(this);
-    private ManufacturerDatabase manufacturerDatabase = new ManufacturerDatabase(this);
+    private UploadsDatabase bleUploadDatabase = new UploadsDatabase(this);
 
     private String status;
-    private Document xmlDocument;
+
+    //Firebase
+    private FirebaseDatabase mDatabase;
+    DatabaseReference mDeviceReference;
 
     @Override
     public void onCreate() {
@@ -122,9 +126,8 @@ public class GatewayService extends Service {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mBluetoothLeScanProcess = new BluetoothLeScanProcess(this, mBluetoothAdapter);
 
-        queueScanning = new ConcurrentLinkedQueue();
-        queueConnecting = new ConcurrentLinkedQueue();
         queueCharacteristic = new ConcurrentLinkedQueue();
+
         bleDevice = new BluetoothLeDevice();
         bleGatt = new BluetoothLeGatt();
         lock = new Object();
@@ -139,11 +142,9 @@ public class GatewayService extends Service {
         executionTask = new ExecutionTask<>(N, N * 2);
         executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
 
-        try {
-            xmlDocument = GattDataHelper.parseXML(new InputSource( getAssets().open("Settings.xml") ));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        //Firebase
+        mDatabase = FirebaseDatabase.getInstance();
+        mDeviceReference = mDatabase.getReference("devices");
 
         status = "Created";
     }
@@ -184,6 +185,7 @@ public class GatewayService extends Service {
         private int cycleCounter = 0;
         private Map<String, double[]> powerConstraint = new HashMap<>();
         private Map<String, Integer> timerSettings = new HashMap<>();
+        private List<PManufacturer> manufacturers = new ArrayList<>();
         private String timeUnit = null;
 
         @Override
@@ -228,12 +230,6 @@ public class GatewayService extends Service {
         @Override
         public void setHandler(PMessageHandler messageHandler, String threadName, String type) throws RemoteException {
 
-            if (mHandlerMessage == null) {
-                // no quit section
-            } else {
-                mThread.interrupt();
-                mThread.quit();
-            }
             mThread = new HandlerThread(threadName);
             mThread.start();
 
@@ -273,7 +269,7 @@ public class GatewayService extends Service {
 
         @Override
         public boolean getScanState() throws RemoteException {
-            return mScanning;
+            return mBluetoothLeScanProcess.getScanState();
         }
 
         @Override
@@ -324,76 +320,6 @@ public class GatewayService extends Service {
                 listBluetoothGatt = new ArrayList<>();
                 for (PBluetoothGatt parcelBluetoothGatt : listGatt) {
                     listBluetoothGatt.add(parcelBluetoothGatt.getGatt());
-                }
-            }
-        }
-
-        @Override
-        public void addQueueScanning(String macAddress, String name, int rssi, int typeCommand, ParcelUuid serviceUUID, long waitTime) throws RemoteException {
-            UUID uuidService = null;
-            if (serviceUUID != null) { uuidService = serviceUUID.getUuid(); }
-            bleDevice = new BluetoothLeDevice(macAddress, name, rssi, typeCommand, uuidService, waitTime);
-            queueScanning.add(bleDevice);
-        }
-
-        @Override
-        public void execScanningQueue() throws RemoteException {
-            status = "Scanning";
-            if (queueScanning != null && !queueScanning.isEmpty() && mProcessing) {
-                for (bleDevice = (BluetoothLeDevice) queueScanning.poll(); bleDevice != null; bleDevice = (BluetoothLeDevice) queueScanning.poll()) {
-                    synchronized (bleDevice) {
-                        int type = bleDevice.getType();
-                        if (type == BluetoothLeDevice.SCANNING) {
-                            //step scan new BLE devices
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
-                            mScanning = true;
-                            broadcastUpdate("Scanning bluetooth...");
-                            Log.d(TAG, "Start scanning");
-                            mBluetoothLeScanProcess.scanLeDevice(true);
-                            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                        } else if (type == BluetoothLeDevice.FIND_LE_DEVICE) {
-                            // step scan for known BLE devices
-                            Log.d(TAG, "Start scanning for known BLE device ");
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
-                            if (bleDevice.getMacAddress() != null) {
-                                // find specific macAddress
-                                mScanning = false;
-                                broadcastUpdate("Searching device " + bleDevice.getMacAddress());
-                                BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(bleDevice.getMacAddress());
-                                if (device == null) {
-                                    broadcastUpdate("Device " + bleDevice.getMacAddress() + "not found, try scanning...");
-                                    mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), true);
-                                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                                    sleepThread(500);
-                                    mBluetoothLeScanProcess.findLeDevice(bleDevice.getMacAddress(), false);
-                                } else {
-                                    mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
-                                }
-                            } else if (bleDevice.getServiceUUID() != null) {
-                                // scan using specific service
-                                mScanning = true;
-                                UUID[] listBle = new UUID[1];
-                                listBle[0] = bleDevice.getServiceUUID();
-                                mBluetoothLeScanProcess.findLeDevice(listBle, true);
-                                mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
-                                sleepThread(1000);
-                                mBluetoothLeScanProcess.findLeDevice(listBle, false);
-                            }
-                        } else if (type == BluetoothLeDevice.STOP_SCANNING) {
-                            mScanning = false;
-                            mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
-                            broadcastUpdate("Stop scanning bluetooth...");
-                            broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
-                        } else if (type == BluetoothLeDevice.STOP_SCAN) {
-                            mScanning = false;
-                            mBluetoothLeScanProcess.scanLeDevice(false);
-                            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
-                            broadcastUpdate("Stop scanning...");
-                        } else if (type == BluetoothLeDevice.WAIT_THREAD) {
-                            sleepThread(bleDevice.getWaitTime());
-                        }
-                    }
                 }
             }
         }
@@ -622,15 +548,6 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void updateDatabaseDeviceUsrChoice(String macAddress, String userChoice) throws RemoteException {
-            try {
-                bleDeviceDatabase.updateDeviceUserChoice(macAddress, userChoice);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
         public void updateDatabaseDevicePowerUsage(String macAddress, long powerUsage) throws RemoteException {
             try {
                 bleDeviceDatabase.updateDevicePowerUsage(macAddress, powerUsage);
@@ -680,32 +597,73 @@ public class GatewayService extends Service {
 
         @Override
         public boolean isDeviceManufacturerKnown(String macAddress) throws RemoteException {
+
+            boolean deviceKnown = false;
+
+            //Get Device Advertisement
             byte[] scanRecord = bleDeviceDatabase.getDeviceScanRecord(macAddress);
             List<ADStructure> structures = AdRecordHelper.decodeAdvertisement(scanRecord);
 
             if (structures != null && structures.size() > 0) {
                 Map<String, Object> mapListAdvertisement = AdRecordHelper.parseAdvertisement(structures);
 
+                //Check for mfrID
                 if (mapListAdvertisement.containsKey("CompanyId")) {
+
                     int compId = (int) mapListAdvertisement.get("CompanyId");
-                    String compIdString = GattDataHelper.decToHex(compId);
-                    compIdString = compIdString.substring(4, 8);
-                    compIdString = "0x" + compIdString;
-                    Log.d(TAG, "Company Id: " + compIdString);
-                    return checkManufacturer(compIdString);
+                    String mfrId = GattDataHelper.decToHex(compId);
+                    mfrId = mfrId.substring(4, 8);
+                    mfrId = "0x" + mfrId;
+                    Log.d(TAG, "Company Id: " + mfrId);
+
+                    deviceKnown = checkManufacturer(mfrId);
+
+                    //Device mfrId is Known, then check for serviceUUID
+                    if (deviceKnown) {
+                        //Check Service if known
+                       if (mapListAdvertisement.containsKey("DeviceUUID")) {
+                            UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
+                            for (UUID uuid : arrayUUIDs) {
+                                Log.d(TAG, "Device UUID: " + uuid.toString());
+                                deviceKnown = checkManufacturerService(mfrId, uuid.toString());
+                                Log.d(TAG, "DeviceKnown: " + deviceKnown);
+                                if(deviceKnown) { break; }
+                            }
+                        } else {
+                            // service is not known
+                            return false;
+                        }
+                    } else {
+                        //device not known
+                        return false;
+                    }
                 } else {
                     // if device has no manufacturer id
-                    return false;
+                    // Check if the services are listed in the xml file
+                    if (mapListAdvertisement.containsKey("DeviceUUID")) {
+                        UUID[] arrayUUIDs = (UUID[]) mapListAdvertisement.get("DeviceUUID");
+                        for (UUID uuid : arrayUUIDs) {
+                            Log.d(TAG, "Device UUID: " + uuid.toString());
+                            deviceKnown = checkManufacturerService("0xffff", uuid.toString());
+                            Log.d(TAG, "DeviceKnown: " + deviceKnown);
+                            if(deviceKnown) { break; }
+                        }
+                    } else {
+                        // service is not known
+                        return false;
+                    }
                 }
             } else {
                 // if device has no scan record
                 return false;
             }
+
+            return deviceKnown;
         }
 
         @Override
-        public String getDeviceUsrChoice(String macAddress) throws RemoteException {
-            return bleDeviceDatabase.getDeviceUsrChoice(macAddress);
+        public String getDeviceName(String macAddress) throws RemoteException {
+            return bleDeviceDatabase.getDeviceName(macAddress);
         }
 
         @Override
@@ -719,28 +677,47 @@ public class GatewayService extends Service {
         }
 
         @Override
-        public void insertDatabaseManufacturer(String manfId, String manfName) throws RemoteException {
-            manufacturerDatabase.insertData(manfId, manfName);
+        public void setManufacturerData(List<PManufacturer> manufacturer) throws RemoteException {
+            manufacturers = manufacturer;
+        }
+
+        @Override
+        public List<PManufacturer> getManufacturerData() throws RemoteException {
+            return manufacturers;
         }
 
         @Override
         public boolean checkManufacturer(String mfr_id) throws RemoteException {
-            return manufacturerDatabase.isManufacturerExist(mfr_id);
+            for (int i = 0; i < getManufacturerData().size(); i++) {
+                if (mfr_id.equalsIgnoreCase(getManufacturerData().get(i).id)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         @Override
-        public List<String> getListManufacturers() throws RemoteException {
-            return manufacturerDatabase.getListManufacturers();
+        public boolean checkManufacturerService(String mfr_id, String serviceUUID) throws RemoteException {
+            for (int i = 0; i < getManufacturerData().size(); i++) {
+                if (mfr_id.equalsIgnoreCase(getManufacturerData().get(i).id)) {
+                    if (serviceUUID.equalsIgnoreCase(getManufacturerData().get(i).service)) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         @Override
-        public String getManufacturerName(String mfr_id) throws RemoteException {
-           return manufacturerDatabase.getManufacturerName(mfr_id);
+        public List<PManufacturer> getListManufacturers() throws RemoteException {
+            return getManufacturerData();
         }
 
         @Override
         public void setPowerUsageConstraints(String dataName, double[] data) throws RemoteException {
-            if(powerConstraint.size() > 3) {
+            if (powerConstraint.size() > 3) {
                 powerConstraint = new HashMap<>();
             } else {
                 powerConstraint.put(dataName, data);
@@ -752,19 +729,19 @@ public class GatewayService extends Service {
             int currentLevel = (int) batteryLevel;
             double[] powerUsageConstraints = new double[3];
 
-            for(Map.Entry entry : powerConstraint.entrySet()) {
+            for (Map.Entry entry : powerConstraint.entrySet()) {
                 String key = (String) entry.getKey();
                 double[] data = (double[]) entry.getValue();
 
                 String batLevelString = key.substring(0, key.indexOf(","));
-                String batLevelUpString = key.substring(key.indexOf(",")+1);
+                String batLevelUpString = key.substring(key.indexOf(",") + 1);
 
                 int batLevel = Integer.valueOf(batLevelString);
                 int batLevelUp = Integer.valueOf(batLevelUpString);
 
-                if((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
-                   powerUsageConstraints = data;
-                   break;
+                if ((currentLevel > batLevel) && (currentLevel <= batLevelUp)) {
+                    powerUsageConstraints = data;
+                    break;
                 }
             }
 
@@ -773,7 +750,7 @@ public class GatewayService extends Service {
 
         @Override
         public void setTimeSettings(String dataName, int data) throws RemoteException {
-            if(timerSettings.size() > 4) {
+            if (timerSettings.size() > 6) {
                 timerSettings = new HashMap<>();
             } else {
                 timerSettings.put(dataName, data);
@@ -802,12 +779,17 @@ public class GatewayService extends Service {
 
         @Override
         public List<ParcelUuid> getCharacteristicUUIDs(String macAddress, String serviceUUID) throws RemoteException {
-            return null;
+            return bleCharacteristicDatabase.getCharacteristicUUIDs(macAddress, serviceUUID);
         }
 
         @Override
-        public String getCharacteristicValue(String macAddress, String serviceUUID, String CharacteristicUUID) throws RemoteException {
-            return null;
+        public String getCharacteristicProperty(String macAddress, String serviceUUID, String CharacteristicUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicProperty(macAddress, serviceUUID, CharacteristicUUID);
+        }
+
+        @Override
+        public String getCharacteristicValue(String macAddress, String serviceUUID, String characteristicUUID) throws RemoteException {
+            return bleCharacteristicDatabase.getCharacteristicValue(macAddress, serviceUUID, characteristicUUID);
         }
 
         @Override
@@ -819,6 +801,7 @@ public class GatewayService extends Service {
                 }
             }
         }
+
 
         @Override
         public void broadcastUpdate(String message) throws RemoteException {
@@ -895,6 +878,116 @@ public class GatewayService extends Service {
             }
             return result;
         }
+
+        @Override
+        public void startScan(final long time) throws RemoteException {
+            //step scan new BLE devices
+            mScanning = true;
+            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing scanning method");
+            mBinder.broadcastUpdate("Scanning bluetooth...");
+            Log.d(TAG, "Start scanning");
+            mBluetoothLeScanProcess.scanLeDevice(true);
+            mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+            sleepThread(time);
+        }
+
+        @Override
+        public void stopScanning() throws RemoteException {
+            mScanning = false;
+            mBluetoothLeScanProcess.scanLeDevice(false);
+            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scanning method");
+            broadcastUpdate("Stop scanning bluetooth...");
+            broadcastUpdate("Found " + getScanResults().size() + " matched device(s)");
+        }
+
+        @Override
+        public void stopScan() throws RemoteException {
+            mScanning = false;
+            mBluetoothLeScanProcess.scanLeDevice(false);
+            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing stop scan method");
+            broadcastUpdate("Stop scanning...");
+        }
+
+        @Override
+        public void startScanKnownDevices(String macAddress) throws RemoteException {
+            // step scan for known BLE devices
+            Log.d(TAG, "Start scanning for known BLE device ");
+            Log.d(TAG, "Thread " + Thread.currentThread().getId() + " firing find LE device method");
+            if (macAddress != null) {
+                // find specific macAddress
+                mScanning = false;
+                mBinder.broadcastUpdate("Searching device " + macAddress);
+                BluetoothDevice device = mBluetoothLeScanProcess.getRemoteDevice(macAddress);
+                if (device == null) {
+                    mBinder.broadcastUpdate("Device " + macAddress + "not found, try scanning...");
+                    mBluetoothLeScanProcess.findLeDevice(macAddress, true);
+                    mScanning = true;
+                    mBluetoothLeScanProcess.setHandlerMessage(mHandlerMessage);
+                    mBluetoothLeScanProcess.findLeDevice(macAddress, false);
+                    mScanning = false;
+                } else {
+                    mHandlerMessage.sendMessage(Message.obtain(mHandlerMessage, 0, 7, 0, device));
+                }
+            }
+        }
+
+        @Override
+        public void saveCloudData(String macAddress) throws RemoteException {
+
+            for (BluetoothGatt gatt : listBluetoothGatt) {
+                if (gatt.getDevice().getAddress().equals(macAddress)) {
+
+                    GattDataJson dataJson = new GattDataJson(gatt.getDevice(), gatt);
+                    String dataString = JsonParser.readJsonString(dataJson.getJsonData());
+
+
+                    //SAVE TO DB
+                    insertDatabaseUpload(macAddress, dataString, "No");
+                    Log.d("save", "data save in database");
+                }
+            }
+        }
+
+        @Override
+        public void uploadDataCloud() throws RemoteException {
+            try {
+
+                List<String> uploadDataList = bleUploadDatabase.getAllUploadData();
+
+                Log.d("json", "JSON list acquired");
+
+                //loop list get each dataString
+                for (String uploadData : uploadDataList) {
+
+                    //convert to json
+                    JSONObject dataJson = JsonParser.readJsonObjectFromString(uploadData);
+
+                    Log.d("json", "JSON: " + dataJson.toString());
+
+                    //TRY TO SAVE JSON DIRECTLY TO DB
+                    String jsonString = dataJson.toString();
+
+                    Map<String, Object> jsonMap = new Gson().fromJson(jsonString, new TypeToken<HashMap<String, Object>>() {
+                    }.getType());
+                    mDeviceReference.push().setValue(jsonMap);
+
+                    //change db status to yes
+                    //updateDatabaseUpload(, "Yes");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void insertDatabaseUpload(String macAddress, String data, String uploadState) throws RemoteException {
+            bleUploadDatabase.insertData(macAddress, data, uploadState);
+        }
+
+        @Override
+        public void updateDatabaseUpload(String macAddress, String uploadState) throws RemoteException {
+            bleUploadDatabase.updateUploadStatus(macAddress, uploadState);
+        }
     };
 
     /**
@@ -910,10 +1003,20 @@ public class GatewayService extends Service {
     }
 
 
-    public void sleepThread(long time) {
+    private void sleepThread(long time) {
         try {
+            Log.d("Thread", "Thread " + Thread.currentThread().getId() + " is accessing sleep Thread");
             Thread.sleep(time);
         } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            if(mBinder.getScanState()) {
+                mBinder.stopScan();
+                mScanning = mBinder.getScanState();
+            }
+        } catch (RemoteException e) {
             e.printStackTrace();
         }
     }

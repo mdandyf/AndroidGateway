@@ -9,28 +9,34 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
+import android.util.Log;
 
-import com.uni.stuttgart.ipvs.androidgateway.bluetooth.peripheral.BluetoothLeDevice;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePolling;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePollingWithAHP;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.ExhaustivePollingWithWSM;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.FairExhaustivePolling;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithAHP;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithANP;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWPM;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.PriorityBasedWithWSM;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.RoundRobin;
-import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduling.Semaphore;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.mape.MapeAlgorithm;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.ExhaustivePolling;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.ExhaustivePollingWithAHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.ExhaustivePollingWithWSM;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.FairExhaustivePolling;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.IGatewayScheduler;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.PriorityBasedWithAHP;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.PriorityBasedWithWSM;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.RoundRobin;
+import com.uni.stuttgart.ipvs.androidgateway.gateway.scheduler.Semaphore;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataHelper;
+import com.uni.stuttgart.ipvs.androidgateway.thread.EExecutionType;
+import com.uni.stuttgart.ipvs.androidgateway.thread.ExecutionTask;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by mdand on 4/10/2018.
@@ -40,26 +46,29 @@ public class GatewayController extends Service {
     private final IBinder mBinder = new LocalBinder();
     private Context context;
     private Intent mIntent;
+
     private IGatewayService iGatewayService;
+    private IGatewayScheduler iGatewayScheduler;
 
     private boolean mBound = false;
-    private boolean mProcessing = false;
+    private volatile boolean mProcessing = false;
 
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
 
-    private Semaphore sem;
-    private FairExhaustivePolling fep;
-    private ExhaustivePolling ep;
-    private ExhaustivePollingWithAHP epAhp;
-    private ExhaustivePollingWithWSM epWsm;
-    private RoundRobin rr;
-    private PriorityBasedWithAHP ahp;
-    private PriorityBasedWithANP anp;
-    private PriorityBasedWithWSM wsm;
-    private PriorityBasedWithWPM wpm;
+    private MapeAlgorithm mapeAlgorithm;
 
     private Document xmlFile;
+    private Runnable runnableMape;
+    private Runnable runnableAlgorithm;
+    private Thread algorithmThread;
+
+    private Map<String,Object> mapeDataAction;
+
+    private final String[] algorithm = {null};
+    private ExecutionTask<Void> executionTask = null;
+
+    private XmlPullParser mfrParser;
 
     @Override
     public void onCreate() {
@@ -106,52 +115,15 @@ public class GatewayController extends Service {
     @Override
     public boolean onUnbind(Intent intent) {
         try {
-            iGatewayService.addQueueScanning(null, null, 0, BluetoothLeDevice.STOP_SCAN, null, 0);
-            iGatewayService.execScanningQueue();
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-        try {
+            iGatewayService.stopScan();
             iGatewayService.setProcessing(false);
         } catch (RemoteException e) {
             e.printStackTrace();
         }
 
-        if (fep != null) {
-            fep.stop();
-        }
-        if (ep != null) {
-            ep.stop();
-        }
-        if (epAhp != null) {
-            epAhp.stop();
-        }
-        if (epWsm != null) {
-            epWsm.stop();
-        }
-        if (rr != null) {
-            rr.stop();
-        }
-        if (sem != null) {
-            sem.stop();
-        }
-        if (ahp != null) {
-            ahp.stop();
-        }
-        if (anp != null) {
-            anp.stop();
-        }
-        if (wsm != null) {
-            wsm.stop();
-        }
-        if (wpm != null) {
-            wpm.stop();
-        }
+        if(iGatewayScheduler != null) { iGatewayScheduler.stop(); }
+        if (mConnection != null) { unbindService(mConnection); }
 
-
-        if (mConnection != null) {
-            unbindService(mConnection);
-        }
         broadcastUpdate("Unbind GatewayController to GatewayService...");
         return false;
     }
@@ -190,11 +162,11 @@ public class GatewayController extends Service {
 
                 // input data algorithm
                 Map<String, Object> alg = readXMLFile(xmlFile, "DataAlgorithm");
-                String algorithm = (String) alg.get("algorithm");
+                algorithm[0] = (String) alg.get("algorithm");
 
                 // input data powerConstraint
                 Map<String, Object> pwr = readXMLFile(xmlFile, "DataPowerConstraint");
-                for(Map.Entry entry : pwr.entrySet()) {
+                for (Map.Entry entry : pwr.entrySet()) {
                     String key = (String) entry.getKey();
                     double[] data = (double[]) entry.getValue();
                     iGatewayService.setPowerUsageConstraints(key, data);
@@ -202,7 +174,7 @@ public class GatewayController extends Service {
 
                 // input data Timer
                 Map<String, Object> tmr = readXMLFile(xmlFile, "DataTimer");
-                for(Map.Entry entry : tmr.entrySet()) {
+                for (Map.Entry entry : tmr.entrySet()) {
                     String key = (String) entry.getKey();
                     String dataString = (String) entry.getValue();
 
@@ -214,36 +186,48 @@ public class GatewayController extends Service {
                     }
                 }
 
+                // input data MAPE
+                mapeDataAction = readXMLFile(xmlFile, "DataMape");
 
-                if (algorithm.equals("sem")) {
-                    doScheduleSemaphore();
-                } else if (algorithm.equals("ep")) {
-                    doScheduleEP();
-                } else if (algorithm.equals("fep")) {
-                    doScheduleFEP();
-                } else if (algorithm.equals("rr")) {
-                    doScheduleRR();
-                } else if (algorithm.equals("epAhp")) {
-                    doScheduleEPwithAHP();
-                } else if (algorithm.equals("epWsm")) {
-                    doScheduleEPwithWSM();
-                } else if (algorithm.equals("ahp")) {
-                    doSchedulePriorityAHP();
-                } else if (algorithm.equals("anp")) {
-                    doSchedulePriorityANP();
-                } else if (algorithm.equals("wsm")) {
-                    doSchedulePriorityWSM();
-                } else if (algorithm.equals("wpm")) {
-                    doSchedulePriorityWPM();
-                }
-
+                //Get Manufacturers List from XML File
+                mfrParser = GattDataHelper.parseXML(getAssets().open("Manufacturer.xml"));
+                List<PManufacturer> manufacturers = GattDataHelper.processParsing(mfrParser);
+                iGatewayService.setManufacturerData(manufacturers);
 
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (RemoteException e) {
                 e.printStackTrace();
+            } catch (XmlPullParserException e) {
+                e.printStackTrace();
             }
+
+
+            //Start the Execution Task
+            int N = Runtime.getRuntime().availableProcessors();
+            executionTask = new ExecutionTask<>(N, N + 1);
+            executionTask.setExecutionType(EExecutionType.MULTI_THREAD_POOL);
+
+            //Schedule algorithm thread
+            runnableAlgorithm = doSchedulingAlgorithm();
+
+            algorithmThread = executionTask.executeRunnableInThread(runnableAlgorithm, "Algorithm Thread", Thread.MIN_PRIORITY);
+
+            //Set Mape Algorithm
+            runnableMape = doMAPEAlgorithm();
+
+            //Repeate MAPE Algorithm every XX Minute set in .XML Settings File
+            String mapeAction = (String) mapeDataAction.get("MapeAction");
+            if(mapeAction.equalsIgnoreCase("yes")){
+                try {
+                    executionTask.scheduleWithThreadPoolExecutor(runnableMape, iGatewayService.getTimeSettings("MapeTime"), iGatewayService.getTimeSettings("MapePeriod"), TimeUnit.MILLISECONDS);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+
         }
+
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
@@ -266,8 +250,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            sem = new Semaphore(context, mProcessing, iGatewayService);
-            sem.start();
+            iGatewayScheduler = new Semaphore(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -284,8 +268,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            rr = new RoundRobin(context, mProcessing, iGatewayService);
-            rr.start();
+            iGatewayScheduler = new RoundRobin(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -297,13 +281,14 @@ public class GatewayController extends Service {
      */
 
     //scheduling using Exhaustive Polling (EP)
+
     private void doScheduleEP() {
         broadcastUpdate("Start Exhaustive Polling Scheduling...");
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            ep = new ExhaustivePolling(context, mProcessing, iGatewayService);
-            ep.start();
+            iGatewayScheduler = new ExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -320,8 +305,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            epAhp = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService);
-            epAhp.start();
+            iGatewayScheduler = new ExhaustivePollingWithAHP(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -338,8 +323,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            epWsm = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService);
-            epWsm.start();
+            iGatewayScheduler = new ExhaustivePollingWithWSM(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -356,8 +341,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            fep = new FairExhaustivePolling(context, mProcessing, iGatewayService);
-            fep.start();
+            iGatewayScheduler = new FairExhaustivePolling(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -374,27 +359,8 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            ahp = new PriorityBasedWithAHP(context, mProcessing, iGatewayService);
-            ahp.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-
-    /*                                                                                                                               *
-     * ============================================================================================================================= *
-     * ============================================================================================================================= *
-     */
-
-    // scheduling based on Priority with ANP decision making algorithm
-    private void doSchedulePriorityANP() {
-        broadcastUpdate("Start Priority Scheduling with ANP...");
-        try {
-            iGatewayService.setProcessing(mProcessing);
-            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            anp = new PriorityBasedWithANP(context, mProcessing, iGatewayService);
-            anp.start();
+            iGatewayScheduler = new PriorityBasedWithAHP(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -411,31 +377,75 @@ public class GatewayController extends Service {
         try {
             iGatewayService.setProcessing(mProcessing);
             iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            wsm = new PriorityBasedWithWSM(context, mProcessing, iGatewayService);
-            wsm.start();
+            iGatewayScheduler = new PriorityBasedWithWSM(context, mProcessing, iGatewayService, executionTask);
+            iGatewayScheduler.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    /*                                                                                                                               *
-     * ============================================================================================================================= *
-     * ============================================================================================================================= *
-     */
 
-    // scheduling based on Priority with WPM decision making algorithm
-    private void doSchedulePriorityWPM() {
-        broadcastUpdate("Start Priority Scheduling with WPM...");
-        try {
-            iGatewayService.setProcessing(mProcessing);
-            iGatewayService.setHandler(null, "mGatewayHandler", "Gateway");
-            wpm = new PriorityBasedWithWPM(context, mProcessing, iGatewayService);
-            wpm.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    //Scheduling Selection
+    private synchronized Runnable doSchedulingAlgorithm() {
+
+        return new Runnable() {
+            @Override
+            public void run() {
+
+                if (algorithm[0].equals("ep")) {
+                    doScheduleEP();
+                } else if (algorithm[0].equals("fep")) {
+                    doScheduleFEP();
+                } else if (algorithm[0].equals("epAhp")) {
+                    doScheduleEPwithAHP();
+                } else if (algorithm[0].equals("epWsm")) {
+                    doScheduleEPwithWSM();
+                } else if (algorithm[0].equals("ahp")) {
+                    doSchedulePriorityAHP();
+                } else if (algorithm[0].equals("wsm")) {
+                    doSchedulePriorityWSM();
+                }
+
+            }
+        };
+
     }
 
+    // MAPE Algorithm Runnable
+    private synchronized Runnable doMAPEAlgorithm() {
+
+        return new Runnable() {
+            @Override
+            public void run() {
+
+                try {
+                    //READ DEVICES FROM NON VOLATILE MEMORY
+                    iGatewayService.broadcastClearScreen("Clear the Screen");
+                    broadcastUpdate("Available Devices: " + iGatewayService.getScanResultsNonVolatile());
+                    broadcastUpdate("Evaluating new MAPE Algorithm...");
+
+                    mapeAlgorithm = new MapeAlgorithm(context, mProcessing, iGatewayService, executionTask, mapeDataAction);
+                    algorithm[0] = mapeAlgorithm.startMape();
+                    broadcastUpdate("Changing Algorithm...");
+                    broadcastUpdate("New Algorithm Is : " + algorithm[0]);
+
+                    Log.d("newAlgorithm", "New Algorithm Is : " + algorithm[0]);
+
+                    // ensure thread is killed first & clear the screen
+                    if(iGatewayScheduler != null) { iGatewayScheduler.stop(); }
+
+                    Thread.sleep(1000);
+                    algorithmThread = null;
+                    algorithmThread = executionTask.executeRunnableInThread(doSchedulingAlgorithm(), "Algorithm Thread", Thread.MAX_PRIORITY);
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+            }
+        };
+
+    }
 
     /**
      * End of Algorithm Section
@@ -455,10 +465,6 @@ public class GatewayController extends Service {
             broadcastUpdate("Initialize database...");
             broadcastUpdate("\n");
             iGatewayService.initializeDatabase();
-            //iGatewayService.insertDatabaseManufacturer("0x0157", "Anhui Huami Information Technology");
-            iGatewayService.insertDatabaseManufacturer("0x0401", "Vemiter Lamp Service");
-            iGatewayService.insertDatabaseManufacturer("0x0001", "Nokia Mobile Phones");
-            //iGatewayService.insertDatabaseManufacturer("0xffff", "Testing Devices");
         } catch (RemoteException e) {
             e.printStackTrace();
         }
@@ -514,7 +520,19 @@ public class GatewayController extends Service {
                 results.put("ScanningTime2", nodeTimer3.getFirstChild().getNodeValue());
                 Node nodeTimer4 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
                 results.put("TimeUnit", nodeTimer4.getFirstChild().getNodeValue());
+                Node nodeTimer5 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
+                results.put("MapeTime", nodeTimer5.getFirstChild().getNodeValue());
+                Node nodeTimer6 = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling().getNextSibling();
+                results.put("MapePeriod", nodeTimer6.getFirstChild().getNodeValue());
                 break;
+            case "DataMape":
+                list = xmlFile.getElementsByTagName(type);
+                Node nodeDataMape = list.item(0);
+                nodeData = nodeDataMape.getFirstChild().getNextSibling();
+                Node nodeMapeAction = nodeData.getFirstChild().getNextSibling();
+                results.put("MapeAction", nodeMapeAction.getFirstChild().getNodeValue());
+                Node nodeDataUpload = nodeData.getFirstChild().getNextSibling().getNextSibling().getNextSibling();
+                results.put("DataUpload", nodeDataUpload.getFirstChild().getNodeValue());
         }
         return results;
     }

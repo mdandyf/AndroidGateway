@@ -68,7 +68,6 @@ public class GatewayCallback implements Handler.Callback {
                         if (!scanResults.contains(result.getDevice())) {
                             scanResults.add(result.getDevice());
                             mBinder.setScanResult(scanResults);
-                            mBinder.setScanResultNonVolatile(scanResults);
                             mBinder.insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
                         } else {
                             mBinder.updateDatabaseDevice(result.getDevice(), result.getRssi(), result.getScanRecord().getBytes());
@@ -81,7 +80,6 @@ public class GatewayCallback implements Handler.Callback {
                             if (!scanResults.contains(result.getDevice())) {
                                 scanResults.add(result.getDevice());
                                 mBinder.setScanResult(scanResults);
-                                mBinder.setScanResultNonVolatile(scanResults);
                                 mBinder.insertDatabaseDevice(result.getDevice(), result.getRssi(), "active");
                             } else {
                                 mBinder.updateDatabaseDevice(result.getDevice(), result.getRssi(), result.getScanRecord().getBytes());
@@ -95,7 +93,6 @@ public class GatewayCallback implements Handler.Callback {
                         if (!scanResults.contains(device)) {
                             scanResults.add(device);
                             mBinder.setScanResult(scanResults);
-                            mBinder.setScanResultNonVolatile(scanResults);
                             GattDataJson data = (GattDataJson) entry.getValue();
                             int deviceRssi = 0;
                             try { deviceRssi = (Integer) data.getJsonAdvertising().get("rssi"); } catch (JSONException e) { e.printStackTrace(); }
@@ -112,7 +109,6 @@ public class GatewayCallback implements Handler.Callback {
                     if (!scanResults.contains(device)) {
                         scanResults.add(device);
                         mBinder.setScanResult(scanResults);
-                        mBinder.setScanResultNonVolatile(scanResults);
                     }
                 } else if (msg.arg1 == 10) {
                     final Map<BluetoothDevice, byte[]> mapScanRecord = ((Map<BluetoothDevice, byte[]>) msg.obj);
@@ -216,6 +212,7 @@ public class GatewayCallback implements Handler.Callback {
                 mBinder.broadcastUpdate("UUID: " + characteristic.getUuid().toString());
                 mBinder.broadcastUpdate("Property: " + properties);
                 mBinder.broadcastUpdate("Value: " + characteristicValue);
+                mBinder.broadcastUpdate("Thread: " + Thread.currentThread().getId());
                 try {
                     databaseService = mBinder.updateDatabaseService(gatt.getDevice().getAddress(), characteristic.getService().getUuid().toString());
                     databaseCharacteristic = mBinder.updateDatabaseCharacteristics(gatt.getDevice().getAddress(), characteristic.getService().getUuid().toString(), characteristic.getUuid().toString(), properties, characteristicValue);

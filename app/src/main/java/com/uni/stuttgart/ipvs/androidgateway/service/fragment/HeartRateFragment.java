@@ -1,9 +1,11 @@
 package com.uni.stuttgart.ipvs.androidgateway.service.fragment;
 
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
@@ -22,6 +24,8 @@ import com.uni.stuttgart.ipvs.androidgateway.gateway.GatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.gateway.IGatewayService;
 import com.uni.stuttgart.ipvs.androidgateway.helper.GattDataLookUp;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 
@@ -41,8 +45,6 @@ public class HeartRateFragment extends Fragment {
     private Bundle bundle;
 
     private GattDataLookUp gattData = new GattDataLookUp();
-
-    private Handler mHandler = new Handler();
 
     //Service Atts
     private IGatewayService myService;
@@ -65,7 +67,6 @@ public class HeartRateFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 getActivity().onBackPressed();
-                mHandler.removeCallbacks(updateData);
             }
         });
 
@@ -90,14 +91,14 @@ public class HeartRateFragment extends Fragment {
 
 
         //View Initial Data
-        if(bundle != null) {
+        if (bundle != null) {
             serviceText.setText(bundle.getString("service"));
             locationCharacteristicText.setText(bundle.getString("sensorLocationCharacteristic"));
             locationValueText.setText(bundle.getString("sensorLocation"));
 
             Toast.makeText(getContext(), bundle.getString("heartRate"), Toast.LENGTH_SHORT).show();
 
-            if(bundle.getString("heartRate") != null) {
+            if (bundle.getString("heartRate") != null) {
                 heartCharacteristicText.setText(bundle.getString("heartRateCharacteristic"));
                 heartValueText.setText(bundle.getString("heartRate"));
             }
@@ -110,7 +111,8 @@ public class HeartRateFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mHandler.removeCallbacks(updateData);
+        if(isBound) { getActivity().unregisterReceiver(mReceiver); }
+        if (isBound) { getActivity().unbindService(mConnection); }
     }
 
     //Service Connection
@@ -119,10 +121,8 @@ public class HeartRateFragment extends Fragment {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             myService = IGatewayService.Stub.asInterface(service);
-
-            if(myService != null){
-                updateData.run();
-            }
+            isBound = true;
+            getActivity().registerReceiver(mReceiver, new IntentFilter(GatewayService.FINISH_READ));
 
         }
 
@@ -130,12 +130,13 @@ public class HeartRateFragment extends Fragment {
         public void onServiceDisconnected(ComponentName componentName) {
             isBound = false;
             myService = null;
+            getActivity().unregisterReceiver(mReceiver);
             Toast.makeText(getContext(), "Gateway Service Disconnected", Toast.LENGTH_SHORT).show();
         }
     };
 
 
-    private Runnable updateData = new Runnable() {
+    /*private Runnable updateData = new Runnable() {
         @Override
         public void run() {
 
@@ -167,8 +168,65 @@ public class HeartRateFragment extends Fragment {
 
             }
             Toast.makeText(getContext(), "Value Updated", Toast.LENGTH_SHORT).show();
-            mHandler.postDelayed(this, 1000);
+            mHandler.postDelayed(this, 10000);
             }
+    };*/
+
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+
+        @Override
+        public void onReceive(Context context, final Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(GatewayService.FINISH_READ)) {
+
+                final String macAddress = intent.getStringExtra("command");
+
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        //Update Sensor Location Value
+                        String sensorLocationValueLong = null;
+                        try {
+                            sensorLocationValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, locationCharacteristicUUIDLong);
+                            if (sensorLocationValueLong != null) {
+                                String sensorLocationValue = sensorLocationValueLong.substring(3, 5);
+                                String sensorLocationName = gattData.bodySensorLocationLookup(sensorLocationValue);
+                                locationValueText.setText(sensorLocationName);
+                            } else {
+                                locationValueText.setText("N/A");
+                            }
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+
+                        //Update Heart Rate Value
+                        if (bundle.getString("heartRate") != null) {
+                            String heartRateValueLong = null;
+                            try {
+                                heartRateValueLong = myService.getCharacteristicValue(deviceMac, serviceUUIDLong, heartRateCharacteristicUUIDLong);
+                                if(heartRateValueLong != null) {
+                                    String heartRateValue = heartRateValueLong.substring(6, 8);
+                                    int heartRateBpm = Integer.parseInt(heartRateValue, 16);
+                                    heartValueText.setText(heartRateBpm + "");
+                                } else {
+                                    heartValueText.setText("N/A");
+                                }
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                    }
+                });
+
+            }
+        }
     };
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+    }
 }
